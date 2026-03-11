@@ -7,6 +7,19 @@ datasource db {
   provider = "postgresql"
 }
 
+enum DebtType {
+  CREDIT_CARD
+  STUDENT_LOAN
+  PERSONAL_LOAN
+  OTHER
+}
+
+enum SavingsPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model Category {
   id        String   @id @default(cuid())
   name      String   @unique
@@ -45,4 +58,61 @@ model Budget {
 
   @@unique([categoryId, month])
   @@map("budgets")
+}
+
+model Debt {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(100)
+  debtType         DebtType  @map("debt_type")
+  originalBalance  Decimal   @map("original_balance")
+  interestRate     Decimal   @map("interest_rate")
+  minimumPayment   Decimal?  @map("minimum_payment")
+  startDate        DateTime? @map("start_date")
+  targetPayoffDate DateTime? @map("target_payoff_date")
+  isActive         Boolean   @default(true) @map("is_active")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  debtPayments DebtPayment[]
+
+  @@map("debts")
+}
+
+model DebtPayment {
+  id          Int      @id @default(autoincrement())
+  debtId      Int      @map("debt_id")
+  amount      Decimal
+  paymentDate DateTime @map("payment_date")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  debt Debt @relation(fields: [debtId], references: [id])
+
+  @@map("debt_payments")
+}
+
+model SavingsGoal {
+  id           Int              @id @default(autoincrement())
+  name         String           @db.VarChar(100)
+  targetAmount Decimal          @map("target_amount")
+  targetDate   DateTime?        @map("target_date")
+  priority     SavingsPriority?
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  savingsContributions SavingsContribution[]
+
+  @@map("savings_goals")
+}
+
+model SavingsContribution {
+  id               Int      @id @default(autoincrement())
+  goalId           Int      @map("goal_id")
+  amount           Decimal
+  contributionDate DateTime @map("contribution_date")
+  note             String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  goal SavingsGoal @relation(fields: [goalId], references: [id])
+
+  @@map("savings_contributions")
 }
