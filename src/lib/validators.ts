@@ -186,6 +186,28 @@ export const housingExpenseCreateSchema = z.object({
   frequency: paymentFrequencySchema,
 });
 
+export const housingExpenseListQuerySchema = z.object({
+  month: budgetMonthSchema.optional(),
+});
+
+export const housingExpenseUpsertSchema = z.object({
+  expenseType: housingExpenseTypeSchema,
+  month: budgetMonthSchema,
+  amount: z.coerce.number().positive(),
+  frequency: paymentFrequencySchema,
+});
+
+export const housingExpenseRouteUpdateSchema = z
+  .object({
+    expenseType: housingExpenseTypeSchema.optional(),
+    month: budgetMonthSchema.optional(),
+    amount: z.coerce.number().positive().optional(),
+    frequency: paymentFrequencySchema.optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
 export const housingExpenseUpdateSchema = z
   .object({
     expenseType: housingExpenseTypeSchema.optional(),
@@ -383,6 +405,9 @@ export type DebtPaymentCreateInput = z.infer<typeof debtPaymentCreateSchema>;
 export type SavingsGoalCreateInput = z.infer<typeof savingsGoalCreateSchema>;
 export type SavingsGoalUpdateInput = z.infer<typeof savingsGoalUpdateSchema>;
 export type SavingsContributionCreateInput = z.infer<typeof savingsContributionCreateSchema>;
+export type HousingExpenseListQuery = z.infer<typeof housingExpenseListQuerySchema>;
+export type HousingExpenseUpsertInput = z.infer<typeof housingExpenseUpsertSchema>;
+export type HousingExpenseRouteUpdateInput = z.infer<typeof housingExpenseRouteUpdateSchema>;
 export type HousingExpenseCreateInput = z.infer<typeof housingExpenseCreateSchema>;
 export type HousingExpenseUpdateInput = z.infer<typeof housingExpenseUpdateSchema>;
 export type SubscriptionCreateInput = z.infer<typeof subscriptionCreateSchema>;

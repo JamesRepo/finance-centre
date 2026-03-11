@@ -10,6 +10,9 @@ import {
   holidayExpenseUpdateSchema,
   holidayUpdateSchema,
   housingExpenseCreateSchema,
+  housingExpenseListQuerySchema,
+  housingExpenseRouteUpdateSchema,
+  housingExpenseUpsertSchema,
   housingExpenseUpdateSchema,
   incomeDeductionCreateSchema,
   incomeDeductionUpdateSchema,
@@ -639,6 +642,98 @@ describe("[Unit] housingExpenseUpdateSchema", () => {
         expenseType: "MORTGAGE",
       }),
     ).toThrow();
+  });
+});
+
+describe("[Unit] housingExpenseListQuerySchema", () => {
+  it("should accept an empty query when no month filter is provided", () => {
+    const result = housingExpenseListQuerySchema.parse({});
+
+    expect(result).toEqual({});
+  });
+
+  it("should accept the query when month is in YYYY-MM format", () => {
+    const result = housingExpenseListQuerySchema.parse({
+      month: "2026-03",
+    });
+
+    expect(result).toEqual({
+      month: "2026-03",
+    });
+  });
+
+  it("should reject the query when month is not in YYYY-MM format", () => {
+    expect(() =>
+      housingExpenseListQuerySchema.parse({
+        month: "2026-3",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] housingExpenseUpsertSchema", () => {
+  it("should coerce a valid housing upsert payload when amount uses a string", () => {
+    const result = housingExpenseUpsertSchema.parse({
+      expenseType: "ENERGY",
+      month: "2026-03",
+      amount: "125.50",
+      frequency: "MONTHLY",
+    });
+
+    expect(result).toEqual({
+      expenseType: "ENERGY",
+      month: "2026-03",
+      amount: 125.5,
+      frequency: "MONTHLY",
+    });
+  });
+
+  it("should reject the payload when month is invalid", () => {
+    expect(() =>
+      housingExpenseUpsertSchema.parse({
+        expenseType: "ENERGY",
+        month: "2026-13",
+        amount: 125.5,
+        frequency: "MONTHLY",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+
+  it("should reject the payload when frequency is not allowed", () => {
+    expect(() =>
+      housingExpenseUpsertSchema.parse({
+        expenseType: "ENERGY",
+        month: "2026-03",
+        amount: 125.5,
+        frequency: "WEEKLY",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] housingExpenseRouteUpdateSchema", () => {
+  it("should accept a partial payload when month is provided in YYYY-MM format", () => {
+    const result = housingExpenseRouteUpdateSchema.parse({
+      month: "2026-04",
+    });
+
+    expect(result).toEqual({
+      month: "2026-04",
+    });
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => housingExpenseRouteUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when month is not in YYYY-MM format", () => {
+    expect(() =>
+      housingExpenseRouteUpdateSchema.parse({
+        month: "2026-4",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
   });
 });
 
