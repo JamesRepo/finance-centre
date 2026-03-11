@@ -371,6 +371,16 @@ export const holidayUpdateSchema = z
     description: nullableOptionalTrimmedString,
     isActive: z.boolean().optional(),
   })
+  .refine(
+    (value) =>
+      value.startDate === undefined ||
+      value.endDate === undefined ||
+      value.endDate >= value.startDate,
+    {
+      message: "End date must be on or after start date",
+      path: ["endDate"],
+    },
+  )
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     message: "At least one field is required",
   });

@@ -1394,6 +1394,15 @@ describe("[Unit] holidayUpdateSchema", () => {
       }),
     ).toThrow("At least one field is required");
   });
+
+  it("should reject the payload when endDate is before startDate", () => {
+    expect(() =>
+      holidayUpdateSchema.parse({
+        startDate: "2026-07-22T00:00:00.000Z",
+        endDate: "2026-07-15T00:00:00.000Z",
+      }),
+    ).toThrow("End date must be on or after start date");
+  });
 });
 
 // ====== Holiday Expense ======
