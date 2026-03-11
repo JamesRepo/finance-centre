@@ -31,6 +31,23 @@ type BudgetEntry = {
   category: BudgetCategory;
 };
 
+type DebtEntry = {
+  id: number;
+  name: string;
+  originalBalance: string;
+  isActive: boolean;
+  currentBalance: string;
+  principalPaid: string;
+};
+
+type SavingsEntry = {
+  id: number;
+  name: string;
+  targetAmount: string;
+  currentAmount: string;
+  progress: string;
+};
+
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -107,6 +124,12 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [debts, setDebts] = useState<DebtEntry[]>([]);
+  const [debtsLoading, setDebtsLoading] = useState(true);
+
+  const [savings, setSavings] = useState<SavingsEntry[]>([]);
+  const [savingsLoading, setSavingsLoading] = useState(true);
+
   useEffect(() => {
     async function loadBudgets() {
       setLoading(true);
@@ -135,6 +158,42 @@ export default function Home() {
     void loadBudgets();
   }, [selectedMonth]);
 
+  useEffect(() => {
+    async function loadDebts() {
+      try {
+        const response = await fetch("/api/debts", { cache: "no-store" });
+        if (response.ok) {
+          const data = (await response.json()) as DebtEntry[];
+          setDebts(data.filter((d) => d.isActive));
+        }
+      } catch {
+        // Silently fail — debts are secondary info
+      } finally {
+        setDebtsLoading(false);
+      }
+    }
+
+    void loadDebts();
+  }, []);
+
+  useEffect(() => {
+    async function loadSavings() {
+      try {
+        const response = await fetch("/api/savings", { cache: "no-store" });
+        if (response.ok) {
+          const data = (await response.json()) as SavingsEntry[];
+          setSavings(data);
+        }
+      } catch {
+        // Silently fail — savings are secondary info
+      } finally {
+        setSavingsLoading(false);
+      }
+    }
+
+    void loadSavings();
+  }, []);
+
   const chartData = useMemo(() => buildBudgetChartEntries(entries), [entries]);
 
   const summary = useMemo(() => {
@@ -150,6 +209,16 @@ export default function Home() {
       remaining: totalBudgeted - totalSpent,
     };
   }, [chartData]);
+
+  const totalDebtRemaining = useMemo(
+    () => debts.reduce((sum, d) => sum + Number(d.currentBalance), 0),
+    [debts],
+  );
+
+  const totalSaved = useMemo(
+    () => savings.reduce((sum, s) => sum + Number(s.currentAmount), 0),
+    [savings],
+  );
 
   const chartHeight = Math.max(chartData.length * 56, 240);
 
@@ -333,6 +402,124 @@ export default function Home() {
             </p>
           </article>
         </section>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="rounded-[2rem] border border-stone-200 bg-white px-6 py-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-stone-950">Debt Payoff</h2>
+              <Link
+                href="/debts"
+                className="text-sm font-medium text-stone-500 transition hover:text-stone-950"
+              >
+                View all
+              </Link>
+            </div>
+
+            {debtsLoading ? (
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-6 text-sm text-stone-500">
+                Loading debts...
+              </div>
+            ) : debts.length === 0 ? (
+              <p className="mt-4 text-sm text-stone-500">No active debts.</p>
+            ) : (
+              <>
+                <div className="mt-4 flex flex-col gap-4">
+                  {debts.map((debt) => {
+                    const original = Number(debt.originalBalance);
+                    const paid = Number(debt.principalPaid);
+                    const pctPaid = original > 0 ? Math.min((paid / original) * 100, 100) : 0;
+
+                    return (
+                      <div key={debt.id}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-sm font-medium text-stone-950">{debt.name}</p>
+                          <p className="text-sm tabular-nums text-stone-500">
+                            {currencyFormatter.format(Number(debt.currentBalance))} left
+                          </p>
+                        </div>
+                        <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-stone-200">
+                          <div
+                            className="h-full rounded-full bg-emerald-500"
+                            style={{ width: `${pctPaid}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-stone-400">
+                          {pctPaid.toFixed(0)}% paid off
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 border-t border-stone-100 pt-3">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm font-medium text-stone-500">Total remaining</p>
+                    <p className="text-lg font-semibold tabular-nums text-stone-950">
+                      {currencyFormatter.format(totalDebtRemaining)}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+
+          <section className="rounded-[2rem] border border-stone-200 bg-white px-6 py-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-stone-950">Savings Goals</h2>
+              <Link
+                href="/savings"
+                className="text-sm font-medium text-stone-500 transition hover:text-stone-950"
+              >
+                View all
+              </Link>
+            </div>
+
+            {savingsLoading ? (
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-6 text-sm text-stone-500">
+                Loading savings...
+              </div>
+            ) : savings.length === 0 ? (
+              <p className="mt-4 text-sm text-stone-500">No savings goals yet.</p>
+            ) : (
+              <>
+                <div className="mt-4 flex flex-col gap-4">
+                  {savings.map((goal) => {
+                    const progressPct = Math.min(Number(goal.progress), 100);
+
+                    return (
+                      <div key={goal.id}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-sm font-medium text-stone-950">{goal.name}</p>
+                          <p className="text-sm tabular-nums text-stone-500">
+                            {currencyFormatter.format(Number(goal.currentAmount))} / {currencyFormatter.format(Number(goal.targetAmount))}
+                          </p>
+                        </div>
+                        <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-stone-200">
+                          <div
+                            className="h-full rounded-full bg-emerald-500"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-stone-400">
+                          {progressPct.toFixed(0)}%
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 border-t border-stone-100 pt-3">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm font-medium text-stone-500">Total saved</p>
+                    <p className="text-lg font-semibold tabular-nums text-green-600">
+                      {currencyFormatter.format(totalSaved)}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );
