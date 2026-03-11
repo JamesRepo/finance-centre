@@ -27,11 +27,12 @@ describe("[Component] NavBar", () => {
     mockPathname = "/";
   });
 
-  it("should render all six navigation links", () => {
+  it("should render all seven navigation links", () => {
     render(<NavBar />);
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/transactions");
+    expect(screen.getByRole("link", { name: "Income" })).toHaveAttribute("href", "/income");
     expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
     expect(screen.getByRole("link", { name: "Fixed Costs" })).toHaveAttribute("href", "/fixed-costs");
     expect(screen.getByRole("link", { name: "Debts" })).toHaveAttribute("href", "/debts");
@@ -58,6 +59,14 @@ describe("[Component] NavBar", () => {
 
     const transactionsLink = screen.getByRole("link", { name: "Transactions" });
     expect(transactionsLink.className).toContain("border-stone-950");
+  });
+
+  it("should highlight the Income link when on /income", () => {
+    mockPathname = "/income";
+    render(<NavBar />);
+
+    const incomeLink = screen.getByRole("link", { name: "Income" });
+    expect(incomeLink.className).toContain("border-stone-950");
   });
 
   it("should highlight the Debts link when on a sub-path like /debts/123", () => {
