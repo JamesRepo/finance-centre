@@ -117,3 +117,101 @@ model SavingsContribution {
 
   @@map("savings_contributions")
 }
+
+model HousingExpense {
+  id           Int      @id @default(autoincrement())
+  expenseType  String   @map("expense_type")
+  amount       Decimal
+  expenseMonth DateTime @map("expense_month")
+  frequency    String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([expenseType, expenseMonth])
+  @@map("housing_expenses")
+}
+
+model Subscription {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(200)
+  amount          Decimal
+  frequency       String
+  nextPaymentDate DateTime @map("next_payment_date")
+  description     String?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("subscriptions")
+}
+
+model IncomeSource {
+  id                   Int      @id @default(autoincrement())
+  incomeType           String   @map("income_type")
+  description          String?
+  grossAmount          Decimal  @map("gross_amount")
+  netAmount            Decimal  @map("net_amount")
+  incomeDate           DateTime @map("income_date")
+  isRecurring          Boolean  @default(false) @map("is_recurring")
+  recurrenceFrequency  String?  @map("recurrence_frequency")
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  incomeDeductions IncomeDeduction[]
+
+  @@map("income_sources")
+}
+
+model IncomeDeduction {
+  id              Int      @id @default(autoincrement())
+  incomeSourceId  Int      @map("income_source_id")
+  deductionType   String   @map("deduction_type")
+  name            String   @db.VarChar(255)
+  amount          Decimal
+  isPercentage    Boolean  @default(false) @map("is_percentage")
+  percentageValue Decimal? @map("percentage_value")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  incomeSource IncomeSource @relation(fields: [incomeSourceId], references: [id], onDelete: Cascade)
+
+  @@map("income_deductions")
+}
+
+model Holiday {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(200)
+  destination String   @db.VarChar(200)
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  holidayExpenses HolidayExpense[]
+
+  @@map("holidays")
+}
+
+model HolidayExpense {
+  id          Int      @id @default(autoincrement())
+  holidayId   Int      @map("holiday_id")
+  expenseType String   @map("expense_type")
+  description String   @db.VarChar(500)
+  amount      Decimal
+  expenseDate DateTime @map("expense_date")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  holiday Holiday @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+
+  @@map("holiday_expenses")
+}
+
+model Settings {
+  id                 Int      @id @default(autoincrement())
+  currency           String   @default("GBP")
+  locale             String   @default("en-GB")
+  monthlyBudgetTotal Decimal? @map("monthly_budget_total")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
