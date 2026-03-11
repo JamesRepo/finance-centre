@@ -31,7 +31,8 @@ const transactionFormSchema = z.object({
   vendor: z.string().trim().optional(),
 });
 
-type TransactionFormValues = z.infer<typeof transactionFormSchema>;
+type TransactionFormValues = z.input<typeof transactionFormSchema>;
+type TransactionFormSubmitValues = z.output<typeof transactionFormSchema>;
 
 type Category = {
   id: string;
@@ -65,7 +66,7 @@ export default function TransactionsPage() {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<TransactionFormValues>({
+  } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
       categoryId: "",
@@ -138,7 +139,7 @@ export default function TransactionsPage() {
     return format(new Date(year, month - 1, 1), "MMMM yyyy");
   }, [selectedMonth]);
 
-  async function onSubmit(values: TransactionFormValues) {
+  async function onSubmit(values: TransactionFormSubmitValues) {
     setSubmitError(null);
 
     const result = await createTransactionRequest({
