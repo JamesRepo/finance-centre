@@ -79,12 +79,13 @@ model Debt {
 }
 
 model DebtPayment {
-  id          Int      @id @default(autoincrement())
-  debtId      Int      @map("debt_id")
-  amount      Decimal
-  paymentDate DateTime @map("payment_date")
-  note        String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id             Int      @id @default(autoincrement())
+  debtId         Int      @map("debt_id")
+  amount         Decimal
+  interestAmount Decimal  @default(0) @map("interest_amount")
+  paymentDate    DateTime @map("payment_date")
+  note           String?
+  createdAt      DateTime @default(now()) @map("created_at")
 
   debt Debt @relation(fields: [debtId], references: [id], onDelete: Cascade)
 

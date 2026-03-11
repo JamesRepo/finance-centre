@@ -37,6 +37,16 @@ const savingsCascadeMigrationSource = readFileSync(
   "utf-8",
 );
 
+const interestAmountMigrationSource = readFileSync(
+  path.join(
+    __dirname,
+    "migrations",
+    "20260311214556_add_debt_payment_interest_amount",
+    "migration.sql",
+  ),
+  "utf-8",
+);
+
 function getEnumBlock(source: string, enumName: string) {
   const match = source.match(
     new RegExp(`enum\\s+${enumName}\\s+\\{([\\s\\S]*?)\\n\\}`),
@@ -111,12 +121,15 @@ describe("[Unit] DebtPayment Prisma model", () => {
   it("should declare the debt foreign key, relation, and mapped columns when the model is declared", () => {
     const debtPaymentBlock = getModelBlock(schemaSource, "DebtPayment");
 
-    expect(debtPaymentBlock).toContain('debtId      Int      @map("debt_id")');
-    expect(debtPaymentBlock).toContain('amount      Decimal');
-    expect(debtPaymentBlock).toContain('paymentDate DateTime @map("payment_date")');
-    expect(debtPaymentBlock).toContain('note        String?');
+    expect(debtPaymentBlock).toContain('debtId         Int      @map("debt_id")');
+    expect(debtPaymentBlock).toContain('amount         Decimal');
     expect(debtPaymentBlock).toContain(
-      'createdAt   DateTime @default(now()) @map("created_at")',
+      'interestAmount Decimal  @default(0) @map("interest_amount")',
+    );
+    expect(debtPaymentBlock).toContain('paymentDate    DateTime @map("payment_date")');
+    expect(debtPaymentBlock).toContain('note           String?');
+    expect(debtPaymentBlock).toContain(
+      'createdAt      DateTime @default(now()) @map("created_at")',
     );
     expect(debtPaymentBlock).toContain(
       "debt Debt @relation(fields: [debtId], references: [id], onDelete: Cascade)",
@@ -214,6 +227,14 @@ describe("[Unit] debt_delete_cascade migration", () => {
     );
     expect(cascadeMigrationSource).toContain(
       'ALTER TABLE "debt_payments" ADD CONSTRAINT "debt_payments_debt_id_fkey" FOREIGN KEY ("debt_id") REFERENCES "debts"("id") ON DELETE CASCADE ON UPDATE CASCADE;',
+    );
+  });
+});
+
+describe("[Unit] add_debt_payment_interest_amount migration", () => {
+  it("should add a defaulted interest amount column to debt payments when the migration is applied", () => {
+    expect(interestAmountMigrationSource).toContain(
+      'ALTER TABLE "debt_payments" ADD COLUMN     "interest_amount" DECIMAL(65,30) NOT NULL DEFAULT 0;',
     );
   });
 });

@@ -41,6 +41,7 @@ describe("[Unit] debt item route GET", () => {
           id: 12,
           debtId: 1,
           amount: new Prisma.Decimal("125.50"),
+          interestAmount: new Prisma.Decimal("25.50"),
           paymentDate: new Date("2026-03-10T00:00:00.000Z"),
           note: "March",
           createdAt: new Date("2026-03-10T00:00:00.000Z"),
@@ -66,7 +67,10 @@ describe("[Unit] debt item route GET", () => {
     });
     expect(body).toMatchObject({
       id: 1,
-      currentBalance: "874.5",
+      totalPaid: "125.5",
+      totalInterestPaid: "25.5",
+      principalPaid: "100",
+      currentBalance: "900",
     });
   });
 
@@ -122,6 +126,7 @@ describe("[Unit] debt item route PUT", () => {
           id: 12,
           debtId: 1,
           amount: new Prisma.Decimal("200"),
+          interestAmount: new Prisma.Decimal("20"),
           paymentDate: new Date("2026-03-10T00:00:00.000Z"),
           note: null,
           createdAt: new Date("2026-03-10T00:00:00.000Z"),
@@ -168,7 +173,10 @@ describe("[Unit] debt item route PUT", () => {
     });
     expect(await response.json()).toMatchObject({
       id: 1,
-      currentBalance: "1000",
+      totalPaid: "200",
+      totalInterestPaid: "20",
+      principalPaid: "180",
+      currentBalance: "1020",
     });
   });
 

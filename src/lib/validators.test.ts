@@ -331,14 +331,28 @@ describe("[Unit] debtPaymentCreateSchema", () => {
   it("should coerce and trim a valid payment payload when the request uses strings", () => {
     const result = debtPaymentCreateSchema.parse({
       amount: "125.50",
+      interestAmount: "25.50",
       paymentDate: "2026-03-11T00:00:00.000Z",
       note: " March payment ",
     });
 
     expect(result).toEqual({
       amount: 125.5,
+      interestAmount: 25.5,
       paymentDate: new Date("2026-03-11T00:00:00.000Z"),
       note: "March payment",
+    });
+  });
+
+  it("should default interestAmount to zero when it is omitted", () => {
+    const result = debtPaymentCreateSchema.parse({
+      amount: 125.5,
+      paymentDate: "2026-03-11T00:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      amount: 125.5,
+      interestAmount: 0,
     });
   });
 
@@ -357,6 +371,16 @@ describe("[Unit] debtPaymentCreateSchema", () => {
         amount: 25,
       }),
     ).toThrow();
+  });
+
+  it("should reject the payload when interestAmount exceeds amount", () => {
+    expect(() =>
+      debtPaymentCreateSchema.parse({
+        amount: 25,
+        interestAmount: 30,
+        paymentDate: "2026-03-11T00:00:00.000Z",
+      }),
+    ).toThrow("Interest amount cannot exceed the payment amount");
   });
 });
 

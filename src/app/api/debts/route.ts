@@ -8,19 +8,31 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function calculateDebtSummary<T extends { originalBalance: Prisma.Decimal; debtPayments: Array<{ amount: Prisma.Decimal }> }>(
+function calculateDebtSummary<
+  T extends {
+    originalBalance: Prisma.Decimal;
+    debtPayments: Array<{ amount: Prisma.Decimal; interestAmount: Prisma.Decimal }>;
+  },
+>(
   debt: T,
 ) {
   const totalPaid = debt.debtPayments.reduce(
     (sum, payment) => sum.plus(payment.amount),
     new Prisma.Decimal(0),
   );
+  const totalInterestPaid = debt.debtPayments.reduce(
+    (sum, payment) => sum.plus(payment.interestAmount),
+    new Prisma.Decimal(0),
+  );
+  const principalPaid = totalPaid.minus(totalInterestPaid);
 
   return {
     ...debt,
     totalPaid,
+    totalInterestPaid,
+    principalPaid,
     paymentCount: debt.debtPayments.length,
-    currentBalance: debt.originalBalance.minus(totalPaid),
+    currentBalance: debt.originalBalance.minus(principalPaid),
   };
 }
 

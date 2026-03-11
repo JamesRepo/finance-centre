@@ -132,8 +132,12 @@ export const debtUpdateSchema = z
 
 export const debtPaymentCreateSchema = z.object({
   amount: z.coerce.number().positive(),
+  interestAmount: optionalNonnegativeNumber.transform((value) => value ?? 0),
   paymentDate: z.coerce.date(),
   note: optionalTrimmedString,
+}).refine((value) => value.interestAmount <= value.amount, {
+  message: "Interest amount cannot exceed the payment amount",
+  path: ["interestAmount"],
 });
 
 export const savingsGoalCreateSchema = z.object({

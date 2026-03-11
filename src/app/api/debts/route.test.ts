@@ -41,6 +41,7 @@ describe("[Unit] debts collection route GET", () => {
             id: 11,
             debtId: 1,
             amount: new Prisma.Decimal("100.25"),
+            interestAmount: new Prisma.Decimal("10.25"),
             paymentDate: new Date("2026-03-05T00:00:00.000Z"),
             note: null,
             createdAt: new Date("2026-03-05T00:00:00.000Z"),
@@ -49,6 +50,7 @@ describe("[Unit] debts collection route GET", () => {
             id: 12,
             debtId: 1,
             amount: new Prisma.Decimal("99.75"),
+            interestAmount: new Prisma.Decimal("9.75"),
             paymentDate: new Date("2026-02-05T00:00:00.000Z"),
             note: null,
             createdAt: new Date("2026-02-05T00:00:00.000Z"),
@@ -72,8 +74,10 @@ describe("[Unit] debts collection route GET", () => {
         id: 1,
         name: "Visa",
         totalPaid: "200",
+        totalInterestPaid: "20",
+        principalPaid: "180",
         paymentCount: 2,
-        currentBalance: "800",
+        currentBalance: "820",
       }),
     ]);
   });
@@ -141,6 +145,8 @@ describe("[Unit] debts collection route POST", () => {
       id: 1,
       name: "Visa Card",
       totalPaid: "0",
+      totalInterestPaid: "0",
+      principalPaid: "0",
       paymentCount: 0,
       currentBalance: "2500.75",
     });

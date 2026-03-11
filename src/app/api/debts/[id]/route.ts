@@ -18,17 +18,30 @@ function parseDebtId(id: string) {
   return debtId;
 }
 
-function attachCurrentBalance<T extends { originalBalance: Prisma.Decimal; debtPayments: Array<{ amount: Prisma.Decimal }> }>(
+function attachCurrentBalance<
+  T extends {
+    originalBalance: Prisma.Decimal;
+    debtPayments: Array<{ amount: Prisma.Decimal; interestAmount: Prisma.Decimal }>;
+  },
+>(
   debt: T,
 ) {
   const totalPaid = debt.debtPayments.reduce(
     (sum, payment) => sum.plus(payment.amount),
     new Prisma.Decimal(0),
   );
+  const totalInterestPaid = debt.debtPayments.reduce(
+    (sum, payment) => sum.plus(payment.interestAmount),
+    new Prisma.Decimal(0),
+  );
+  const principalPaid = totalPaid.minus(totalInterestPaid);
 
   return {
     ...debt,
-    currentBalance: debt.originalBalance.minus(totalPaid),
+    totalPaid,
+    totalInterestPaid,
+    principalPaid,
+    currentBalance: debt.originalBalance.minus(principalPaid),
   };
 }
 

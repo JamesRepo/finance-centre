@@ -33,6 +33,7 @@ describe("[Unit] debt payments route GET", () => {
         id: 2,
         debtId: 1,
         amount: "50",
+        interestAmount: "5",
         paymentDate: "2026-03-10T00:00:00.000Z",
       },
     ]);
@@ -53,6 +54,7 @@ describe("[Unit] debt payments route GET", () => {
         id: 2,
         debtId: 1,
         amount: "50",
+        interestAmount: "5",
         paymentDate: "2026-03-10T00:00:00.000Z",
       },
     ]);
@@ -98,6 +100,7 @@ describe("[Unit] debt payments route POST", () => {
       id: 4,
       debtId: 1,
       amount: "125.5",
+      interestAmount: "25.5",
       paymentDate: "2026-03-11T00:00:00.000Z",
       note: "March payment",
     });
@@ -107,6 +110,7 @@ describe("[Unit] debt payments route POST", () => {
         method: "POST",
         body: JSON.stringify({
           amount: "125.5",
+          interestAmount: "25.5",
           paymentDate: "2026-03-11T00:00:00.000Z",
           note: " March payment ",
         }),
@@ -124,6 +128,7 @@ describe("[Unit] debt payments route POST", () => {
       data: {
         debtId: 1,
         amount: 125.5,
+        interestAmount: 25.5,
         paymentDate: new Date("2026-03-11T00:00:00.000Z"),
         note: "March payment",
       },
@@ -132,9 +137,35 @@ describe("[Unit] debt payments route POST", () => {
       id: 4,
       debtId: 1,
       amount: "125.5",
+      interestAmount: "25.5",
       paymentDate: "2026-03-11T00:00:00.000Z",
       note: "March payment",
     });
+  });
+
+  it("should return a 400 error when interestAmount exceeds amount", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/debts/1/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          amount: 10,
+          interestAmount: 11,
+          paymentDate: "2026-03-11T00:00:00.000Z",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+      {
+        params: Promise.resolve({ id: "1" }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Interest amount cannot exceed the payment amount",
+    });
+    expect(mockPrisma.debt.findUnique).not.toHaveBeenCalled();
   });
 
   it("should return a 400 error when the debt id is invalid", async () => {
