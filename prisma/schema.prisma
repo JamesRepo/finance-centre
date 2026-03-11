@@ -112,7 +112,7 @@ model SavingsContribution {
   note             String?
   createdAt        DateTime @default(now()) @map("created_at")
 
-  goal SavingsGoal @relation(fields: [goalId], references: [id])
+  goal SavingsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@map("savings_contributions")
 }

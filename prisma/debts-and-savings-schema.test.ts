@@ -27,6 +27,16 @@ const cascadeMigrationSource = readFileSync(
   "utf-8",
 );
 
+const savingsCascadeMigrationSource = readFileSync(
+  path.join(
+    __dirname,
+    "migrations",
+    "20260311212347_savings_goal_delete_cascade",
+    "migration.sql",
+  ),
+  "utf-8",
+);
+
 function getEnumBlock(source: string, enumName: string) {
   const match = source.match(
     new RegExp(`enum\\s+${enumName}\\s+\\{([\\s\\S]*?)\\n\\}`),
@@ -161,7 +171,7 @@ describe("[Unit] SavingsContribution Prisma model", () => {
       'createdAt        DateTime @default(now()) @map("created_at")',
     );
     expect(savingsContributionBlock).toContain(
-      "goal SavingsGoal @relation(fields: [goalId], references: [id])",
+      "goal SavingsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)",
     );
     expect(savingsContributionBlock).toContain(
       '@@map("savings_contributions")',
@@ -204,6 +214,17 @@ describe("[Unit] debt_delete_cascade migration", () => {
     );
     expect(cascadeMigrationSource).toContain(
       'ALTER TABLE "debt_payments" ADD CONSTRAINT "debt_payments_debt_id_fkey" FOREIGN KEY ("debt_id") REFERENCES "debts"("id") ON DELETE CASCADE ON UPDATE CASCADE;',
+    );
+  });
+});
+
+describe("[Unit] savings_goal_delete_cascade migration", () => {
+  it("should change savings contribution deletes to cascade when the follow-up migration is applied", () => {
+    expect(savingsCascadeMigrationSource).toContain(
+      'ALTER TABLE "savings_contributions" DROP CONSTRAINT "savings_contributions_goal_id_fkey";',
+    );
+    expect(savingsCascadeMigrationSource).toContain(
+      'ALTER TABLE "savings_contributions" ADD CONSTRAINT "savings_contributions_goal_id_fkey" FOREIGN KEY ("goal_id") REFERENCES "savings_goals"("id") ON DELETE CASCADE ON UPDATE CASCADE;',
     );
   });
 });
