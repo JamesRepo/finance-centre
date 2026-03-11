@@ -1,0 +1,432 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import {
+  createTransactionRequest,
+  formatTransactionDisplayDate,
+  readApiError,
+} from "./transaction-page-helpers";
+
+const today = new Date();
+const defaultDate = format(today, "yyyy-MM-dd");
+const defaultMonth = format(today, "yyyy-MM");
+
+const amountFormatter = new Intl.NumberFormat("en-GB", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const transactionFormSchema = z.object({
+  categoryId: z.string().trim().min(1, "Select a category"),
+  amount: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().positive("Amount must be positive"),
+  ),
+  transactionDate: z.string().min(1, "Enter a date"),
+  description: z.string().trim().optional(),
+  vendor: z.string().trim().optional(),
+});
+
+type TransactionFormValues = z.infer<typeof transactionFormSchema>;
+
+type Category = {
+  id: string;
+  name: string;
+  colorCode: string | null;
+};
+
+type Transaction = {
+  id: string;
+  categoryId: string;
+  amount: string;
+  transactionDate: string;
+  description: string | null;
+  vendor: string | null;
+  category: Category;
+};
+
+export default function TransactionsPage() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [transactionsError, setTransactionsError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<TransactionFormValues>({
+    resolver: zodResolver(transactionFormSchema),
+    defaultValues: {
+      categoryId: "",
+      amount: undefined,
+      transactionDate: defaultDate,
+      description: "",
+      vendor: "",
+    },
+  });
+
+  const loadCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError(null);
+
+    try {
+      const response = await fetch("/api/categories", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to load categories"));
+      }
+
+      const data = (await response.json()) as Category[];
+      setCategories(data);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load categories";
+      setCategoriesError(message);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  const loadTransactions = useCallback(async (month: string) => {
+    setTransactionsLoading(true);
+    setTransactionsError(null);
+
+    try {
+      const response = await fetch(`/api/transactions?month=${month}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to load transactions"));
+      }
+
+      const data = (await response.json()) as Transaction[];
+      setTransactions(data);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load transactions";
+      setTransactionsError(message);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    void loadTransactions(selectedMonth);
+  }, [loadTransactions, selectedMonth]);
+
+  const monthLabel = useMemo(() => {
+    const [year, month] = selectedMonth.split("-").map(Number);
+
+    return format(new Date(year, month - 1, 1), "MMMM yyyy");
+  }, [selectedMonth]);
+
+  async function onSubmit(values: TransactionFormValues) {
+    setSubmitError(null);
+
+    const result = await createTransactionRequest({
+      categoryId: values.categoryId,
+      amount: values.amount,
+      transactionDate: values.transactionDate,
+      description: values.description?.trim() || undefined,
+      vendor: values.vendor?.trim() || undefined,
+    });
+
+    if (!result.ok) {
+      setSubmitError(result.error);
+      return;
+    }
+
+    reset({
+      categoryId: "",
+      amount: undefined,
+      transactionDate: defaultDate,
+      description: "",
+      vendor: "",
+    });
+
+    const submittedMonth = result.submittedMonth;
+
+    if (submittedMonth !== selectedMonth) {
+      setSelectedMonth(submittedMonth);
+      return;
+    }
+
+    await loadTransactions(selectedMonth);
+  }
+
+  async function handleDelete(transactionId: string) {
+    setDeleteId(transactionId);
+    setTransactionsError(null);
+
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to delete transaction"));
+      }
+
+      await loadTransactions(selectedMonth);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete transaction";
+      setTransactionsError(message);
+    } finally {
+      setDeleteId(null);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <section className="rounded-3xl border border-stone-200 bg-white shadow-sm">
+          <div className="border-b border-stone-200 px-6 py-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Transactions
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">
+              Add a transaction
+            </h1>
+          </div>
+
+          <form
+            className="grid gap-4 px-6 py-6 md:grid-cols-2 xl:grid-cols-5"
+            onSubmit={handleSubmit(onSubmit)}
+          >
+            <label className="flex flex-col gap-2 xl:col-span-2">
+              <span className="text-sm font-medium text-stone-700">Category</span>
+              <select
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={categoriesLoading || isSubmitting}
+                {...register("categoryId")}
+              >
+                <option value="">
+                  {categoriesLoading ? "Loading categories..." : "Select a category"}
+                </option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              {errors.categoryId ? (
+                <p className="text-sm text-red-600">{errors.categoryId.message}</p>
+              ) : null}
+              {categoriesError ? (
+                <p className="text-sm text-red-600">{categoriesError}</p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Amount</span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                inputMode="decimal"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isSubmitting}
+                placeholder="0.00"
+                {...register("amount")}
+              />
+              {errors.amount ? (
+                <p className="text-sm text-red-600">{errors.amount.message}</p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Date</span>
+              <input
+                type="date"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isSubmitting}
+                {...register("transactionDate")}
+              />
+              {errors.transactionDate ? (
+                <p className="text-sm text-red-600">{errors.transactionDate.message}</p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Vendor</span>
+              <input
+                type="text"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isSubmitting}
+                placeholder="Optional"
+                {...register("vendor")}
+              />
+            </label>
+
+            <label className="flex flex-col gap-2 md:col-span-2 xl:col-span-4">
+              <span className="text-sm font-medium text-stone-700">Description</span>
+              <input
+                type="text"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isSubmitting}
+                placeholder="Optional"
+                {...register("description")}
+              />
+            </label>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="h-11 w-full rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                disabled={isSubmitting || categoriesLoading || categories.length === 0}
+              >
+                {isSubmitting ? "Saving..." : "Add transaction"}
+              </button>
+            </div>
+
+            {submitError ? (
+              <p className="text-sm text-red-600 md:col-span-2 xl:col-span-5">
+                {submitError}
+              </p>
+            ) : null}
+          </form>
+        </section>
+
+        <section className="rounded-3xl border border-stone-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-stone-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                Monthly view
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
+                {monthLabel}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-stone-700">Month</span>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      setSelectedMonth(event.target.value);
+                    }
+                  }}
+                  className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                />
+              </label>
+            </div>
+          </div>
+
+          {transactionsError ? (
+            <div className="px-6 pt-4">
+              <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {transactionsError}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="overflow-x-auto px-6 py-6">
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead>
+                <tr className="text-left text-sm text-stone-500">
+                  <th className="border-b border-stone-200 pb-3 pr-4 font-medium">Date</th>
+                  <th className="border-b border-stone-200 pb-3 pr-4 font-medium">
+                    Category
+                  </th>
+                  <th className="border-b border-stone-200 pb-3 pr-4 font-medium">
+                    Vendor
+                  </th>
+                  <th className="border-b border-stone-200 pb-3 pr-4 font-medium">
+                    Description
+                  </th>
+                  <th className="border-b border-stone-200 pb-3 pr-4 text-right font-medium">
+                    Amount
+                  </th>
+                  <th className="border-b border-stone-200 pb-3 text-right font-medium">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactionsLoading ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-10 text-center text-sm text-stone-500"
+                    >
+                      Loading transactions...
+                    </td>
+                  </tr>
+                ) : transactions.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-10 text-center text-sm text-stone-500"
+                    >
+                      No transactions found for this month.
+                    </td>
+                  </tr>
+                ) : (
+                  transactions.map((transaction) => (
+                    <tr key={transaction.id} className="text-sm text-stone-700">
+                      <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
+                        {formatTransactionDisplayDate(transaction.transactionDate)}
+                      </td>
+                      <td className="border-b border-stone-100 py-4 pr-4">
+                        <div className="flex items-center gap-3 whitespace-nowrap">
+                          <span
+                            className="h-3 w-3 rounded-full border border-black/5"
+                            style={{
+                              backgroundColor: transaction.category.colorCode ?? "#a8a29e",
+                            }}
+                          />
+                          <span>{transaction.category.name}</span>
+                        </div>
+                      </td>
+                      <td className="border-b border-stone-100 py-4 pr-4">
+                        {transaction.vendor || "—"}
+                      </td>
+                      <td className="border-b border-stone-100 py-4 pr-4">
+                        {transaction.description || "—"}
+                      </td>
+                      <td className="border-b border-stone-100 py-4 pr-4 text-right font-medium whitespace-nowrap text-stone-950">
+                        {amountFormatter.format(Number(transaction.amount))}
+                      </td>
+                      <td className="border-b border-stone-100 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(transaction.id)}
+                          disabled={deleteId === transaction.id}
+                          className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                        >
+                          {deleteId === transaction.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

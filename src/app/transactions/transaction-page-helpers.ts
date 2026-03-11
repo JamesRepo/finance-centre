@@ -1,0 +1,74 @@
+import { format, parseISO } from "date-fns";
+
+type ApiError = {
+  error?: string;
+};
+
+export type TransactionSubmissionInput = {
+  categoryId: string;
+  amount: number;
+  transactionDate: string;
+  description?: string;
+  vendor?: string;
+};
+
+export async function readApiError(
+  response: Response,
+  fallbackMessage: string,
+) {
+  try {
+    const body = (await response.json()) as ApiError;
+    return body.error ?? fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+}
+
+export async function createTransactionRequest(
+  values: TransactionSubmissionInput,
+  fetchImpl: typeof fetch = fetch,
+) {
+  try {
+    const response = await fetchImpl("/api/transactions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        categoryId: values.categoryId,
+        amount: values.amount,
+        transactionDate: `${values.transactionDate}T00:00:00.000Z`,
+        description: values.description,
+        vendor: values.vendor,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false as const,
+        error: await readApiError(response, "Failed to create transaction"),
+      };
+    }
+
+    return {
+      ok: true as const,
+      submittedMonth: values.transactionDate.slice(0, 7),
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Failed to create transaction",
+    };
+  }
+}
+
+export function formatTransactionDisplayDate(transactionDate: string) {
+  const datePart = transactionDate.slice(0, 10);
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const [year, month, day] = datePart.split("-").map(Number);
+    return format(new Date(year, month - 1, day), "dd MMM yyyy");
+  }
+
+  return format(parseISO(transactionDate), "dd MMM yyyy");
+}
