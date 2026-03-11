@@ -269,6 +269,10 @@ export const incomeSourceCreateSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export const incomeSourceListQuerySchema = z.object({
+  month: budgetMonthSchema.optional(),
+});
+
 export const incomeSourceUpdateSchema = z
   .object({
     incomeType: incomeTypeSchema.optional(),
@@ -314,6 +318,29 @@ export const incomeDeductionUpdateSchema = z
     isPercentage: z.boolean().optional(),
     percentageValue: nullableOptionalNonnegativeNumber,
     isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+export const incomeSourceCreateWithDeductionsSchema = incomeSourceCreateSchema.extend({
+  deductions: z.array(incomeDeductionCreateSchema).optional(),
+});
+
+export const incomeSourceUpdateWithDeductionsSchema = z
+  .object({
+    incomeType: incomeTypeSchema.optional(),
+    description: nullableOptionalTrimmedString,
+    grossAmount: z.coerce.number().positive().optional(),
+    netAmount: z.coerce.number().positive().optional(),
+    incomeDate: z.coerce.date().optional(),
+    isRecurring: z.boolean().optional(),
+    recurrenceFrequency: z.preprocess((value) => {
+      if (value === null) return null;
+      return emptyStringToUndefined(value);
+    }, recurrenceFrequencySchema.nullable().optional()),
+    isActive: z.boolean().optional(),
+    deductions: z.array(incomeDeductionCreateSchema).optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     message: "At least one field is required",
@@ -413,9 +440,12 @@ export type HousingExpenseUpdateInput = z.infer<typeof housingExpenseUpdateSchem
 export type SubscriptionCreateInput = z.infer<typeof subscriptionCreateSchema>;
 export type SubscriptionUpdateInput = z.infer<typeof subscriptionUpdateSchema>;
 export type IncomeSourceCreateInput = z.infer<typeof incomeSourceCreateSchema>;
+export type IncomeSourceListQuery = z.infer<typeof incomeSourceListQuerySchema>;
 export type IncomeSourceUpdateInput = z.infer<typeof incomeSourceUpdateSchema>;
 export type IncomeDeductionCreateInput = z.infer<typeof incomeDeductionCreateSchema>;
 export type IncomeDeductionUpdateInput = z.infer<typeof incomeDeductionUpdateSchema>;
+export type IncomeSourceCreateWithDeductionsInput = z.infer<typeof incomeSourceCreateWithDeductionsSchema>;
+export type IncomeSourceUpdateWithDeductionsInput = z.infer<typeof incomeSourceUpdateWithDeductionsSchema>;
 export type HolidayCreateInput = z.infer<typeof holidayCreateSchema>;
 export type HolidayUpdateInput = z.infer<typeof holidayUpdateSchema>;
 export type HolidayExpenseCreateInput = z.infer<typeof holidayExpenseCreateSchema>;

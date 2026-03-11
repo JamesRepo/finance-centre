@@ -16,7 +16,10 @@ import {
   housingExpenseUpdateSchema,
   incomeDeductionCreateSchema,
   incomeDeductionUpdateSchema,
+  incomeSourceCreateWithDeductionsSchema,
   incomeSourceCreateSchema,
+  incomeSourceListQuerySchema,
+  incomeSourceUpdateWithDeductionsSchema,
   incomeSourceUpdateSchema,
   savingsContributionCreateSchema,
   savingsGoalCreateSchema,
@@ -1039,6 +1042,116 @@ describe("[Unit] incomeSourceUpdateSchema", () => {
         recurrenceFrequency: "",
       }),
     ).toThrow("At least one field is required");
+  });
+});
+
+describe("[Unit] incomeSourceListQuerySchema", () => {
+  it("should accept a valid month filter when it is provided", () => {
+    const result = incomeSourceListQuerySchema.parse({
+      month: "2026-03",
+    });
+
+    expect(result).toEqual({
+      month: "2026-03",
+    });
+  });
+
+  it("should reject the query when the month is not in YYYY-MM format", () => {
+    expect(() =>
+      incomeSourceListQuerySchema.parse({
+        month: "2026-3",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] incomeSourceCreateWithDeductionsSchema", () => {
+  it("should parse nested deductions when the payload contains an income source with deductions", () => {
+    const result = incomeSourceCreateWithDeductionsSchema.parse({
+      incomeType: "SALARY",
+      description: " Monthly pay ",
+      grossAmount: "3500",
+      netAmount: "2750",
+      incomeDate: "2026-03-31T00:00:00.000Z",
+      deductions: [
+        {
+          deductionType: "INCOME_TAX",
+          name: " Income Tax ",
+          amount: "500",
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      incomeType: "SALARY",
+      description: "Monthly pay",
+      grossAmount: 3500,
+      netAmount: 2750,
+      incomeDate: new Date("2026-03-31T00:00:00.000Z"),
+      deductions: [
+        {
+          deductionType: "INCOME_TAX",
+          name: "Income Tax",
+          amount: 500,
+        },
+      ],
+    });
+  });
+
+  it("should reject the payload when a nested deduction is invalid", () => {
+    expect(() =>
+      incomeSourceCreateWithDeductionsSchema.parse({
+        incomeType: "SALARY",
+        grossAmount: 3500,
+        netAmount: 2750,
+        incomeDate: "2026-03-31T00:00:00.000Z",
+        deductions: [
+          {
+            deductionType: "INCOME_TAX",
+            name: "Tax",
+            amount: 0,
+          },
+        ],
+      }),
+    ).toThrow("Too small");
+  });
+});
+
+describe("[Unit] incomeSourceUpdateWithDeductionsSchema", () => {
+  it("should accept a deductions-only payload when the replacement array is provided", () => {
+    const result = incomeSourceUpdateWithDeductionsSchema.parse({
+      deductions: [
+        {
+          deductionType: "PENSION",
+          name: " Pension ",
+          amount: "150",
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      deductions: [
+        {
+          deductionType: "PENSION",
+          name: "Pension",
+          amount: 150,
+        },
+      ],
+    });
+  });
+
+  it("should preserve explicit null when recurrenceFrequency is cleared", () => {
+    const result = incomeSourceUpdateWithDeductionsSchema.parse({
+      recurrenceFrequency: null,
+    });
+
+    expect(result.recurrenceFrequency).toBeNull();
+  });
+
+  it("should reject the payload when no update fields are provided", () => {
+    expect(() => incomeSourceUpdateWithDeductionsSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
   });
 });
 
