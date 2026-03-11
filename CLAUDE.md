@@ -74,10 +74,13 @@ npm run dev                                 # Start dev server
 
 ## Agent Workflows
 
-The `agents/` directory contains prompts for a three-stage workflow:
+The `agents/` directory contains prompts for a multi-stage workflow:
 
 1. **`agents/implement.md`** — Feature implementation (no tests)
 2. **`agents/test.md`** — QA test writing (Vitest preferred)
 3. **`agents/review.md`** — Code review (approve/reject)
+4. **`agents/fix.md`** — Fix rejected review (apply fixes, update tests, resubmit)
+
+If a review is **rejected**, run `agents/fix.md` in the same conversation. The fix agent reads the review output from context, addresses all issues, updates tests, and produces a summary for re-review.
 
 When implementing features, follow the implement agent's instructions: explore existing code first, match existing patterns, validate with Zod at boundaries, and provide a summary checklist when done.
