@@ -27,12 +27,13 @@ describe("[Component] NavBar", () => {
     mockPathname = "/";
   });
 
-  it("should render all five navigation links", () => {
+  it("should render all six navigation links", () => {
     render(<NavBar />);
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/transactions");
     expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
+    expect(screen.getByRole("link", { name: "Fixed Costs" })).toHaveAttribute("href", "/fixed-costs");
     expect(screen.getByRole("link", { name: "Debts" })).toHaveAttribute("href", "/debts");
     expect(screen.getByRole("link", { name: "Savings" })).toHaveAttribute("href", "/savings");
   });
@@ -65,6 +66,14 @@ describe("[Component] NavBar", () => {
 
     const debtsLink = screen.getByRole("link", { name: "Debts" });
     expect(debtsLink.className).toContain("border-stone-950");
+  });
+
+  it("should highlight the Fixed Costs link when on /fixed-costs", () => {
+    mockPathname = "/fixed-costs";
+    render(<NavBar />);
+
+    const fixedCostsLink = screen.getByRole("link", { name: "Fixed Costs" });
+    expect(fixedCostsLink.className).toContain("border-stone-950");
   });
 
   it("should not highlight Dashboard when on a non-root path", () => {
