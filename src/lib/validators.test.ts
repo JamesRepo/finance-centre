@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   budgetListQuerySchema,
   budgetUpsertSchema,
+  debtCreateSchema,
+  debtPaymentCreateSchema,
+  debtUpdateSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
   transactionUpdateSchema,
@@ -199,5 +202,157 @@ describe("[Unit] budgetUpsertSchema", () => {
         amount: 100,
       }),
     ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] debtCreateSchema", () => {
+  it("should coerce and trim a valid debt payload when optional fields use strings", () => {
+    const result = debtCreateSchema.parse({
+      name: " Visa Card ",
+      debtType: "CREDIT_CARD",
+      originalBalance: "2500.75",
+      interestRate: "19.99",
+      minimumPayment: "50",
+      startDate: "2026-01-15T00:00:00.000Z",
+      targetPayoffDate: "2026-12-31T00:00:00.000Z",
+      notes: " Main card ",
+    });
+
+    expect(result).toEqual({
+      name: "Visa Card",
+      debtType: "CREDIT_CARD",
+      originalBalance: 2500.75,
+      interestRate: 19.99,
+      minimumPayment: 50,
+      startDate: new Date("2026-01-15T00:00:00.000Z"),
+      targetPayoffDate: new Date("2026-12-31T00:00:00.000Z"),
+      notes: "Main card",
+    });
+  });
+
+  it("should convert blank optional fields to undefined when they are empty strings", () => {
+    const result = debtCreateSchema.parse({
+      name: "Student Loan",
+      debtType: "STUDENT_LOAN",
+      originalBalance: 12000,
+      interestRate: 4.5,
+      minimumPayment: "",
+      startDate: "   ",
+      targetPayoffDate: "",
+      notes: "   ",
+    });
+
+    expect(result.minimumPayment).toBeUndefined();
+    expect(result.startDate).toBeUndefined();
+    expect(result.targetPayoffDate).toBeUndefined();
+    expect(result.notes).toBeUndefined();
+  });
+
+  it("should reject the payload when debtType is not allowed", () => {
+    expect(() =>
+      debtCreateSchema.parse({
+        name: "Loan",
+        debtType: "MORTGAGE",
+        originalBalance: 1000,
+        interestRate: 4,
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when originalBalance is zero", () => {
+    expect(() =>
+      debtCreateSchema.parse({
+        name: "Loan",
+        debtType: "OTHER",
+        originalBalance: 0,
+        interestRate: 4,
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when interestRate is negative", () => {
+    expect(() =>
+      debtCreateSchema.parse({
+        name: "Loan",
+        debtType: "OTHER",
+        originalBalance: 1000,
+        interestRate: -1,
+      }),
+    ).toThrow("Too small");
+  });
+});
+
+describe("[Unit] debtUpdateSchema", () => {
+  it("should accept a partial debt payload when one valid field is provided", () => {
+    const result = debtUpdateSchema.parse({
+      notes: " Refinance candidate ",
+    });
+
+    expect(result.notes).toBe("Refinance candidate");
+  });
+
+  it("should preserve explicit nulls when nullable debt fields are cleared", () => {
+    const result = debtUpdateSchema.parse({
+      minimumPayment: null,
+      startDate: null,
+      targetPayoffDate: null,
+      notes: null,
+    });
+
+    expect(result).toEqual({
+      minimumPayment: null,
+      startDate: null,
+      targetPayoffDate: null,
+      notes: null,
+    });
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => debtUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when blank optional fields are the only values provided", () => {
+    expect(() =>
+      debtUpdateSchema.parse({
+        minimumPayment: "",
+        startDate: "",
+        notes: "   ",
+      }),
+    ).toThrow("At least one field is required");
+  });
+});
+
+describe("[Unit] debtPaymentCreateSchema", () => {
+  it("should coerce and trim a valid payment payload when the request uses strings", () => {
+    const result = debtPaymentCreateSchema.parse({
+      amount: "125.50",
+      paymentDate: "2026-03-11T00:00:00.000Z",
+      note: " March payment ",
+    });
+
+    expect(result).toEqual({
+      amount: 125.5,
+      paymentDate: new Date("2026-03-11T00:00:00.000Z"),
+      note: "March payment",
+    });
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      debtPaymentCreateSchema.parse({
+        amount: 0,
+        paymentDate: "2026-03-11T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when paymentDate is missing", () => {
+    expect(() =>
+      debtPaymentCreateSchema.parse({
+        amount: 25,
+      }),
+    ).toThrow();
   });
 });
