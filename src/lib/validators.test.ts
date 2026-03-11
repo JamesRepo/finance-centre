@@ -1115,6 +1115,20 @@ describe("[Unit] incomeSourceCreateWithDeductionsSchema", () => {
       }),
     ).toThrow("Too small");
   });
+
+  it("should accept ONE_OFF as a recurrence frequency when the income payload is non-recurring by schedule", () => {
+    const result = incomeSourceCreateWithDeductionsSchema.parse({
+      incomeType: "BONUS",
+      grossAmount: "1200",
+      netAmount: "1200",
+      incomeDate: "2026-03-31T00:00:00.000Z",
+      isRecurring: true,
+      recurrenceFrequency: "ONE_OFF",
+      deductions: [],
+    });
+
+    expect(result.recurrenceFrequency).toBe("ONE_OFF");
+  });
 });
 
 describe("[Unit] incomeSourceUpdateWithDeductionsSchema", () => {
@@ -1152,6 +1166,14 @@ describe("[Unit] incomeSourceUpdateWithDeductionsSchema", () => {
     expect(() => incomeSourceUpdateWithDeductionsSchema.parse({})).toThrow(
       "At least one field is required",
     );
+  });
+
+  it("should accept ONE_OFF when recurrence frequency is updated", () => {
+    const result = incomeSourceUpdateWithDeductionsSchema.parse({
+      recurrenceFrequency: "ONE_OFF",
+    });
+
+    expect(result.recurrenceFrequency).toBe("ONE_OFF");
   });
 });
 

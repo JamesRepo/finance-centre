@@ -253,7 +253,12 @@ const incomeTypeSchema = z.enum([
   "OTHER",
 ]);
 
-const recurrenceFrequencySchema = z.enum(["MONTHLY", "WEEKLY", "ANNUALLY"]);
+const recurrenceFrequencySchema = z.enum([
+  "MONTHLY",
+  "WEEKLY",
+  "ANNUALLY",
+  "ONE_OFF",
+]);
 
 export const incomeSourceCreateSchema = z.object({
   incomeType: incomeTypeSchema,
