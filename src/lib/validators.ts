@@ -62,6 +62,12 @@ const debtTypeSchema = z.enum([
   "OTHER",
 ]);
 
+const savingsPrioritySchema = z.enum([
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+]);
+
 const optionalNonnegativeNumber = z.preprocess(
   emptyStringToUndefined,
   z.coerce.number().nonnegative().optional(),
@@ -130,6 +136,30 @@ export const debtPaymentCreateSchema = z.object({
   note: optionalTrimmedString,
 });
 
+export const savingsGoalCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  targetAmount: z.coerce.number().positive(),
+  targetDate: optionalDate,
+  priority: savingsPrioritySchema.optional(),
+});
+
+export const savingsGoalUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    targetAmount: z.coerce.number().positive().optional(),
+    targetDate: nullableOptionalDate,
+    priority: savingsPrioritySchema.nullable().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+export const savingsContributionCreateSchema = z.object({
+  amount: z.coerce.number().positive(),
+  contributionDate: z.coerce.date(),
+  note: optionalTrimmedString,
+});
+
 export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>;
 export type TransactionUpdateInput = z.infer<typeof transactionUpdateSchema>;
 export type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
@@ -138,3 +168,6 @@ export type BudgetUpsertInput = z.infer<typeof budgetUpsertSchema>;
 export type DebtCreateInput = z.infer<typeof debtCreateSchema>;
 export type DebtUpdateInput = z.infer<typeof debtUpdateSchema>;
 export type DebtPaymentCreateInput = z.infer<typeof debtPaymentCreateSchema>;
+export type SavingsGoalCreateInput = z.infer<typeof savingsGoalCreateSchema>;
+export type SavingsGoalUpdateInput = z.infer<typeof savingsGoalUpdateSchema>;
+export type SavingsContributionCreateInput = z.infer<typeof savingsContributionCreateSchema>;

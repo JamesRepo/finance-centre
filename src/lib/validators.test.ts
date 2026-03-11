@@ -5,6 +5,9 @@ import {
   debtCreateSchema,
   debtPaymentCreateSchema,
   debtUpdateSchema,
+  savingsContributionCreateSchema,
+  savingsGoalCreateSchema,
+  savingsGoalUpdateSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
   transactionUpdateSchema,
@@ -352,6 +355,118 @@ describe("[Unit] debtPaymentCreateSchema", () => {
     expect(() =>
       debtPaymentCreateSchema.parse({
         amount: 25,
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] savingsGoalCreateSchema", () => {
+  it("should coerce and trim a valid savings goal payload when optional fields use strings", () => {
+    const result = savingsGoalCreateSchema.parse({
+      name: " Holiday Fund ",
+      targetAmount: "1500.25",
+      targetDate: "2026-12-01T00:00:00.000Z",
+      priority: "HIGH",
+    });
+
+    expect(result).toEqual({
+      name: "Holiday Fund",
+      targetAmount: 1500.25,
+      targetDate: new Date("2026-12-01T00:00:00.000Z"),
+      priority: "HIGH",
+    });
+  });
+
+  it("should convert blank optional targetDate to undefined when it is an empty string", () => {
+    const result = savingsGoalCreateSchema.parse({
+      name: "Emergency Fund",
+      targetAmount: 5000,
+      targetDate: "   ",
+    });
+
+    expect(result.targetDate).toBeUndefined();
+  });
+
+  it("should reject the payload when targetAmount is zero", () => {
+    expect(() =>
+      savingsGoalCreateSchema.parse({
+        name: "Emergency Fund",
+        targetAmount: 0,
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when priority is not allowed", () => {
+    expect(() =>
+      savingsGoalCreateSchema.parse({
+        name: "Emergency Fund",
+        targetAmount: 100,
+        priority: "URGENT",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] savingsGoalUpdateSchema", () => {
+  it("should accept a partial savings goal payload when one valid field is provided", () => {
+    const result = savingsGoalUpdateSchema.parse({
+      name: " House Deposit ",
+    });
+
+    expect(result).toEqual({
+      name: "House Deposit",
+    });
+  });
+
+  it("should preserve explicit nulls when nullable savings goal fields are cleared", () => {
+    const result = savingsGoalUpdateSchema.parse({
+      targetDate: null,
+      priority: null,
+    });
+
+    expect(result).toEqual({
+      targetDate: null,
+      priority: null,
+    });
+  });
+
+  it("should reject the payload when no fields remain after preprocessing", () => {
+    expect(() =>
+      savingsGoalUpdateSchema.parse({
+        targetDate: "",
+      }),
+    ).toThrow("At least one field is required");
+  });
+});
+
+describe("[Unit] savingsContributionCreateSchema", () => {
+  it("should coerce and trim a valid contribution payload when the request uses strings", () => {
+    const result = savingsContributionCreateSchema.parse({
+      amount: "250.5",
+      contributionDate: "2026-03-11T00:00:00.000Z",
+      note: " Pay day ",
+    });
+
+    expect(result).toEqual({
+      amount: 250.5,
+      contributionDate: new Date("2026-03-11T00:00:00.000Z"),
+      note: "Pay day",
+    });
+  });
+
+  it("should reject the payload when amount is negative", () => {
+    expect(() =>
+      savingsContributionCreateSchema.parse({
+        amount: -1,
+        contributionDate: "2026-03-11T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when contributionDate is missing", () => {
+    expect(() =>
+      savingsContributionCreateSchema.parse({
+        amount: 10,
       }),
     ).toThrow();
   });
