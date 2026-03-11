@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  budgetListQuerySchema,
+  budgetUpsertSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
   transactionUpdateSchema,
@@ -123,5 +125,75 @@ describe("[Unit] transactionListQuerySchema", () => {
         categoryId: "   ",
       }),
     ).toThrow();
+  });
+});
+
+describe("[Unit] budgetListQuerySchema", () => {
+  it("should accept the query when month is in YYYY-MM format", () => {
+    const result = budgetListQuerySchema.parse({
+      month: "2026-03",
+    });
+
+    expect(result).toEqual({
+      month: "2026-03",
+    });
+  });
+
+  it("should reject the query when month is missing", () => {
+    expect(() => budgetListQuerySchema.parse({})).toThrow();
+  });
+
+  it("should reject the query when month is not in YYYY-MM format", () => {
+    expect(() =>
+      budgetListQuerySchema.parse({
+        month: "2026-3",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] budgetUpsertSchema", () => {
+  it("should coerce a valid payload when amount uses a string", () => {
+    const result = budgetUpsertSchema.parse({
+      categoryId: "category-1",
+      month: "2026-03",
+      amount: "250.75",
+    });
+
+    expect(result).toEqual({
+      categoryId: "category-1",
+      month: "2026-03",
+      amount: 250.75,
+    });
+  });
+
+  it("should reject the payload when categoryId is blank", () => {
+    expect(() =>
+      budgetUpsertSchema.parse({
+        categoryId: "   ",
+        month: "2026-03",
+        amount: 100,
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      budgetUpsertSchema.parse({
+        categoryId: "category-1",
+        month: "2026-03",
+        amount: 0,
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when month is invalid", () => {
+    expect(() =>
+      budgetUpsertSchema.parse({
+        categoryId: "category-1",
+        month: "2026-13",
+        amount: 100,
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
   });
 });
