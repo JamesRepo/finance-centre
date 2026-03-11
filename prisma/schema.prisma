@@ -86,7 +86,7 @@ model DebtPayment {
   note        String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  debt Debt @relation(fields: [debtId], references: [id])
+  debt Debt @relation(fields: [debtId], references: [id], onDelete: Cascade)
 
   @@map("debt_payments")
 }
