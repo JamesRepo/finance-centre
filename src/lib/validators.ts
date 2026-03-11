@@ -164,6 +164,214 @@ export const savingsContributionCreateSchema = z.object({
   note: optionalTrimmedString,
 });
 
+// --- Housing Expense ---
+
+const housingExpenseTypeSchema = z.enum([
+  "RENT",
+  "COUNCIL_TAX",
+  "ENERGY",
+  "WATER",
+  "INTERNET",
+  "INSURANCE",
+  "MAINTENANCE",
+  "OTHER",
+]);
+
+const paymentFrequencySchema = z.enum(["MONTHLY", "YEARLY"]);
+
+export const housingExpenseCreateSchema = z.object({
+  expenseType: housingExpenseTypeSchema,
+  amount: z.coerce.number().positive(),
+  expenseMonth: z.coerce.date(),
+  frequency: paymentFrequencySchema,
+});
+
+export const housingExpenseUpdateSchema = z
+  .object({
+    expenseType: housingExpenseTypeSchema.optional(),
+    amount: z.coerce.number().positive().optional(),
+    expenseMonth: z.coerce.date().optional(),
+    frequency: paymentFrequencySchema.optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Subscription ---
+
+export const subscriptionCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  amount: z.coerce.number().positive(),
+  frequency: paymentFrequencySchema,
+  nextPaymentDate: z.coerce.date(),
+  description: optionalTrimmedString,
+  isActive: z.boolean().optional(),
+});
+
+export const subscriptionUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    amount: z.coerce.number().positive().optional(),
+    frequency: paymentFrequencySchema.optional(),
+    nextPaymentDate: z.coerce.date().optional(),
+    description: nullableOptionalTrimmedString,
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Income Source ---
+
+const incomeTypeSchema = z.enum([
+  "SALARY",
+  "BONUS",
+  "GIFT",
+  "FREELANCE",
+  "OTHER",
+]);
+
+const recurrenceFrequencySchema = z.enum(["MONTHLY", "WEEKLY", "ANNUALLY"]);
+
+export const incomeSourceCreateSchema = z.object({
+  incomeType: incomeTypeSchema,
+  description: optionalTrimmedString,
+  grossAmount: z.coerce.number().positive(),
+  netAmount: z.coerce.number().positive(),
+  incomeDate: z.coerce.date(),
+  isRecurring: z.boolean().optional(),
+  recurrenceFrequency: z.preprocess(
+    emptyStringToUndefined,
+    recurrenceFrequencySchema.optional(),
+  ),
+  isActive: z.boolean().optional(),
+});
+
+export const incomeSourceUpdateSchema = z
+  .object({
+    incomeType: incomeTypeSchema.optional(),
+    description: nullableOptionalTrimmedString,
+    grossAmount: z.coerce.number().positive().optional(),
+    netAmount: z.coerce.number().positive().optional(),
+    incomeDate: z.coerce.date().optional(),
+    isRecurring: z.boolean().optional(),
+    recurrenceFrequency: z.preprocess((value) => {
+      if (value === null) return null;
+      return emptyStringToUndefined(value);
+    }, recurrenceFrequencySchema.nullable().optional()),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Income Deduction ---
+
+const deductionTypeSchema = z.enum([
+  "INCOME_TAX",
+  "NI",
+  "PENSION",
+  "STUDENT_LOAN",
+  "OTHER",
+]);
+
+export const incomeDeductionCreateSchema = z.object({
+  deductionType: deductionTypeSchema,
+  name: z.string().trim().min(1),
+  amount: z.coerce.number().positive(),
+  isPercentage: z.boolean().optional(),
+  percentageValue: optionalNonnegativeNumber,
+  isActive: z.boolean().optional(),
+});
+
+export const incomeDeductionUpdateSchema = z
+  .object({
+    deductionType: deductionTypeSchema.optional(),
+    name: z.string().trim().min(1).optional(),
+    amount: z.coerce.number().positive().optional(),
+    isPercentage: z.boolean().optional(),
+    percentageValue: nullableOptionalNonnegativeNumber,
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Holiday ---
+
+export const holidayCreateSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    destination: z.string().trim().min(1),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    description: optionalTrimmedString,
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => value.endDate >= value.startDate, {
+    message: "End date must be on or after start date",
+    path: ["endDate"],
+  });
+
+export const holidayUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    destination: z.string().trim().min(1).optional(),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    description: nullableOptionalTrimmedString,
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Holiday Expense ---
+
+const holidayExpenseTypeSchema = z.enum([
+  "FLIGHT",
+  "ACCOMMODATION",
+  "FOOD",
+  "TRANSPORT",
+  "ACTIVITY",
+  "SHOPPING",
+  "OTHER",
+]);
+
+export const holidayExpenseCreateSchema = z.object({
+  expenseType: holidayExpenseTypeSchema,
+  description: z.string().trim().min(1),
+  amount: z.coerce.number().positive(),
+  expenseDate: z.coerce.date(),
+  notes: optionalTrimmedString,
+});
+
+export const holidayExpenseUpdateSchema = z
+  .object({
+    expenseType: holidayExpenseTypeSchema.optional(),
+    description: z.string().trim().min(1).optional(),
+    amount: z.coerce.number().positive().optional(),
+    expenseDate: z.coerce.date().optional(),
+    notes: nullableOptionalTrimmedString,
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Settings ---
+
+export const settingsUpdateSchema = z
+  .object({
+    currency: z.string().trim().min(1).optional(),
+    locale: z.string().trim().min(1).optional(),
+    monthlyBudgetTotal: nullableOptionalNonnegativeNumber,
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
+// --- Type Exports ---
+
 export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>;
 export type TransactionUpdateInput = z.infer<typeof transactionUpdateSchema>;
 export type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
@@ -175,3 +383,16 @@ export type DebtPaymentCreateInput = z.infer<typeof debtPaymentCreateSchema>;
 export type SavingsGoalCreateInput = z.infer<typeof savingsGoalCreateSchema>;
 export type SavingsGoalUpdateInput = z.infer<typeof savingsGoalUpdateSchema>;
 export type SavingsContributionCreateInput = z.infer<typeof savingsContributionCreateSchema>;
+export type HousingExpenseCreateInput = z.infer<typeof housingExpenseCreateSchema>;
+export type HousingExpenseUpdateInput = z.infer<typeof housingExpenseUpdateSchema>;
+export type SubscriptionCreateInput = z.infer<typeof subscriptionCreateSchema>;
+export type SubscriptionUpdateInput = z.infer<typeof subscriptionUpdateSchema>;
+export type IncomeSourceCreateInput = z.infer<typeof incomeSourceCreateSchema>;
+export type IncomeSourceUpdateInput = z.infer<typeof incomeSourceUpdateSchema>;
+export type IncomeDeductionCreateInput = z.infer<typeof incomeDeductionCreateSchema>;
+export type IncomeDeductionUpdateInput = z.infer<typeof incomeDeductionUpdateSchema>;
+export type HolidayCreateInput = z.infer<typeof holidayCreateSchema>;
+export type HolidayUpdateInput = z.infer<typeof holidayUpdateSchema>;
+export type HolidayExpenseCreateInput = z.infer<typeof holidayExpenseCreateSchema>;
+export type HolidayExpenseUpdateInput = z.infer<typeof holidayExpenseUpdateSchema>;
+export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;

@@ -5,9 +5,22 @@ import {
   debtCreateSchema,
   debtPaymentCreateSchema,
   debtUpdateSchema,
+  holidayCreateSchema,
+  holidayExpenseCreateSchema,
+  holidayExpenseUpdateSchema,
+  holidayUpdateSchema,
+  housingExpenseCreateSchema,
+  housingExpenseUpdateSchema,
+  incomeDeductionCreateSchema,
+  incomeDeductionUpdateSchema,
+  incomeSourceCreateSchema,
+  incomeSourceUpdateSchema,
   savingsContributionCreateSchema,
   savingsGoalCreateSchema,
   savingsGoalUpdateSchema,
+  settingsUpdateSchema,
+  subscriptionCreateSchema,
+  subscriptionUpdateSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
   transactionUpdateSchema,
@@ -493,5 +506,904 @@ describe("[Unit] savingsContributionCreateSchema", () => {
         amount: 10,
       }),
     ).toThrow();
+  });
+});
+
+// ====== Housing Expense ======
+
+describe("[Unit] housingExpenseCreateSchema", () => {
+  it("should coerce a valid housing expense when the payload uses strings", () => {
+    const result = housingExpenseCreateSchema.parse({
+      expenseType: "RENT",
+      amount: "850.00",
+      expenseMonth: "2026-03-01T00:00:00.000Z",
+      frequency: "MONTHLY",
+    });
+
+    expect(result).toEqual({
+      expenseType: "RENT",
+      amount: 850,
+      expenseMonth: new Date("2026-03-01T00:00:00.000Z"),
+      frequency: "MONTHLY",
+    });
+  });
+
+  it("should accept all valid expense types when each is provided individually", () => {
+    const types = [
+      "RENT",
+      "COUNCIL_TAX",
+      "ENERGY",
+      "WATER",
+      "INTERNET",
+      "INSURANCE",
+      "MAINTENANCE",
+      "OTHER",
+    ];
+
+    for (const expenseType of types) {
+      const result = housingExpenseCreateSchema.parse({
+        expenseType,
+        amount: 100,
+        expenseMonth: "2026-01-01T00:00:00.000Z",
+        frequency: "MONTHLY",
+      });
+
+      expect(result.expenseType).toBe(expenseType);
+    }
+  });
+
+  it("should accept YEARLY frequency when provided", () => {
+    const result = housingExpenseCreateSchema.parse({
+      expenseType: "INSURANCE",
+      amount: 1200,
+      expenseMonth: "2026-01-01T00:00:00.000Z",
+      frequency: "YEARLY",
+    });
+
+    expect(result.frequency).toBe("YEARLY");
+  });
+
+  it("should reject the payload when expenseType is not allowed", () => {
+    expect(() =>
+      housingExpenseCreateSchema.parse({
+        expenseType: "MORTGAGE",
+        amount: 500,
+        expenseMonth: "2026-01-01T00:00:00.000Z",
+        frequency: "MONTHLY",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when frequency is not allowed", () => {
+    expect(() =>
+      housingExpenseCreateSchema.parse({
+        expenseType: "RENT",
+        amount: 500,
+        expenseMonth: "2026-01-01T00:00:00.000Z",
+        frequency: "WEEKLY",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      housingExpenseCreateSchema.parse({
+        expenseType: "RENT",
+        amount: 0,
+        expenseMonth: "2026-01-01T00:00:00.000Z",
+        frequency: "MONTHLY",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when amount is negative", () => {
+    expect(() =>
+      housingExpenseCreateSchema.parse({
+        expenseType: "RENT",
+        amount: -100,
+        expenseMonth: "2026-01-01T00:00:00.000Z",
+        frequency: "MONTHLY",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when expenseMonth is missing", () => {
+    expect(() =>
+      housingExpenseCreateSchema.parse({
+        expenseType: "RENT",
+        amount: 500,
+        frequency: "MONTHLY",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] housingExpenseUpdateSchema", () => {
+  it("should accept a partial payload when one valid field is provided", () => {
+    const result = housingExpenseUpdateSchema.parse({
+      amount: 900,
+    });
+
+    expect(result).toMatchObject({ amount: 900 });
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => housingExpenseUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when expenseType is invalid", () => {
+    expect(() =>
+      housingExpenseUpdateSchema.parse({
+        expenseType: "MORTGAGE",
+      }),
+    ).toThrow();
+  });
+});
+
+// ====== Subscription ======
+
+describe("[Unit] subscriptionCreateSchema", () => {
+  it("should coerce and trim a valid subscription when the payload uses strings", () => {
+    const result = subscriptionCreateSchema.parse({
+      name: " Netflix ",
+      amount: "15.99",
+      frequency: "MONTHLY",
+      nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      description: " Streaming service ",
+    });
+
+    expect(result).toEqual({
+      name: "Netflix",
+      amount: 15.99,
+      frequency: "MONTHLY",
+      nextPaymentDate: new Date("2026-04-01T00:00:00.000Z"),
+      description: "Streaming service",
+    });
+  });
+
+  it("should convert blank description to undefined when it is an empty string", () => {
+    const result = subscriptionCreateSchema.parse({
+      name: "Spotify",
+      amount: 9.99,
+      frequency: "MONTHLY",
+      nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      description: "   ",
+    });
+
+    expect(result.description).toBeUndefined();
+  });
+
+  it("should accept YEARLY frequency when provided", () => {
+    const result = subscriptionCreateSchema.parse({
+      name: "Annual License",
+      amount: 120,
+      frequency: "YEARLY",
+      nextPaymentDate: "2027-01-01T00:00:00.000Z",
+    });
+
+    expect(result.frequency).toBe("YEARLY");
+  });
+
+  it("should reject the payload when name is blank", () => {
+    expect(() =>
+      subscriptionCreateSchema.parse({
+        name: "   ",
+        amount: 10,
+        frequency: "MONTHLY",
+        nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      subscriptionCreateSchema.parse({
+        name: "Test",
+        amount: 0,
+        frequency: "MONTHLY",
+        nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when frequency is not allowed", () => {
+    expect(() =>
+      subscriptionCreateSchema.parse({
+        name: "Test",
+        amount: 10,
+        frequency: "QUARTERLY",
+        nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when nextPaymentDate is missing", () => {
+    expect(() =>
+      subscriptionCreateSchema.parse({
+        name: "Test",
+        amount: 10,
+        frequency: "MONTHLY",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] subscriptionUpdateSchema", () => {
+  it("should accept a partial payload when one valid field is provided", () => {
+    const result = subscriptionUpdateSchema.parse({
+      name: " Updated Name ",
+    });
+
+    expect(result).toMatchObject({ name: "Updated Name" });
+  });
+
+  it("should preserve explicit null for description when clearing it", () => {
+    const result = subscriptionUpdateSchema.parse({
+      description: null,
+    });
+
+    expect(result.description).toBeNull();
+  });
+
+  it("should accept isActive as a valid update field", () => {
+    const result = subscriptionUpdateSchema.parse({
+      isActive: false,
+    });
+
+    expect(result).toMatchObject({ isActive: false });
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => subscriptionUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when blank optional fields are the only values provided", () => {
+    expect(() =>
+      subscriptionUpdateSchema.parse({
+        description: "   ",
+      }),
+    ).toThrow("At least one field is required");
+  });
+});
+
+// ====== Income Source ======
+
+describe("[Unit] incomeSourceCreateSchema", () => {
+  it("should coerce and trim a valid income source when the payload uses strings", () => {
+    const result = incomeSourceCreateSchema.parse({
+      incomeType: "SALARY",
+      description: " Monthly pay ",
+      grossAmount: "3500.00",
+      netAmount: "2800.00",
+      incomeDate: "2026-03-25T00:00:00.000Z",
+      isRecurring: true,
+      recurrenceFrequency: "MONTHLY",
+    });
+
+    expect(result).toEqual({
+      incomeType: "SALARY",
+      description: "Monthly pay",
+      grossAmount: 3500,
+      netAmount: 2800,
+      incomeDate: new Date("2026-03-25T00:00:00.000Z"),
+      isRecurring: true,
+      recurrenceFrequency: "MONTHLY",
+    });
+  });
+
+  it("should accept all valid income types when each is provided individually", () => {
+    const types = ["SALARY", "BONUS", "GIFT", "FREELANCE", "OTHER"];
+
+    for (const incomeType of types) {
+      const result = incomeSourceCreateSchema.parse({
+        incomeType,
+        grossAmount: 1000,
+        netAmount: 800,
+        incomeDate: "2026-01-01T00:00:00.000Z",
+      });
+
+      expect(result.incomeType).toBe(incomeType);
+    }
+  });
+
+  it("should accept all valid recurrence frequencies when each is provided", () => {
+    const frequencies = ["MONTHLY", "WEEKLY", "ANNUALLY"];
+
+    for (const recurrenceFrequency of frequencies) {
+      const result = incomeSourceCreateSchema.parse({
+        incomeType: "SALARY",
+        grossAmount: 1000,
+        netAmount: 800,
+        incomeDate: "2026-01-01T00:00:00.000Z",
+        recurrenceFrequency,
+      });
+
+      expect(result.recurrenceFrequency).toBe(recurrenceFrequency);
+    }
+  });
+
+  it("should convert blank description to undefined when it is an empty string", () => {
+    const result = incomeSourceCreateSchema.parse({
+      incomeType: "BONUS",
+      grossAmount: 500,
+      netAmount: 400,
+      incomeDate: "2026-03-01T00:00:00.000Z",
+      description: "   ",
+    });
+
+    expect(result.description).toBeUndefined();
+  });
+
+  it("should convert blank recurrenceFrequency to undefined when it is an empty string", () => {
+    const result = incomeSourceCreateSchema.parse({
+      incomeType: "SALARY",
+      grossAmount: 3000,
+      netAmount: 2400,
+      incomeDate: "2026-03-01T00:00:00.000Z",
+      recurrenceFrequency: "",
+    });
+
+    expect(result.recurrenceFrequency).toBeUndefined();
+  });
+
+  it("should reject the payload when incomeType is not allowed", () => {
+    expect(() =>
+      incomeSourceCreateSchema.parse({
+        incomeType: "DIVIDEND",
+        grossAmount: 100,
+        netAmount: 100,
+        incomeDate: "2026-01-01T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when grossAmount is zero", () => {
+    expect(() =>
+      incomeSourceCreateSchema.parse({
+        incomeType: "SALARY",
+        grossAmount: 0,
+        netAmount: 0,
+        incomeDate: "2026-01-01T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when netAmount is negative", () => {
+    expect(() =>
+      incomeSourceCreateSchema.parse({
+        incomeType: "SALARY",
+        grossAmount: 1000,
+        netAmount: -100,
+        incomeDate: "2026-01-01T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when recurrenceFrequency is not allowed", () => {
+    expect(() =>
+      incomeSourceCreateSchema.parse({
+        incomeType: "SALARY",
+        grossAmount: 1000,
+        netAmount: 800,
+        incomeDate: "2026-01-01T00:00:00.000Z",
+        recurrenceFrequency: "QUARTERLY",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when incomeDate is missing", () => {
+    expect(() =>
+      incomeSourceCreateSchema.parse({
+        incomeType: "SALARY",
+        grossAmount: 1000,
+        netAmount: 800,
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] incomeSourceUpdateSchema", () => {
+  it("should accept a partial payload when one valid field is provided", () => {
+    const result = incomeSourceUpdateSchema.parse({
+      grossAmount: 4000,
+    });
+
+    expect(result).toMatchObject({ grossAmount: 4000 });
+  });
+
+  it("should preserve explicit null for description when clearing it", () => {
+    const result = incomeSourceUpdateSchema.parse({
+      description: null,
+    });
+
+    expect(result.description).toBeNull();
+  });
+
+  it("should preserve explicit null for recurrenceFrequency when clearing it", () => {
+    const result = incomeSourceUpdateSchema.parse({
+      recurrenceFrequency: null,
+    });
+
+    expect(result.recurrenceFrequency).toBeNull();
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => incomeSourceUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when blank optional fields are the only values provided", () => {
+    expect(() =>
+      incomeSourceUpdateSchema.parse({
+        description: "   ",
+        recurrenceFrequency: "",
+      }),
+    ).toThrow("At least one field is required");
+  });
+});
+
+// ====== Income Deduction ======
+
+describe("[Unit] incomeDeductionCreateSchema", () => {
+  it("should coerce and trim a valid deduction when the payload uses strings", () => {
+    const result = incomeDeductionCreateSchema.parse({
+      deductionType: "INCOME_TAX",
+      name: " Income Tax ",
+      amount: "450.00",
+      isPercentage: false,
+    });
+
+    expect(result).toEqual({
+      deductionType: "INCOME_TAX",
+      name: "Income Tax",
+      amount: 450,
+      isPercentage: false,
+      percentageValue: undefined,
+    });
+  });
+
+  it("should accept all valid deduction types when each is provided individually", () => {
+    const types = ["INCOME_TAX", "NI", "PENSION", "STUDENT_LOAN", "OTHER"];
+
+    for (const deductionType of types) {
+      const result = incomeDeductionCreateSchema.parse({
+        deductionType,
+        name: "Test",
+        amount: 100,
+      });
+
+      expect(result.deductionType).toBe(deductionType);
+    }
+  });
+
+  it("should accept a percentage deduction when isPercentage and percentageValue are provided", () => {
+    const result = incomeDeductionCreateSchema.parse({
+      deductionType: "PENSION",
+      name: "Employer Pension",
+      amount: "175",
+      isPercentage: true,
+      percentageValue: "5",
+    });
+
+    expect(result.isPercentage).toBe(true);
+    expect(result.percentageValue).toBe(5);
+  });
+
+  it("should convert blank percentageValue to undefined when it is an empty string", () => {
+    const result = incomeDeductionCreateSchema.parse({
+      deductionType: "NI",
+      name: "National Insurance",
+      amount: 200,
+      percentageValue: "",
+    });
+
+    expect(result.percentageValue).toBeUndefined();
+  });
+
+  it("should reject the payload when deductionType is not allowed", () => {
+    expect(() =>
+      incomeDeductionCreateSchema.parse({
+        deductionType: "CHARITY",
+        name: "Donation",
+        amount: 50,
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when name is blank", () => {
+    expect(() =>
+      incomeDeductionCreateSchema.parse({
+        deductionType: "OTHER",
+        name: "   ",
+        amount: 50,
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      incomeDeductionCreateSchema.parse({
+        deductionType: "INCOME_TAX",
+        name: "Tax",
+        amount: 0,
+      }),
+    ).toThrow("Too small");
+  });
+});
+
+describe("[Unit] incomeDeductionUpdateSchema", () => {
+  it("should accept a partial payload when one valid field is provided", () => {
+    const result = incomeDeductionUpdateSchema.parse({
+      amount: 500,
+    });
+
+    expect(result).toMatchObject({ amount: 500 });
+  });
+
+  it("should preserve explicit null for percentageValue when clearing it", () => {
+    const result = incomeDeductionUpdateSchema.parse({
+      percentageValue: null,
+    });
+
+    expect(result.percentageValue).toBeNull();
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => incomeDeductionUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+});
+
+// ====== Holiday ======
+
+describe("[Unit] holidayCreateSchema", () => {
+  it("should coerce and trim a valid holiday when the payload uses strings", () => {
+    const result = holidayCreateSchema.parse({
+      name: " Summer Trip ",
+      destination: " Barcelona ",
+      startDate: "2026-07-15T00:00:00.000Z",
+      endDate: "2026-07-22T00:00:00.000Z",
+      description: " Week in Spain ",
+    });
+
+    expect(result).toEqual({
+      name: "Summer Trip",
+      destination: "Barcelona",
+      startDate: new Date("2026-07-15T00:00:00.000Z"),
+      endDate: new Date("2026-07-22T00:00:00.000Z"),
+      description: "Week in Spain",
+    });
+  });
+
+  it("should accept the payload when startDate and endDate are the same day trip", () => {
+    const result = holidayCreateSchema.parse({
+      name: "Day Trip",
+      destination: "Brighton",
+      startDate: "2026-08-01T00:00:00.000Z",
+      endDate: "2026-08-01T00:00:00.000Z",
+    });
+
+    expect(result.startDate).toEqual(result.endDate);
+  });
+
+  it("should convert blank description to undefined when it is an empty string", () => {
+    const result = holidayCreateSchema.parse({
+      name: "Trip",
+      destination: "Paris",
+      startDate: "2026-06-01T00:00:00.000Z",
+      endDate: "2026-06-05T00:00:00.000Z",
+      description: "   ",
+    });
+
+    expect(result.description).toBeUndefined();
+  });
+
+  it("should reject the payload when endDate is before startDate", () => {
+    expect(() =>
+      holidayCreateSchema.parse({
+        name: "Trip",
+        destination: "Paris",
+        startDate: "2026-07-22T00:00:00.000Z",
+        endDate: "2026-07-15T00:00:00.000Z",
+      }),
+    ).toThrow("End date must be on or after start date");
+  });
+
+  it("should reject the payload when name is blank", () => {
+    expect(() =>
+      holidayCreateSchema.parse({
+        name: "   ",
+        destination: "Paris",
+        startDate: "2026-06-01T00:00:00.000Z",
+        endDate: "2026-06-05T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when destination is blank", () => {
+    expect(() =>
+      holidayCreateSchema.parse({
+        name: "Trip",
+        destination: "   ",
+        startDate: "2026-06-01T00:00:00.000Z",
+        endDate: "2026-06-05T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when startDate is missing", () => {
+    expect(() =>
+      holidayCreateSchema.parse({
+        name: "Trip",
+        destination: "Paris",
+        endDate: "2026-06-05T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] holidayUpdateSchema", () => {
+  it("should accept a partial payload when one valid field is provided", () => {
+    const result = holidayUpdateSchema.parse({
+      destination: " Rome ",
+    });
+
+    expect(result).toMatchObject({ destination: "Rome" });
+  });
+
+  it("should preserve explicit null for description when clearing it", () => {
+    const result = holidayUpdateSchema.parse({
+      description: null,
+    });
+
+    expect(result.description).toBeNull();
+  });
+
+  it("should accept isActive as a valid update field", () => {
+    const result = holidayUpdateSchema.parse({
+      isActive: false,
+    });
+
+    expect(result).toMatchObject({ isActive: false });
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => holidayUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when blank optional fields are the only values provided", () => {
+    expect(() =>
+      holidayUpdateSchema.parse({
+        description: "   ",
+      }),
+    ).toThrow("At least one field is required");
+  });
+});
+
+// ====== Holiday Expense ======
+
+describe("[Unit] holidayExpenseCreateSchema", () => {
+  it("should coerce and trim a valid holiday expense when the payload uses strings", () => {
+    const result = holidayExpenseCreateSchema.parse({
+      expenseType: "FLIGHT",
+      description: " Return flights to Barcelona ",
+      amount: "245.50",
+      expenseDate: "2026-07-15T00:00:00.000Z",
+      notes: " Booked via Skyscanner ",
+    });
+
+    expect(result).toEqual({
+      expenseType: "FLIGHT",
+      description: "Return flights to Barcelona",
+      amount: 245.5,
+      expenseDate: new Date("2026-07-15T00:00:00.000Z"),
+      notes: "Booked via Skyscanner",
+    });
+  });
+
+  it("should accept all valid expense types when each is provided individually", () => {
+    const types = [
+      "FLIGHT",
+      "ACCOMMODATION",
+      "FOOD",
+      "TRANSPORT",
+      "ACTIVITY",
+      "SHOPPING",
+      "OTHER",
+    ];
+
+    for (const expenseType of types) {
+      const result = holidayExpenseCreateSchema.parse({
+        expenseType,
+        description: "Test expense",
+        amount: 50,
+        expenseDate: "2026-07-15T00:00:00.000Z",
+      });
+
+      expect(result.expenseType).toBe(expenseType);
+    }
+  });
+
+  it("should convert blank notes to undefined when it is an empty string", () => {
+    const result = holidayExpenseCreateSchema.parse({
+      expenseType: "FOOD",
+      description: "Dinner",
+      amount: 35,
+      expenseDate: "2026-07-16T00:00:00.000Z",
+      notes: "   ",
+    });
+
+    expect(result.notes).toBeUndefined();
+  });
+
+  it("should reject the payload when expenseType is not allowed", () => {
+    expect(() =>
+      holidayExpenseCreateSchema.parse({
+        expenseType: "VISA",
+        description: "Travel visa",
+        amount: 80,
+        expenseDate: "2026-07-01T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when description is blank", () => {
+    expect(() =>
+      holidayExpenseCreateSchema.parse({
+        expenseType: "FOOD",
+        description: "   ",
+        amount: 20,
+        expenseDate: "2026-07-16T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      holidayExpenseCreateSchema.parse({
+        expenseType: "FOOD",
+        description: "Lunch",
+        amount: 0,
+        expenseDate: "2026-07-16T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when expenseDate is missing", () => {
+    expect(() =>
+      holidayExpenseCreateSchema.parse({
+        expenseType: "FOOD",
+        description: "Lunch",
+        amount: 15,
+      }),
+    ).toThrow();
+  });
+});
+
+describe("[Unit] holidayExpenseUpdateSchema", () => {
+  it("should accept a partial payload when one valid field is provided", () => {
+    const result = holidayExpenseUpdateSchema.parse({
+      amount: 300,
+    });
+
+    expect(result).toMatchObject({ amount: 300 });
+  });
+
+  it("should preserve explicit null for notes when clearing it", () => {
+    const result = holidayExpenseUpdateSchema.parse({
+      notes: null,
+    });
+
+    expect(result.notes).toBeNull();
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => holidayExpenseUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when blank optional fields are the only values provided", () => {
+    expect(() =>
+      holidayExpenseUpdateSchema.parse({
+        notes: "   ",
+      }),
+    ).toThrow("At least one field is required");
+  });
+});
+
+// ====== Settings ======
+
+describe("[Unit] settingsUpdateSchema", () => {
+  it("should accept a valid settings update when currency is provided", () => {
+    const result = settingsUpdateSchema.parse({
+      currency: "USD",
+    });
+
+    expect(result).toMatchObject({ currency: "USD" });
+  });
+
+  it("should accept a valid settings update when locale is provided", () => {
+    const result = settingsUpdateSchema.parse({
+      locale: "en-US",
+    });
+
+    expect(result).toMatchObject({ locale: "en-US" });
+  });
+
+  it("should accept a valid settings update when monthlyBudgetTotal is provided", () => {
+    const result = settingsUpdateSchema.parse({
+      monthlyBudgetTotal: "2500.00",
+    });
+
+    expect(result).toMatchObject({ monthlyBudgetTotal: 2500 });
+  });
+
+  it("should accept multiple fields when currency and locale are updated together", () => {
+    const result = settingsUpdateSchema.parse({
+      currency: "EUR",
+      locale: "de-DE",
+      monthlyBudgetTotal: 3000,
+    });
+
+    expect(result).toEqual({
+      currency: "EUR",
+      locale: "de-DE",
+      monthlyBudgetTotal: 3000,
+    });
+  });
+
+  it("should preserve explicit null for monthlyBudgetTotal when clearing it", () => {
+    const result = settingsUpdateSchema.parse({
+      monthlyBudgetTotal: null,
+    });
+
+    expect(result.monthlyBudgetTotal).toBeNull();
+  });
+
+  it("should reject the payload when no fields are provided", () => {
+    expect(() => settingsUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should reject the payload when currency is blank", () => {
+    expect(() =>
+      settingsUpdateSchema.parse({
+        currency: "   ",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when locale is blank", () => {
+    expect(() =>
+      settingsUpdateSchema.parse({
+        locale: "   ",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when monthlyBudgetTotal is negative", () => {
+    expect(() =>
+      settingsUpdateSchema.parse({
+        monthlyBudgetTotal: -100,
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should accept the payload when monthlyBudgetTotal is zero", () => {
+    const result = settingsUpdateSchema.parse({
+      monthlyBudgetTotal: 0,
+    });
+
+    expect(result.monthlyBudgetTotal).toBe(0);
   });
 });
