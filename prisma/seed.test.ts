@@ -97,6 +97,7 @@ describe("Unit: Seed script structure", () => {
 
   it("should use upsert to be idempotent", () => {
     expect(seedSource).toContain("prisma.category.upsert");
+    expect(seedSource).toContain("prisma.budget.upsert");
   });
 
   it("should upsert by name (unique field)", () => {
@@ -120,10 +121,25 @@ describe("Unit: Seed script structure", () => {
     expect(seedSource).toContain("process.exit(1)");
   });
 
-  it("should log the number of seeded categories", () => {
-    expect(seedSource).toContain(
-      "console.log(`Seeded ${categories.length} categories`)"
-    );
+  it("should refresh tagged sample transactions before recreating them", () => {
+    expect(seedSource).toContain("prisma.transaction.deleteMany");
+    expect(seedSource).toContain('startsWith: "[Seed]"');
+    expect(seedSource).toContain("prisma.transaction.create");
+  });
+
+  it("should define demo budgets for both current and previous months", () => {
+    expect(seedSource).toContain("const monthlyBudgets = {");
+    expect(seedSource).toContain("current:");
+    expect(seedSource).toContain("previous:");
+  });
+
+  it("should define sample transactions for local testing", () => {
+    expect(seedSource).toContain("const sampleTransactions = [");
+    expect(seedSource).toContain('description: "[Seed]');
+  });
+
+  it("should log the number of seeded categories, budgets, and transactions", () => {
+    expect(seedSource).toContain("budgets, and ${sampleTransactions.length} transactions");
   });
 });
 

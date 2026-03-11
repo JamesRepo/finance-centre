@@ -4,13 +4,13 @@ import { Prisma } from "@/generated/prisma/client";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    budget: {
+    category: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
-      upsert: vi.fn(),
     },
-    category: {
+    budget: {
       findUnique: vi.fn(),
+      upsert: vi.fn(),
     },
     transaction: {
       groupBy: vi.fn(),
@@ -29,35 +29,31 @@ describe("[Unit] budgets route GET", () => {
     vi.clearAllMocks();
   });
 
-  it("should return budgets with category and spent totals when the month is valid", async () => {
-    mockPrisma.budget.findMany.mockResolvedValue([
+  it("should return every category with budget and spent totals when the month is valid", async () => {
+    mockPrisma.category.findMany.mockResolvedValue([
       {
-        id: "budget-1",
-        categoryId: "category-1",
-        amount: new Prisma.Decimal("500.00"),
-        month: new Date("2026-03-01T00:00:00.000Z"),
+        id: "category-1",
+        name: "Groceries",
+        colorCode: "#22c55e",
+        isSystem: true,
         createdAt: new Date("2026-03-01T12:00:00.000Z"),
-        category: {
-          id: "category-1",
-          name: "Groceries",
-          colorCode: "#22c55e",
-          isSystem: true,
-          createdAt: new Date("2026-03-01T12:00:00.000Z"),
-        },
+        budgets: [
+          {
+            id: "budget-1",
+            categoryId: "category-1",
+            amount: new Prisma.Decimal("500.00"),
+            month: new Date("2026-03-01T00:00:00.000Z"),
+            createdAt: new Date("2026-03-01T12:00:00.000Z"),
+          },
+        ],
       },
       {
-        id: "budget-2",
-        categoryId: "category-2",
-        amount: new Prisma.Decimal("100.00"),
-        month: new Date("2026-03-01T00:00:00.000Z"),
+        id: "category-2",
+        name: "Transport",
+        colorCode: "#3b82f6",
+        isSystem: true,
         createdAt: new Date("2026-03-01T12:00:00.000Z"),
-        category: {
-          id: "category-2",
-          name: "Transport",
-          colorCode: "#3b82f6",
-          isSystem: true,
-          createdAt: new Date("2026-03-01T12:00:00.000Z"),
-        },
+        budgets: [],
       },
     ]);
     mockPrisma.transaction.groupBy.mockResolvedValue([
@@ -74,20 +70,20 @@ describe("[Unit] budgets route GET", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockPrisma.budget.findMany).toHaveBeenCalledWith({
-      where: {
-        month: {
-          gte: new Date("2026-03-01T00:00:00.000Z"),
-          lt: new Date("2026-04-01T00:00:00.000Z"),
-        },
-      },
+    expect(mockPrisma.category.findMany).toHaveBeenCalledWith({
       include: {
-        category: true,
+        budgets: {
+          where: {
+            month: {
+              gte: new Date("2026-03-01T00:00:00.000Z"),
+              lt: new Date("2026-04-01T00:00:00.000Z"),
+            },
+          },
+          take: 1,
+        },
       },
       orderBy: {
-        category: {
-          name: "asc",
-        },
+        name: "asc",
       },
     });
     expect(mockPrisma.transaction.groupBy).toHaveBeenCalledWith({
@@ -104,13 +100,19 @@ describe("[Unit] budgets route GET", () => {
     });
     expect(body).toHaveLength(2);
     expect(body[0]).toMatchObject({
-      id: "budget-1",
+      budgetId: "budget-1",
       categoryId: "category-1",
+      amount: "500",
       spent: "123.45",
+      category: {
+        id: "category-1",
+        name: "Groceries",
+      },
     });
     expect(body[1]).toMatchObject({
-      id: "budget-2",
+      budgetId: null,
       categoryId: "category-2",
+      amount: "0",
       spent: "0",
     });
   });
@@ -124,7 +126,7 @@ describe("[Unit] budgets route GET", () => {
     expect(body).toEqual({
       error: "Invalid input: expected string, received undefined",
     });
-    expect(mockPrisma.budget.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.category.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.transaction.groupBy).not.toHaveBeenCalled();
   });
 
@@ -137,6 +139,7 @@ describe("[Unit] budgets route GET", () => {
     expect(body).toEqual({
       error: "Month must be in YYYY-MM format",
     });
+    expect(mockPrisma.category.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -254,13 +257,69 @@ describe("[Unit] budgets route POST", () => {
     expect(mockPrisma.budget.upsert).toHaveBeenCalledOnce();
   });
 
-  it("should return a validation error when the request body is invalid", async () => {
+  it("should allow a zero budget when the request body sets amount to zero", async () => {
+    mockPrisma.category.findUnique.mockResolvedValue({
+      id: "category-1",
+      name: "Groceries",
+    });
+    mockPrisma.budget.findUnique.mockResolvedValue({
+      id: "budget-1",
+    });
+    mockPrisma.budget.upsert.mockResolvedValue({
+      id: "budget-1",
+      categoryId: "category-1",
+      amount: new Prisma.Decimal("0.00"),
+      month: new Date("2026-03-01T00:00:00.000Z"),
+      createdAt: new Date("2026-03-01T12:00:00.000Z"),
+      category: {
+        id: "category-1",
+        name: "Groceries",
+      },
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/budgets", {
+        method: "POST",
+        body: JSON.stringify({
+          categoryId: "category-1",
+          month: "2026-03",
+          amount: 0,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.budget.upsert).toHaveBeenCalledWith({
+      where: {
+        categoryId_month: {
+          categoryId: "category-1",
+          month: new Date("2026-03-01T00:00:00.000Z"),
+        },
+      },
+      update: {
+        amount: 0,
+      },
+      create: {
+        categoryId: "category-1",
+        month: new Date("2026-03-01T00:00:00.000Z"),
+        amount: 0,
+      },
+      include: {
+        category: true,
+      },
+    });
+  });
+
+  it("should return a validation error when the request body amount is negative", async () => {
     const request = new NextRequest("http://localhost/api/budgets", {
       method: "POST",
       body: JSON.stringify({
         categoryId: "category-1",
         month: "2026-03",
-        amount: 0,
+        amount: -1,
       }),
       headers: {
         "content-type": "application/json",
@@ -272,7 +331,7 @@ describe("[Unit] budgets route POST", () => {
 
     expect(response.status).toBe(400);
     expect(body).toEqual({
-      error: "Too small: expected number to be >0",
+      error: "Too small: expected number to be >=0",
     });
     expect(mockPrisma.category.findUnique).not.toHaveBeenCalled();
   });

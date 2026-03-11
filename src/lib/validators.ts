@@ -52,7 +52,7 @@ export const budgetListQuerySchema = z.object({
 export const budgetUpsertSchema = z.object({
   categoryId: z.string().trim().min(1),
   month: budgetMonthSchema,
-  amount: z.coerce.number().positive(),
+  amount: z.coerce.number().nonnegative(),
 });
 
 export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>;

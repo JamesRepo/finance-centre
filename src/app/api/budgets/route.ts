@@ -29,18 +29,18 @@ export async function GET(request: NextRequest) {
 
     const monthRange = getMonthRange(query.month);
 
-    const [budgets, spending] = await Promise.all([
-      prisma.budget.findMany({
-        where: {
-          month: monthRange,
-        },
+    const [categories, spending] = await Promise.all([
+      prisma.category.findMany({
         include: {
-          category: true,
+          budgets: {
+            where: {
+              month: monthRange,
+            },
+            take: 1,
+          },
         },
         orderBy: {
-          category: {
-            name: "asc",
-          },
+          name: "asc",
         },
       }),
       prisma.transaction.groupBy({
@@ -59,11 +59,26 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json(
-      budgets.map((budget) => ({
-        ...budget,
-        spent:
-          spendingByCategoryId.get(budget.categoryId) ?? new Prisma.Decimal(0),
-      })),
+      categories.map((category) => {
+        const budget = category.budgets[0] ?? null;
+
+        return {
+          budgetId: budget?.id ?? null,
+          categoryId: category.id,
+          amount: budget?.amount ?? new Prisma.Decimal(0),
+          month: budget?.month ?? monthRange.gte,
+          createdAt: budget?.createdAt ?? null,
+          category: {
+            id: category.id,
+            name: category.name,
+            colorCode: category.colorCode,
+            isSystem: category.isSystem,
+            createdAt: category.createdAt,
+          },
+          spent:
+            spendingByCategoryId.get(category.id) ?? new Prisma.Decimal(0),
+        };
+      }),
     );
   } catch (error) {
     if (error instanceof ZodError) {

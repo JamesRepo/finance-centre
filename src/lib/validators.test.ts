@@ -177,14 +177,18 @@ describe("[Unit] budgetUpsertSchema", () => {
     ).toThrow();
   });
 
-  it("should reject the payload when amount is zero", () => {
-    expect(() =>
-      budgetUpsertSchema.parse({
-        categoryId: "category-1",
-        month: "2026-03",
-        amount: 0,
-      }),
-    ).toThrow("Too small");
+  it("should accept the payload when amount is zero", () => {
+    const result = budgetUpsertSchema.parse({
+      categoryId: "category-1",
+      month: "2026-03",
+      amount: 0,
+    });
+
+    expect(result).toEqual({
+      categoryId: "category-1",
+      month: "2026-03",
+      amount: 0,
+    });
   });
 
   it("should reject the payload when month is invalid", () => {

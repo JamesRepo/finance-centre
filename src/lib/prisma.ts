@@ -7,6 +7,12 @@ const globalForPrisma = globalThis as typeof globalThis & {
   prismaPool?: pg.Pool;
 };
 
+function createAdapter(pool: pg.Pool) {
+  return new PrismaPg(
+    pool as unknown as ConstructorParameters<typeof PrismaPg>[0],
+  );
+}
+
 export const prisma =
   globalForPrisma.prisma ??
   (() => {
@@ -14,7 +20,7 @@ export const prisma =
       connectionString: process.env.DATABASE_URL,
     });
 
-    const adapter = new PrismaPg(pool);
+    const adapter = createAdapter(pool);
 
     const client = new PrismaClient({ adapter });
 
