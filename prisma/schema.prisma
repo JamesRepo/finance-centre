@@ -211,6 +211,8 @@ model Settings {
   currency           String   @default("GBP")
   locale             String   @default("en-GB")
   monthlyBudgetTotal Decimal? @map("monthly_budget_total")
+  email              String?
+  passwordHash       String?  @map("password_hash")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("settings")

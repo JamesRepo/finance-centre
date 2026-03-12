@@ -7,11 +7,19 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+const publicFields = {
+  id: true,
+  currency: true,
+  locale: true,
+  monthlyBudgetTotal: true,
+  updatedAt: true,
+} as const;
+
 export async function GET() {
-  const settings = await prisma.settings.findFirst();
+  const settings = await prisma.settings.findFirst({ select: publicFields });
 
   if (!settings) {
-    const created = await prisma.settings.create({ data: {} });
+    const created = await prisma.settings.create({ data: {}, select: publicFields });
     return NextResponse.json(created);
   }
 
@@ -28,6 +36,7 @@ export async function PUT(request: NextRequest) {
       ? await prisma.settings.update({
           where: { id: existing.id },
           data: body,
+          select: publicFields,
         })
       : await prisma.settings.create({
           data: {
@@ -35,6 +44,7 @@ export async function PUT(request: NextRequest) {
             locale: body.locale ?? "en-GB",
             monthlyBudgetTotal: body.monthlyBudgetTotal ?? undefined,
           },
+          select: publicFields,
         });
 
     return NextResponse.json(settings);

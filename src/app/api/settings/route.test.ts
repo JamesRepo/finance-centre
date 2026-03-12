@@ -26,6 +26,14 @@ const defaultSettings = {
   updatedAt: new Date("2026-03-10T00:00:00.000Z"),
 };
 
+const publicSelect = {
+  id: true,
+  currency: true,
+  locale: true,
+  monthlyBudgetTotal: true,
+  updatedAt: true,
+};
+
 describe("[Unit] settings route GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,6 +56,22 @@ describe("[Unit] settings route GET", () => {
     expect(mockPrisma.settings.create).not.toHaveBeenCalled();
   });
 
+  it("should not expose email or passwordHash in GET response", async () => {
+    mockPrisma.settings.findFirst.mockResolvedValue(defaultSettings);
+
+    await GET();
+
+    expect(mockPrisma.settings.findFirst).toHaveBeenCalledWith({
+      select: {
+        id: true,
+        currency: true,
+        locale: true,
+        monthlyBudgetTotal: true,
+        updatedAt: true,
+      },
+    });
+  });
+
   it("should create a default settings row when none exists", async () => {
     mockPrisma.settings.findFirst.mockResolvedValue(null);
     mockPrisma.settings.create.mockResolvedValue(defaultSettings);
@@ -60,7 +84,7 @@ describe("[Unit] settings route GET", () => {
       id: 1,
       currency: "GBP",
     });
-    expect(mockPrisma.settings.create).toHaveBeenCalledWith({ data: {} });
+    expect(mockPrisma.settings.create).toHaveBeenCalledWith({ data: {}, select: publicSelect });
   });
 
   it("should return settings with a monthlyBudgetTotal when set", async () => {
@@ -106,6 +130,13 @@ describe("[Unit] settings route PUT", () => {
     expect(mockPrisma.settings.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { currency: "USD", locale: "en-US" },
+      select: {
+        id: true,
+        currency: true,
+        locale: true,
+        monthlyBudgetTotal: true,
+        updatedAt: true,
+      },
     });
   });
 
@@ -132,6 +163,7 @@ describe("[Unit] settings route PUT", () => {
         locale: "de-DE",
         monthlyBudgetTotal: undefined,
       },
+      select: publicSelect,
     });
   });
 
@@ -154,6 +186,7 @@ describe("[Unit] settings route PUT", () => {
         locale: "en-GB",
         monthlyBudgetTotal: undefined,
       },
+      select: publicSelect,
     });
   });
 
@@ -176,6 +209,7 @@ describe("[Unit] settings route PUT", () => {
     expect(mockPrisma.settings.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { monthlyBudgetTotal: 2500 },
+      select: publicSelect,
     });
   });
 
@@ -201,6 +235,7 @@ describe("[Unit] settings route PUT", () => {
     expect(mockPrisma.settings.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { monthlyBudgetTotal: null },
+      select: publicSelect,
     });
   });
 
@@ -280,6 +315,7 @@ describe("[Unit] settings route PUT", () => {
     expect(mockPrisma.settings.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { monthlyBudgetTotal: 0 },
+      select: publicSelect,
     });
   });
 
