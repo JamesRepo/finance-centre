@@ -48,6 +48,30 @@ type SavingsEntry = {
   progress: string;
 };
 
+type HousingEntry = {
+  id: number;
+  expenseType: string;
+  amount: string;
+  frequency: string;
+};
+
+type SubscriptionEntry = {
+  id: number;
+  name: string;
+  amount: string;
+  frequency: string;
+  monthlyEquivalent: string;
+  isActive: boolean;
+};
+
+type IncomeEntry = {
+  id: number;
+  netAmount: string;
+  isRecurring: boolean;
+  recurrenceFrequency: string | null;
+  isActive: boolean;
+};
+
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -130,6 +154,13 @@ export default function Home() {
   const [savings, setSavings] = useState<SavingsEntry[]>([]);
   const [savingsLoading, setSavingsLoading] = useState(true);
 
+  const [housing, setHousing] = useState<HousingEntry[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionEntry[]>([]);
+  const [fixedCostsLoading, setFixedCostsLoading] = useState(true);
+
+  const [income, setIncome] = useState<IncomeEntry[]>([]);
+  const [incomeLoading, setIncomeLoading] = useState(true);
+
   useEffect(() => {
     async function loadBudgets() {
       setLoading(true);
@@ -194,6 +225,55 @@ export default function Home() {
     void loadSavings();
   }, []);
 
+  useEffect(() => {
+    async function loadFixedCosts() {
+      setFixedCostsLoading(true);
+
+      try {
+        const [housingRes, subsRes] = await Promise.all([
+          fetch(`/api/housing?month=${selectedMonth}`, { cache: "no-store" }),
+          fetch("/api/subscriptions", { cache: "no-store" }),
+        ]);
+
+        if (housingRes.ok) {
+          setHousing((await housingRes.json()) as HousingEntry[]);
+        }
+
+        if (subsRes.ok) {
+          setSubscriptions((await subsRes.json()) as SubscriptionEntry[]);
+        }
+      } catch {
+        // Silently fail
+      } finally {
+        setFixedCostsLoading(false);
+      }
+    }
+
+    void loadFixedCosts();
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    async function loadIncome() {
+      setIncomeLoading(true);
+
+      try {
+        const response = await fetch(`/api/income?month=${selectedMonth}`, {
+          cache: "no-store",
+        });
+
+        if (response.ok) {
+          setIncome((await response.json()) as IncomeEntry[]);
+        }
+      } catch {
+        // Silently fail
+      } finally {
+        setIncomeLoading(false);
+      }
+    }
+
+    void loadIncome();
+  }, [selectedMonth]);
+
   const chartData = useMemo(() => buildBudgetChartEntries(entries), [entries]);
 
   const summary = useMemo(() => {
@@ -220,6 +300,32 @@ export default function Home() {
     [savings],
   );
 
+  const fixedCostsSummary = useMemo(() => {
+    const totalHousing = housing.reduce((sum, h) => sum + Number(h.amount), 0);
+    const totalSubs = subscriptions
+      .filter((s) => s.isActive)
+      .reduce((sum, s) => sum + Number(s.monthlyEquivalent), 0);
+
+    return {
+      housing: totalHousing,
+      subscriptions: totalSubs,
+      total: totalHousing + totalSubs,
+    };
+  }, [housing, subscriptions]);
+
+  const totalMonthlyIncome = useMemo(
+    () =>
+      income
+        .filter((i) => i.isActive)
+        .reduce((sum, i) => sum + Number(i.netAmount), 0),
+    [income],
+  );
+
+  const netPosition = useMemo(
+    () => totalMonthlyIncome - summary.totalBudgeted - fixedCostsSummary.total,
+    [totalMonthlyIncome, summary.totalBudgeted, fixedCostsSummary.total],
+  );
+
   const chartHeight = Math.max(chartData.length * 56, 240);
 
   return (
@@ -233,10 +339,10 @@ export default function Home() {
                   Finance Centre
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">
-                  Monthly budget dashboard
+                  Monthly dashboard
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-                  Compare plan versus spend across every category in a single view.
+                  A complete picture of your monthly finances: income, spending, fixed costs, and progress on debts and savings.
                 </p>
               </div>
 
@@ -376,6 +482,54 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Monthly overview cards */}
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <article className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm">
+            <p className="text-sm font-medium text-stone-500">Monthly income (net)</p>
+            {incomeLoading ? (
+              <p className="mt-3 text-sm text-stone-400">Loading...</p>
+            ) : (
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
+                {currencyFormatter.format(totalMonthlyIncome)}
+              </p>
+            )}
+          </article>
+
+          <article className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm">
+            <p className="text-sm font-medium text-stone-500">Budgeted spending</p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
+              {currencyFormatter.format(summary.totalBudgeted)}
+            </p>
+          </article>
+
+          <article className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm">
+            <p className="text-sm font-medium text-stone-500">Fixed costs</p>
+            {fixedCostsLoading ? (
+              <p className="mt-3 text-sm text-stone-400">Loading...</p>
+            ) : (
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
+                {currencyFormatter.format(fixedCostsSummary.total)}
+              </p>
+            )}
+          </article>
+
+          <article className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm">
+            <p className="text-sm font-medium text-stone-500">Net position</p>
+            {incomeLoading || fixedCostsLoading || loading ? (
+              <p className="mt-3 text-sm text-stone-400">Loading...</p>
+            ) : (
+              <p
+                className={`mt-3 text-3xl font-semibold tracking-tight ${
+                  netPosition < 0 ? "text-red-600" : "text-green-600"
+                }`}
+              >
+                {currencyFormatter.format(netPosition)}
+              </p>
+            )}
+          </article>
+        </section>
+
+        {/* Budget summary cards */}
         <section className="grid gap-4 md:grid-cols-3">
           <article className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm">
             <p className="text-sm font-medium text-stone-500">Total budgeted</p>
@@ -403,6 +557,47 @@ export default function Home() {
           </article>
         </section>
 
+        {/* Fixed costs breakdown */}
+        <section className="rounded-[2rem] border border-stone-200 bg-white px-6 py-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-stone-950">Fixed Costs</h2>
+            <Link
+              href="/fixed-costs"
+              className="text-sm font-medium text-stone-500 transition hover:text-stone-950"
+            >
+              Manage
+            </Link>
+          </div>
+
+          {fixedCostsLoading ? (
+            <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-6 text-sm text-stone-500">
+              Loading fixed costs...
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-stone-100 bg-stone-50 px-4 py-4">
+                <p className="text-sm font-medium text-stone-500">Housing</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-stone-950">
+                  {currencyFormatter.format(fixedCostsSummary.housing)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50 px-4 py-4">
+                <p className="text-sm font-medium text-stone-500">Subscriptions</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-stone-950">
+                  {currencyFormatter.format(fixedCostsSummary.subscriptions)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50 px-4 py-4">
+                <p className="text-sm font-medium text-stone-500">Total monthly</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-stone-950">
+                  {currencyFormatter.format(fixedCostsSummary.total)}
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Debt & Savings */}
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-[2rem] border border-stone-200 bg-white px-6 py-5 shadow-sm">
             <div className="flex items-center justify-between">

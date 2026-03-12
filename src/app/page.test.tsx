@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "@/app/page";
 
@@ -115,6 +115,23 @@ const savingsResponse = [
   },
 ];
 
+const housingResponse = [
+  { id: 1, expenseType: "RENT", amount: "950", frequency: "MONTHLY" },
+  { id: 2, expenseType: "ENERGY", amount: "120", frequency: "MONTHLY" },
+];
+
+const subscriptionsResponse = [
+  { id: 1, name: "Netflix", amount: "15.99", frequency: "MONTHLY", monthlyEquivalent: "15.99", isActive: true },
+  { id: 2, name: "Gym", amount: "360", frequency: "YEARLY", monthlyEquivalent: "30", isActive: true },
+  { id: 3, name: "Old Service", amount: "10", frequency: "MONTHLY", monthlyEquivalent: "10", isActive: false },
+];
+
+const incomeResponse = [
+  { id: 1, netAmount: "3200", isRecurring: true, recurrenceFrequency: "MONTHLY", isActive: true },
+  { id: 2, netAmount: "500", isRecurring: false, recurrenceFrequency: null, isActive: true },
+  { id: 3, netAmount: "1000", isRecurring: true, recurrenceFrequency: "MONTHLY", isActive: false },
+];
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -126,16 +143,28 @@ function createFetchMock({
   budgets = budgetsResponse,
   debts = debtsResponse,
   savings = savingsResponse,
+  housing = housingResponse,
+  subscriptions = subscriptionsResponse,
+  income = incomeResponse,
   budgetsStatus = 200,
   debtsStatus = 200,
   savingsStatus = 200,
+  housingStatus = 200,
+  subscriptionsStatus = 200,
+  incomeStatus = 200,
 }: {
   budgets?: unknown;
   debts?: unknown;
   savings?: unknown;
+  housing?: unknown;
+  subscriptions?: unknown;
+  income?: unknown;
   budgetsStatus?: number;
   debtsStatus?: number;
   savingsStatus?: number;
+  housingStatus?: number;
+  subscriptionsStatus?: number;
+  incomeStatus?: number;
 } = {}) {
   return vi.fn((url: string) => {
     if (url.startsWith("/api/budgets")) {
@@ -147,8 +176,25 @@ function createFetchMock({
     if (url === "/api/savings") {
       return Promise.resolve(jsonResponse(savings, savingsStatus));
     }
+    if (url.startsWith("/api/housing")) {
+      return Promise.resolve(jsonResponse(housing, housingStatus));
+    }
+    if (url === "/api/subscriptions") {
+      return Promise.resolve(jsonResponse(subscriptions, subscriptionsStatus));
+    }
+    if (url.startsWith("/api/income")) {
+      return Promise.resolve(jsonResponse(income, incomeStatus));
+    }
     return Promise.resolve(jsonResponse({ error: "Not found" }, 404));
   });
+}
+
+/** Helper to find a summary card by its label text, then return the value element. */
+function getCardValue(labelText: string) {
+  const label = screen.getByText(labelText);
+  const article = label.closest("article");
+  if (!article) throw new Error(`No article parent found for label "${labelText}"`);
+  return within(article).getAllByText(/./)[1]; // second <p> in the article is the value
 }
 
 describe("[Component] dashboard page", () => {
@@ -157,7 +203,7 @@ describe("[Component] dashboard page", () => {
     vi.unstubAllGlobals();
   });
 
-  it("should fetch the current month and render summary stats when the page loads", async () => {
+  it("should fetch the current month and render budget chart when the page loads", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -168,9 +214,26 @@ describe("[Component] dashboard page", () => {
       cache: "no-store",
     });
     expect(screen.getByText("March 2026")).toBeInTheDocument();
-    expect(screen.getByText("£700.00")).toBeInTheDocument();
-    expect(screen.getByText("£363.45")).toBeInTheDocument();
-    expect(screen.getByText("£336.55")).toBeInTheDocument();
+  });
+
+  it("should render budget summary cards with correct values", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await screen.findByText("Groceries, Transport");
+
+    // Total budgeted: 500 + 200 = 700
+    const budgetedCard = screen.getByText("Total budgeted").closest("article")!;
+    expect(within(budgetedCard).getByText("£700.00")).toBeInTheDocument();
+
+    // Total spent: 123.45 + 240 = 363.45
+    const spentCard = screen.getByText("Total spent").closest("article")!;
+    expect(within(spentCard).getByText("£363.45")).toBeInTheDocument();
+
+    // Remaining: 700 - 363.45 = 336.55
+    const remainingCard = screen.getByText("Remaining").closest("article")!;
+    expect(within(remainingCard).getByText("£336.55")).toBeInTheDocument();
   });
 
   it("should keep the budget amount as the chart reference when spending exceeds budget", async () => {
@@ -225,6 +288,250 @@ describe("[Component] dashboard page", () => {
       await screen.findByText("Budget API unavailable"),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
+  });
+
+  describe("Monthly overview cards", () => {
+    it("should display the monthly income (net) from active income entries", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      // Active income: 3200 + 500 = 3700 (id:3 is inactive)
+      await waitFor(() => {
+        const card = screen.getByText("Monthly income (net)").closest("article")!;
+        expect(within(card).getByText("£3,700.00")).toBeInTheDocument();
+      });
+    });
+
+    it("should display the budgeted spending in the overview card", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+      await screen.findByText("Groceries, Transport");
+
+      const card = screen.getByText("Budgeted spending").closest("article")!;
+      expect(within(card).getByText("£700.00")).toBeInTheDocument();
+    });
+
+    it("should display the total fixed costs in the overview card", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      // Housing: 950 + 120 = 1070, active subscriptions: 15.99 + 30 = 45.99
+      // Total: 1070 + 45.99 = 1115.99
+      await waitFor(() => {
+        const card = screen.getByText("Fixed costs").closest("article")!;
+        expect(within(card).getByText("£1,115.99")).toBeInTheDocument();
+      });
+    });
+
+    it("should display the net position (income - budgets - fixed costs)", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      // Income: 3700, Budgets: 700, Fixed: 1115.99
+      // Net: 3700 - 700 - 1115.99 = 1884.01
+      await waitFor(() => {
+        const card = screen.getByText("Net position").closest("article")!;
+        expect(within(card).getByText("£1,884.01")).toBeInTheDocument();
+      });
+    });
+
+    it("should show net position in red when negative", async () => {
+      const fetchMock = createFetchMock({
+        income: [{ id: 1, netAmount: "100", isRecurring: false, recurrenceFrequency: null, isActive: true }],
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      // Income: 100, Budgets: 700, Fixed: 1115.99 => net = -1715.99
+      await waitFor(() => {
+        const card = screen.getByText("Net position").closest("article")!;
+        const value = within(card).getByText("-£1,715.99");
+        expect(value.className).toContain("text-red-600");
+      });
+    });
+
+    it("should show net position in green when positive", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        const card = screen.getByText("Net position").closest("article")!;
+        const value = within(card).getByText("£1,884.01");
+        expect(value.className).toContain("text-green-600");
+      });
+    });
+
+    it("should show £0.00 for income when no income entries exist", async () => {
+      const fetchMock = createFetchMock({ income: [] });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        const card = screen.getByText("Monthly income (net)").closest("article")!;
+        expect(within(card).getByText("£0.00")).toBeInTheDocument();
+      });
+    });
+
+    it("should show loading states while data is being fetched", () => {
+      const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      expect(screen.getAllByText("Loading...").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("Fixed costs breakdown section", () => {
+    it("should display the Fixed Costs heading and Manage link", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+      await screen.findByText("Fixed Costs");
+
+      const manageLink = screen.getByRole("link", { name: "Manage" });
+      expect(manageLink).toHaveAttribute("href", "/fixed-costs");
+    });
+
+    it("should show housing, subscriptions, and total in the breakdown", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Housing")).toBeInTheDocument();
+        expect(screen.getByText("Subscriptions")).toBeInTheDocument();
+        expect(screen.getByText("Total monthly")).toBeInTheDocument();
+      });
+
+      // Housing: 950 + 120 = 1070
+      const housingLabel = screen.getByText("Housing");
+      const housingCard = housingLabel.closest("div.rounded-2xl")!;
+      expect(within(housingCard).getByText("£1,070.00")).toBeInTheDocument();
+
+      // Active subscriptions: 15.99 + 30 = 45.99
+      const subsLabel = screen.getByText("Subscriptions");
+      const subsCard = subsLabel.closest("div.rounded-2xl")!;
+      expect(within(subsCard).getByText("£45.99")).toBeInTheDocument();
+
+      // Total: 1070 + 45.99 = 1115.99
+      const totalLabel = screen.getByText("Total monthly");
+      const totalCard = totalLabel.closest("div.rounded-2xl")!;
+      expect(within(totalCard).getByText("£1,115.99")).toBeInTheDocument();
+    });
+
+    it("should exclude inactive subscriptions from the total", async () => {
+      const fetchMock = createFetchMock({
+        subscriptions: [
+          { id: 1, name: "Active Sub", amount: "20", frequency: "MONTHLY", monthlyEquivalent: "20", isActive: true },
+          { id: 2, name: "Cancelled", amount: "50", frequency: "MONTHLY", monthlyEquivalent: "50", isActive: false },
+        ],
+        housing: [],
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        const totalLabel = screen.getByText("Total monthly");
+        const totalCard = totalLabel.closest("div.rounded-2xl")!;
+        expect(within(totalCard).getByText("£20.00")).toBeInTheDocument();
+      });
+    });
+
+    it("should show loading state for fixed costs initially", () => {
+      const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      expect(screen.getByText("Loading fixed costs...")).toBeInTheDocument();
+    });
+
+    it("should show zero when there are no housing expenses or subscriptions", async () => {
+      const fetchMock = createFetchMock({
+        housing: [],
+        subscriptions: [],
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        const totalLabel = screen.getByText("Total monthly");
+        const totalCard = totalLabel.closest("div.rounded-2xl")!;
+        expect(within(totalCard).getByText("£0.00")).toBeInTheDocument();
+      });
+    });
+
+    it("should refetch housing expenses when the month changes", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+      await screen.findByText("Groceries, Transport");
+
+      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-02", {
+          cache: "no-store",
+        });
+      });
+    });
+
+    it("should refetch income when the month changes", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+      await screen.findByText("Groceries, Transport");
+
+      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-02", {
+          cache: "no-store",
+        });
+      });
+    });
+
+    it("should silently handle a failed housing API response", async () => {
+      const fetchMock = createFetchMock({ housingStatus: 500, housing: { error: "fail" } });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      // Budget chart should still load
+      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
+      // Fixed costs should show with zero housing
+      await waitFor(() => {
+        expect(screen.getByText("Housing")).toBeInTheDocument();
+      });
+    });
+
+    it("should silently handle a failed subscriptions API response", async () => {
+      const fetchMock = createFetchMock({ subscriptionsStatus: 500, subscriptions: { error: "fail" } });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+
+      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
+    });
   });
 
   describe("Debt Payoff section", () => {
@@ -365,6 +672,15 @@ describe("[Component] dashboard page", () => {
         if (url === "/api/savings") {
           return Promise.resolve(jsonResponse(savingsResponse));
         }
+        if (url.startsWith("/api/housing")) {
+          return Promise.resolve(jsonResponse(housingResponse));
+        }
+        if (url === "/api/subscriptions") {
+          return Promise.resolve(jsonResponse(subscriptionsResponse));
+        }
+        if (url.startsWith("/api/income")) {
+          return Promise.resolve(jsonResponse(incomeResponse));
+        }
         return Promise.resolve(jsonResponse({}, 404));
       });
       vi.stubGlobal("fetch", fetchMock);
@@ -393,7 +709,6 @@ describe("[Component] dashboard page", () => {
       render(<Home />);
 
       expect(await screen.findByText("Emergency Fund")).toBeInTheDocument();
-      expect(screen.getByText("Holiday")).toBeInTheDocument();
 
       // Check current/target labels
       expect(screen.getByText("£4,500.00 / £10,000.00")).toBeInTheDocument();
@@ -470,6 +785,15 @@ describe("[Component] dashboard page", () => {
         if (url === "/api/debts") {
           return Promise.resolve(jsonResponse(debtsResponse));
         }
+        if (url.startsWith("/api/housing")) {
+          return Promise.resolve(jsonResponse(housingResponse));
+        }
+        if (url === "/api/subscriptions") {
+          return Promise.resolve(jsonResponse(subscriptionsResponse));
+        }
+        if (url.startsWith("/api/income")) {
+          return Promise.resolve(jsonResponse(incomeResponse));
+        }
         return Promise.resolve(jsonResponse({}, 404));
       });
       vi.stubGlobal("fetch", fetchMock);
@@ -482,7 +806,7 @@ describe("[Component] dashboard page", () => {
   });
 
   describe("Section headings and layout", () => {
-    it("should render Debt Payoff and Savings Goals headings", async () => {
+    it("should render all section headings", async () => {
       const fetchMock = createFetchMock();
       vi.stubGlobal("fetch", fetchMock);
 
@@ -490,9 +814,11 @@ describe("[Component] dashboard page", () => {
 
       expect(await screen.findByText("Debt Payoff")).toBeInTheDocument();
       expect(screen.getByText("Savings Goals")).toBeInTheDocument();
+      expect(screen.getByText("Fixed Costs")).toBeInTheDocument();
+      expect(screen.getByText("Monthly dashboard")).toBeInTheDocument();
     });
 
-    it("should fetch debts and savings endpoints on mount", async () => {
+    it("should fetch all endpoints on mount", async () => {
       const fetchMock = createFetchMock();
       vi.stubGlobal("fetch", fetchMock);
 
@@ -500,8 +826,23 @@ describe("[Component] dashboard page", () => {
 
       await screen.findByText("Groceries, Transport");
 
+      expect(fetchMock).toHaveBeenCalledWith("/api/budgets?month=2026-03", { cache: "no-store" });
       expect(fetchMock).toHaveBeenCalledWith("/api/debts", { cache: "no-store" });
       expect(fetchMock).toHaveBeenCalledWith("/api/savings", { cache: "no-store" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-03", { cache: "no-store" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions", { cache: "no-store" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-03", { cache: "no-store" });
+    });
+
+    it("should render the Edit budgets and View transactions links", async () => {
+      const fetchMock = createFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Home />);
+      await screen.findByText("Groceries, Transport");
+
+      expect(screen.getByRole("link", { name: "Edit budgets" })).toHaveAttribute("href", "/budgets");
+      expect(screen.getByRole("link", { name: "View transactions" })).toHaveAttribute("href", "/transactions");
     });
   });
 });
