@@ -34,11 +34,21 @@ describe("[Unit] holidays collection route GET", () => {
         isActive: true,
         createdAt: new Date("2026-03-01T00:00:00.000Z"),
         holidayExpenses: [
-          { amount: new Prisma.Decimal("120.50") },
-          { amount: new Prisma.Decimal("79.50") },
+          {
+            expenseType: "FOOD",
+            amount: new Prisma.Decimal("79.50"),
+          },
+          {
+            expenseType: "FLIGHT",
+            amount: new Prisma.Decimal("120.50"),
+          },
+          {
+            expenseType: "FLIGHT",
+            amount: new Prisma.Decimal("20.00"),
+          },
         ],
         _count: {
-          holidayExpenses: 2,
+          holidayExpenses: 3,
         },
       },
     ]);
@@ -51,6 +61,7 @@ describe("[Unit] holidays collection route GET", () => {
       include: {
         holidayExpenses: {
           select: {
+            expenseType: true,
             amount: true,
           },
         },
@@ -67,8 +78,18 @@ describe("[Unit] holidays collection route GET", () => {
     expect(body).toEqual([
       expect.objectContaining({
         id: 2,
-        totalCost: "200",
-        expenseCount: 2,
+        totalCost: "220",
+        expenseCount: 3,
+        expenseBreakdown: [
+          {
+            expenseType: "FLIGHT",
+            totalCost: "140.5",
+          },
+          {
+            expenseType: "FOOD",
+            totalCost: "79.5",
+          },
+        ],
       }),
     ]);
     expect(body[0]).not.toHaveProperty("holidayExpenses");
@@ -128,6 +149,7 @@ describe("[Unit] holidays collection route POST", () => {
       include: {
         holidayExpenses: {
           select: {
+            expenseType: true,
             amount: true,
           },
         },
@@ -143,6 +165,7 @@ describe("[Unit] holidays collection route POST", () => {
       name: "Rome",
       totalCost: "0",
       expenseCount: 0,
+      expenseBreakdown: [],
     });
     expect(body).not.toHaveProperty("holidayExpenses");
     expect(body).not.toHaveProperty("_count");

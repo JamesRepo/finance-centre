@@ -18,7 +18,7 @@ function attachHolidaySummary<
     description: string | null;
     isActive: boolean;
     createdAt: Date;
-    holidayExpenses: Array<{ amount: Prisma.Decimal }>;
+    holidayExpenses: Array<{ expenseType: string; amount: Prisma.Decimal }>;
     _count: { holidayExpenses: number };
   },
 >(holiday: T) {
@@ -26,12 +26,27 @@ function attachHolidaySummary<
     (sum, expense) => sum.plus(expense.amount),
     new Prisma.Decimal(0),
   );
+  const expenseTypeTotals = new Map<string, Prisma.Decimal>();
+
+  for (const expense of holiday.holidayExpenses) {
+    const currentTotal =
+      expenseTypeTotals.get(expense.expenseType) ?? new Prisma.Decimal(0);
+
+    expenseTypeTotals.set(expense.expenseType, currentTotal.plus(expense.amount));
+  }
+
   const { holidayExpenses: _holidayExpenses, _count, ...holidaySummary } = holiday;
 
   return {
     ...holidaySummary,
     totalCost,
     expenseCount: _count.holidayExpenses,
+    expenseBreakdown: Array.from(expenseTypeTotals.entries())
+      .map(([expenseType, totalCostForType]) => ({
+        expenseType,
+        totalCost: totalCostForType,
+      }))
+      .sort((left, right) => left.expenseType.localeCompare(right.expenseType)),
   };
 }
 
@@ -40,6 +55,7 @@ export async function GET() {
     include: {
       holidayExpenses: {
         select: {
+          expenseType: true,
           amount: true,
         },
       },
@@ -66,6 +82,7 @@ export async function POST(request: NextRequest) {
       include: {
         holidayExpenses: {
           select: {
+            expenseType: true,
             amount: true,
           },
         },
