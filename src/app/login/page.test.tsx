@@ -113,6 +113,23 @@ describe("[Component] LoginPage", () => {
     expect(await screen.findByText("Invalid email or password")).toBeInTheDocument();
   });
 
+  it("should display a rate limit message when the credentials callback returns 429", async () => {
+    const user = userEvent.setup();
+    mockSignIn.mockResolvedValue({ error: null, status: 429 });
+
+    render(<LoginPage />);
+
+    await user.type(screen.getByLabelText("Email"), "wrong@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrongpassword");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText("Too many sign-in attempts. Please wait a minute and try again."),
+    ).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Sign in" })).not.toBeDisabled();
+  });
+
   it("should not redirect on failed sign-in", async () => {
     const user = userEvent.setup();
     mockSignIn.mockResolvedValue({ error: "CredentialsSignin" });

@@ -22,7 +22,10 @@ export default function LoginPage() {
       redirect: false,
     });
 
-    if (result?.error) {
+    if (result?.status === 429 || result?.error === "RateLimitExceeded") {
+      setError("Too many sign-in attempts. Please wait a minute and try again.");
+      setSubmitting(false);
+    } else if (result?.error) {
       setError("Invalid email or password");
       setSubmitting(false);
     } else {
