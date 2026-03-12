@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
+import { getClientIp, logFailedLoginAttempt } from "./auth-rate-limit";
 import { prisma } from "./prisma";
 
 export const authOptions: NextAuthOptions = {
@@ -11,13 +12,22 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+      async authorize(credentials, req) {
+        const ip = getClientIp(req.headers);
+
+        if (!credentials?.email || !credentials?.password) {
+          logFailedLoginAttempt(ip, "missing_credentials");
+          return null;
+        }
 
         const settings = await prisma.settings.findFirst();
-        if (!settings?.email || !settings?.passwordHash) return null;
+        if (!settings?.email || !settings?.passwordHash) {
+          logFailedLoginAttempt(ip, "auth_not_configured");
+          return null;
+        }
 
         if (credentials.email.toLowerCase() !== settings.email.toLowerCase()) {
+          logFailedLoginAttempt(ip, "invalid_email");
           return null;
         }
 
@@ -25,7 +35,10 @@ export const authOptions: NextAuthOptions = {
           credentials.password,
           settings.passwordHash,
         );
-        if (!valid) return null;
+        if (!valid) {
+          logFailedLoginAttempt(ip, "invalid_password");
+          return null;
+        }
 
         return { id: "1", email: settings.email };
       },
