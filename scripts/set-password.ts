@@ -1,7 +1,7 @@
 import "dotenv/config";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client.js";
+import { PrismaClient } from "@/generated/prisma/client";
 import bcrypt from "bcrypt";
 
 const SALT_ROUNDS = 12;
