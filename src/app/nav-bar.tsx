@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 
 const navGroups = [
   {
@@ -35,6 +36,8 @@ const navGroups = [
 
 export function NavBar() {
   const pathname = usePathname();
+
+  if (pathname === "/login") return null;
 
   function isActive(href: string) {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -72,6 +75,16 @@ export function NavBar() {
         <Link href="/settings" className={linkClasses("/settings")}>
           Settings
         </Link>
+
+        <div className="ml-auto flex items-center">
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-stone-500 transition hover:border-stone-300 hover:text-stone-700"
+          >
+            Logout
+          </button>
+        </div>
       </div>
     </nav>
   );

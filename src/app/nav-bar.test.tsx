@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NavBar } from "@/app/nav-bar";
 
@@ -22,9 +23,18 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+const { mockSignOut } = vi.hoisted(() => ({
+  mockSignOut: vi.fn(),
+}));
+
+vi.mock("next-auth/react", () => ({
+  signOut: mockSignOut,
+}));
+
 describe("[Component] NavBar", () => {
   beforeEach(() => {
     mockPathname = "/";
+    vi.clearAllMocks();
   });
 
   it("should render all nine navigation links", () => {
@@ -168,5 +178,72 @@ describe("[Component] NavBar", () => {
 
     expect(lastLink).toHaveTextContent("Settings");
     expect(lastLink).toHaveAttribute("href", "/settings");
+  });
+});
+
+describe("[Component] NavBar logout button", () => {
+  beforeEach(() => {
+    mockPathname = "/";
+    vi.clearAllMocks();
+  });
+
+  it("should render a Logout button", () => {
+    render(<NavBar />);
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  it("should call signOut with callbackUrl /login when Logout is clicked", async () => {
+    const user = userEvent.setup();
+    render(<NavBar />);
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/login" });
+  });
+
+  it("should call signOut exactly once per click", async () => {
+    const user = userEvent.setup();
+    render(<NavBar />);
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    expect(mockSignOut).toHaveBeenCalledOnce();
+  });
+});
+
+describe("[Component] NavBar login page visibility", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should render nothing when on /login", () => {
+    mockPathname = "/login";
+    const { container } = render(<NavBar />);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("should not render navigation element when on /login", () => {
+    mockPathname = "/login";
+    render(<NavBar />);
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  it("should not render any links when on /login", () => {
+    mockPathname = "/login";
+    render(<NavBar />);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("should not render the Logout button when on /login", () => {
+    mockPathname = "/login";
+    render(<NavBar />);
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
+  });
+
+  it("should render normally on non-login pages", () => {
+    mockPathname = "/budgets";
+    render(<NavBar />);
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
   });
 });
