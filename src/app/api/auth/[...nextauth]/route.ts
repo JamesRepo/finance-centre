@@ -5,9 +5,13 @@ import { enforceCredentialsRateLimit } from "@/lib/auth-rate-limit";
 
 const handler = NextAuth(authOptions);
 
-export const GET = handler;
+type RouteContext = { params: Promise<{ nextauth: string[] }> };
 
-export async function POST(request: NextRequest) {
+export async function GET(req: NextRequest, ctx: RouteContext) {
+  return handler(req, { params: await ctx.params });
+}
+
+export async function POST(request: NextRequest, ctx: RouteContext) {
   if (request.nextUrl.pathname.endsWith("/callback/credentials")) {
     const rateLimitResponse = await enforceCredentialsRateLimit(request);
     if (rateLimitResponse) {
@@ -15,5 +19,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return handler(request);
+  return handler(request, { params: await ctx.params });
 }

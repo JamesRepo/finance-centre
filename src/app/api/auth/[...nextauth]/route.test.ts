@@ -26,6 +26,8 @@ vi.mock("@/lib/auth-rate-limit", () => ({
 
 import { GET, POST } from "@/app/api/auth/[...nextauth]/route";
 
+const mockCtx = { params: Promise.resolve({ nextauth: ["callback", "credentials"] }) };
+
 describe("[Unit] auth route POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,11 +41,12 @@ describe("[Unit] auth route POST", () => {
     const request = new NextRequest("http://localhost/api/auth/signin/credentials", {
       method: "POST",
     });
+    const ctx = { params: Promise.resolve({ nextauth: ["signin", "credentials"] }) };
 
-    const response = await POST(request);
+    const response = await POST(request, ctx);
 
     expect(mockEnforceCredentialsRateLimit).not.toHaveBeenCalled();
-    expect(mockHandler).toHaveBeenCalledWith(request);
+    expect(mockHandler).toHaveBeenCalledWith(request, { params: { nextauth: ["signin", "credentials"] } });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
@@ -53,10 +56,10 @@ describe("[Unit] auth route POST", () => {
       method: "POST",
     });
 
-    const response = await POST(request);
+    const response = await POST(request, mockCtx);
 
     expect(mockEnforceCredentialsRateLimit).toHaveBeenCalledWith(request);
-    expect(mockHandler).toHaveBeenCalledWith(request);
+    expect(mockHandler).toHaveBeenCalledWith(request, { params: { nextauth: ["callback", "credentials"] } });
     expect(response.status).toBe(200);
   });
 
@@ -70,7 +73,7 @@ describe("[Unit] auth route POST", () => {
     );
     mockEnforceCredentialsRateLimit.mockResolvedValue(limitedResponse);
 
-    const response = await POST(request);
+    const response = await POST(request, mockCtx);
 
     expect(mockEnforceCredentialsRateLimit).toHaveBeenCalledWith(request);
     expect(mockHandler).not.toHaveBeenCalled();
@@ -79,14 +82,32 @@ describe("[Unit] auth route POST", () => {
       url: "http://localhost/login?error=RateLimitExceeded",
     });
   });
+
+  it("should resolve async params before passing to NextAuth handler", async () => {
+    const request = new NextRequest("http://localhost/api/auth/callback/credentials", {
+      method: "POST",
+    });
+
+    await POST(request, mockCtx);
+
+    expect(mockHandler).toHaveBeenCalledWith(request, { params: { nextauth: ["callback", "credentials"] } });
+  });
 });
 
 describe("[Unit] auth route GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHandler.mockResolvedValue(
+      NextResponse.json({ ok: true }, { status: 200 }),
+    );
   });
 
-  it("should expose the NextAuth handler as GET", () => {
-    expect(GET).toBe(mockHandler);
+  it("should delegate to the NextAuth handler with resolved params", async () => {
+    const request = new NextRequest("http://localhost/api/auth/session");
+    const ctx = { params: Promise.resolve({ nextauth: ["session"] }) };
+
+    await GET(request, ctx);
+
+    expect(mockHandler).toHaveBeenCalledWith(request, { params: { nextauth: ["session"] } });
   });
 });
