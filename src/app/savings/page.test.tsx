@@ -11,18 +11,6 @@ import { format } from "date-fns";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SavingsPage from "@/app/savings/page";
 
-vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}));
-
 const today = format(new Date(), "yyyy-MM-dd");
 
 type GoalFixture = {
@@ -721,7 +709,7 @@ describe("[Component] savings page", () => {
     expect(screen.getByText("0%")).toBeInTheDocument();
   });
 
-  it("should render the breadcrumb with a link to the dashboard", async () => {
+  it("should not render breadcrumbs", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -729,8 +717,7 @@ describe("[Component] savings page", () => {
 
     await screen.findByText("Your goals");
 
-    const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
-    expect(dashboardLink).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByText("Savings goals")).toBeInTheDocument();
   });
 });

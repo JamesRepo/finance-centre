@@ -11,18 +11,6 @@ import { format } from "date-fns";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DebtsPage from "@/app/debts/page";
 
-vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}));
-
 const today = format(new Date(), "yyyy-MM-dd");
 
 function buildDebt(overrides: Partial<DebtFixture> = {}): DebtFixture {

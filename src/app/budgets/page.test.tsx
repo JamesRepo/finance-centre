@@ -10,18 +10,6 @@ vi.mock("@/lib/months", () => ({
     month === "2026-04" ? "April 2026" : "March 2026",
 }));
 
-vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}));
-
 const initialBudgetsResponse = [
   {
     budgetId: "budget-1",

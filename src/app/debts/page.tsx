@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { format } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -690,14 +689,7 @@ export default function DebtsPage() {
           <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fafaf9_0%,#f5f5f4_52%,#ede9e7_100%)] px-6 py-6">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <div className="flex flex-wrap gap-2 text-sm font-medium text-stone-500">
-                  <Link href="/" className="transition hover:text-stone-950">
-                    Dashboard
-                  </Link>
-                  <span>/</span>
-                  <span className="text-stone-950">Debts</span>
-                </div>
-                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
                   Debts
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatMonthLabel, getCurrentMonthValue } from "@/lib/months";
 
@@ -194,19 +193,7 @@ export default function BudgetsPage() {
           <div className="border-b border-stone-200 px-6 py-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <div className="flex flex-wrap gap-2 text-sm font-medium text-stone-500">
-                  <Link href="/" className="transition hover:text-stone-950">
-                    Dashboard
-                  </Link>
-                  <span>/</span>
-                  <Link
-                    href="/transactions"
-                    className="transition hover:text-stone-950"
-                  >
-                    Transactions
-                  </Link>
-                </div>
-                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
                   Budgets
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">
