@@ -50,6 +50,14 @@ type Transaction = {
   category: Category;
 };
 
+function isLightColor(hex: string): boolean {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150;
+}
+
 export default function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -385,21 +393,26 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((transaction) => (
+                  transactions.map((transaction) => {
+                    const bgColor = transaction.category.colorCode ?? "#a8a29e";
+
+                    return (
                     <tr key={transaction.id} className="text-sm text-stone-700">
                       <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
                         {formatTransactionDisplayDate(transaction.transactionDate)}
                       </td>
                       <td className="border-b border-stone-100 py-4 pr-4">
-                        <div className="flex items-center gap-3 whitespace-nowrap">
-                          <span
-                            className="h-3 w-3 rounded-full border border-black/5"
-                            style={{
-                              backgroundColor: transaction.category.colorCode ?? "#a8a29e",
-                            }}
-                          />
-                          <span>{transaction.category.name}</span>
-                        </div>
+                        <span
+                          className="inline-block whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{
+                            backgroundColor: bgColor,
+                            color: isLightColor(bgColor)
+                              ? "#1c1917"
+                              : "#ffffff",
+                          }}
+                        >
+                          {transaction.category.name}
+                        </span>
                       </td>
                       <td className="border-b border-stone-100 py-4 pr-4">
                         {transaction.vendor || "—"}
@@ -421,7 +434,8 @@ export default function TransactionsPage() {
                         </button>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
