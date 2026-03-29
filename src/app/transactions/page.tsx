@@ -9,6 +9,7 @@ import {
   createTransactionRequest,
   formatTransactionDisplayDate,
   readApiError,
+  updateTransactionRequest,
 } from "./transaction-page-helpers";
 
 const today = new Date();
@@ -68,6 +69,8 @@ export default function TransactionsPage() {
   const [transactionsError, setTransactionsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const {
     register,
@@ -83,6 +86,15 @@ export default function TransactionsPage() {
       description: "",
       vendor: "",
     },
+  });
+
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    formState: { errors: editErrors, isSubmitting: isEditSubmitting },
+  } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
+    resolver: zodResolver(transactionFormSchema),
   });
 
   const loadCategories = useCallback(async () => {
@@ -202,6 +214,52 @@ export default function TransactionsPage() {
     } finally {
       setDeleteId(null);
     }
+  }
+
+  function handleStartEdit(transaction: Transaction) {
+    setEditingId(transaction.id);
+    setEditError(null);
+    resetEdit({
+      categoryId: transaction.categoryId,
+      amount: Number(transaction.amount),
+      transactionDate: transaction.transactionDate.slice(0, 10),
+      description: transaction.description ?? "",
+      vendor: transaction.vendor ?? "",
+    });
+  }
+
+  function handleCancelEdit() {
+    setEditingId(null);
+    setEditError(null);
+  }
+
+  async function onEditSubmit(values: TransactionFormSubmitValues) {
+    if (!editingId) return;
+    setEditError(null);
+
+    const result = await updateTransactionRequest(editingId, {
+      categoryId: values.categoryId,
+      amount: values.amount,
+      transactionDate: values.transactionDate,
+      description: values.description?.trim() || undefined,
+      vendor: values.vendor?.trim() || undefined,
+    });
+
+    if (!result.ok) {
+      setEditError(result.error);
+      return;
+    }
+
+    setEditingId(null);
+
+    const submittedMonth = result.submittedMonth;
+
+    if (submittedMonth !== selectedMonth) {
+      setSelectedMonth(submittedMonth);
+      return;
+    }
+
+    await loadTransactions(selectedMonth);
   }
 
   return (
@@ -395,9 +453,122 @@ export default function TransactionsPage() {
                 ) : (
                   transactions.map((transaction) => {
                     const bgColor = transaction.category.colorCode ?? "#a8a29e";
+                    const isEditing = editingId === transaction.id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={transaction.id} className="bg-stone-50">
+                          <td colSpan={6} className="border-b border-stone-200 px-0 py-4">
+                            <form
+                              className="grid gap-3 px-2 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
+                              onSubmit={handleSubmitEdit(onEditSubmit)}
+                            >
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-stone-500">Category</span>
+                                <select
+                                  className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                  disabled={categoriesLoading || isEditSubmitting}
+                                  {...registerEdit("categoryId")}
+                                >
+                                  <option value="">Select a category</option>
+                                  {categories.map((category) => (
+                                    <option key={category.id} value={category.id}>
+                                      {category.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                {editErrors.categoryId ? (
+                                  <p className="text-xs text-red-600">{editErrors.categoryId.message}</p>
+                                ) : null}
+                              </label>
+
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-stone-500">Amount</span>
+                                <input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                  disabled={isEditSubmitting}
+                                  placeholder="0.00"
+                                  {...registerEdit("amount")}
+                                />
+                                {editErrors.amount ? (
+                                  <p className="text-xs text-red-600">{editErrors.amount.message}</p>
+                                ) : null}
+                              </label>
+
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-stone-500">Date</span>
+                                <input
+                                  type="date"
+                                  className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                  disabled={isEditSubmitting}
+                                  {...registerEdit("transactionDate")}
+                                />
+                                {editErrors.transactionDate ? (
+                                  <p className="text-xs text-red-600">{editErrors.transactionDate.message}</p>
+                                ) : null}
+                              </label>
+
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-stone-500">Vendor</span>
+                                <input
+                                  type="text"
+                                  className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                  disabled={isEditSubmitting}
+                                  placeholder="Optional"
+                                  {...registerEdit("vendor")}
+                                />
+                              </label>
+
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-stone-500">Description</span>
+                                <input
+                                  type="text"
+                                  className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                  disabled={isEditSubmitting}
+                                  placeholder="Optional"
+                                  {...registerEdit("description")}
+                                />
+                              </label>
+
+                              <div className="flex items-end gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={isEditSubmitting}
+                                  className="h-9 rounded-lg bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                                >
+                                  {isEditSubmitting ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEdit}
+                                  disabled={isEditSubmitting}
+                                  className="h-9 rounded-lg border border-stone-300 bg-white px-4 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+
+                              {editError ? (
+                                <p className="text-xs text-red-600 sm:col-span-2 lg:col-span-6">
+                                  {editError}
+                                </p>
+                              ) : null}
+                            </form>
+                          </td>
+                        </tr>
+                      );
+                    }
 
                     return (
-                    <tr key={transaction.id} className="text-sm text-stone-700">
+                    <tr
+                      key={transaction.id}
+                      className="cursor-pointer text-sm text-stone-700 transition hover:bg-stone-50"
+                      onClick={() => handleStartEdit(transaction)}
+                    >
                       <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
                         {formatTransactionDisplayDate(transaction.transactionDate)}
                       </td>
@@ -426,7 +597,10 @@ export default function TransactionsPage() {
                       <td className="border-b border-stone-100 py-4 text-right">
                         <button
                           type="button"
-                          onClick={() => void handleDelete(transaction.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDelete(transaction.id);
+                          }}
                           disabled={deleteId === transaction.id}
                           className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
                         >

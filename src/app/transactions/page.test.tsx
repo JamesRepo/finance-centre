@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TransactionsPage from "@/app/transactions/page";
 
@@ -258,5 +259,314 @@ describe("[Component] transactions page — category badges", () => {
 
     expect(badge.style.backgroundColor).toBe("rgb(255, 255, 255)");
     expect(badge.style.color).toBe("rgb(28, 25, 23)");
+  });
+});
+
+const defaultCategories = [
+  { id: "cat-1", name: "Groceries", colorCode: "#22c55e" },
+  { id: "cat-2", name: "Transport", colorCode: "#3b82f6" },
+];
+
+const singleTransaction = buildTransaction({
+  id: "txn-1",
+  categoryId: "cat-1",
+  amount: "42.50",
+  transactionDate: "2026-03-10T00:00:00.000Z",
+  description: "Weekly shop",
+  vendor: "Tesco",
+  category: defaultCategories[0],
+});
+
+describe("[Component] transactions page — edit transaction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should show an inline edit form when a transaction row is clicked", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("should pre-populate the edit form with the transaction's current values", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    const categorySelect = screen.getByDisplayValue("Groceries");
+    expect(categorySelect).toBeInTheDocument();
+
+    const amountInput = screen.getByDisplayValue("42.5");
+    expect(amountInput).toBeInTheDocument();
+
+    const dateInput = screen.getByDisplayValue("2026-03-10");
+    expect(dateInput).toBeInTheDocument();
+
+    const vendorInput = screen.getByDisplayValue("Tesco");
+    expect(vendorInput).toBeInTheDocument();
+
+    const descriptionInput = screen.getByDisplayValue("Weekly shop");
+    expect(descriptionInput).toBeInTheDocument();
+  });
+
+  it("should pre-populate empty strings for null description and vendor", async () => {
+    const txn = buildTransaction({
+      description: null,
+      vendor: null,
+    });
+    stubFetch(defaultCategories, [txn]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("50.00").closest("tr")!;
+    await user.click(row);
+
+    // The form should exist with Save/Cancel buttons
+    const editForm = screen.getByRole("button", { name: "Save" }).closest("form")!;
+
+    // Vendor and Description inputs inside the edit form should be empty (not "null")
+    const editOptionalInputs = within(editForm).getAllByPlaceholderText("Optional") as HTMLInputElement[];
+    expect(editOptionalInputs).toHaveLength(2);
+    for (const input of editOptionalInputs) {
+      expect(input.value).toBe("");
+    }
+  });
+
+  it("should close the edit form when the Cancel button is clicked", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    // The transaction row should be visible again
+    expect(screen.getByText("42.50")).toBeInTheDocument();
+  });
+
+  it("should call PUT /api/transactions/[id] when saving an edit", async () => {
+    const fetchMock = stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    // Change the amount
+    const amountInput = screen.getByDisplayValue("42.5");
+    await user.clear(amountInput);
+    await user.type(amountInput, "99.99");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const putCall = fetchMock.mock.calls.find(
+        (call: [string, RequestInit?]) =>
+          typeof call[0] === "string" &&
+          call[0].includes("/api/transactions/txn-1") &&
+          call[1]?.method === "PUT",
+      );
+      expect(putCall).toBeDefined();
+
+      const body = JSON.parse((putCall as [string, RequestInit])[1].body as string);
+      expect(body.amount).toBe(99.99);
+      expect(body.categoryId).toBe("cat-1");
+      expect(body.transactionDate).toBe("2026-03-10T00:00:00.000Z");
+    });
+  });
+
+  it("should refresh the transaction list after a successful edit", async () => {
+    const fetchMock = stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    // Wait for the PUT call, then check that transactions were re-fetched
+    await waitFor(() => {
+      const transactionGets = fetchMock.mock.calls.filter(
+        (call: [string, RequestInit?]) =>
+          typeof call[0] === "string" && call[0].startsWith("/api/transactions?month="),
+      );
+      // Initial load + refresh after edit = at least 2 calls
+      expect(transactionGets.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("should close the edit form after a successful save", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("should display an error message when the update API returns an error", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (typeof url === "string" && url.includes("/api/transactions/txn-1") && options?.method === "PUT") {
+        return Promise.resolve(
+          jsonResponse({ error: "Category not found" }, 400),
+        );
+      }
+      if (url.startsWith("/api/categories")) {
+        return Promise.resolve(jsonResponse(defaultCategories));
+      }
+      if (url.startsWith("/api/transactions")) {
+        return Promise.resolve(jsonResponse([singleTransaction]));
+      }
+      return Promise.resolve(jsonResponse({ error: "Not found" }, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Category not found")).toBeInTheDocument();
+    });
+
+    // The edit form should remain open so the user can fix the issue
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it("should not open the edit form when the Delete button is clicked", async () => {
+    const fetchMock = stubFetch(defaultCategories, [singleTransaction]);
+    // Make delete respond with 204
+    fetchMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (typeof url === "string" && url.includes("/api/transactions/txn-1") && options?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (url.startsWith("/api/categories")) {
+        return Promise.resolve(jsonResponse(defaultCategories));
+      }
+      if (url.startsWith("/api/transactions")) {
+        return Promise.resolve(jsonResponse([singleTransaction]));
+      }
+      return Promise.resolve(jsonResponse({ error: "Not found" }, 404));
+    });
+
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+    const deleteButton = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteButton);
+
+    // The edit form should NOT appear
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
+  it("should only allow one row to be edited at a time", async () => {
+    const transactions = [
+      singleTransaction,
+      buildTransaction({
+        id: "txn-2",
+        categoryId: "cat-2",
+        amount: "15.00",
+        transactionDate: "2026-03-12T00:00:00.000Z",
+        vendor: "Bus",
+        category: defaultCategories[1],
+      }),
+    ];
+    stubFetch(defaultCategories, transactions);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+
+    // Click the first row to edit it
+    const firstRow = within(table).getByText("42.50").closest("tr")!;
+    await user.click(firstRow);
+
+    expect(screen.getByDisplayValue("42.5")).toBeInTheDocument();
+
+    // Click the second row — should switch to editing that one
+    const secondRow = within(table).getByText("15.00").closest("tr")!;
+    await user.click(secondRow);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("15")).toBeInTheDocument();
+    });
+
+    // Only one Save button should be present
+    expect(screen.getAllByRole("button", { name: "Save" })).toHaveLength(1);
+  });
+
+  it("should give the editing row a distinct background style", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    // After clicking, the editing tr should have bg-stone-50
+    const editingRow = screen.getByRole("button", { name: "Save" }).closest("tr")!;
+    expect(editingRow.className).toContain("bg-stone-50");
+  });
+
+  it("should make non-editing rows clickable with cursor-pointer", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+
+    expect(row.className).toContain("cursor-pointer");
   });
 });
