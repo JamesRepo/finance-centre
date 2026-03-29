@@ -539,6 +539,369 @@ describe("[Component] debts page", () => {
     });
   });
 
+  it("should show a pre-populated inline edit form when Edit is clicked for a payment", async () => {
+    const debtWithPayment = buildDebt({
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "75",
+          interestAmount: "15",
+          paymentDate: "2026-03-11T00:00:00.000Z",
+          note: "March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([debtWithPayment]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+
+    expect(screen.getByDisplayValue("75")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2026-03-11")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("March payment")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("should close the payment edit form when Cancel is clicked", async () => {
+    const debtWithPayment = buildDebt({
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "75",
+          interestAmount: "15",
+          paymentDate: "2026-03-11T00:00:00.000Z",
+          note: "March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([debtWithPayment]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.getByText("March payment")).toBeInTheDocument();
+  });
+
+  it("should update a payment and reload the debt list when the inline edit form is submitted", async () => {
+    const debtWithPayment = buildDebt({
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "75",
+          interestAmount: "15",
+          paymentDate: "2026-03-11T00:00:00.000Z",
+          note: "March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const updatedDebt = buildDebt({
+      totalPaid: "285",
+      totalInterestPaid: "35",
+      principalPaid: "250",
+      currentBalance: "750",
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "85",
+          interestAmount: "15",
+          paymentDate: "2026-03-12T00:00:00.000Z",
+          note: "Updated March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([debtWithPayment]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 21 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([updatedDebt]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "85" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-03-12" },
+    });
+    fireEvent.change(screen.getByLabelText("Note"), {
+      target: { value: " Updated March payment " },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/debts/1/payments/21", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: 85,
+          interestAmount: 15,
+          paymentDate: "2026-03-12",
+          note: "Updated March payment",
+        }),
+      });
+    });
+
+    expect(await screen.findByText("Updated March payment")).toBeInTheDocument();
+    expect(screen.getByText("Interest £15.00 · Principal £70.00")).toBeInTheDocument();
+    expect(screen.getAllByText("£750.00")).toHaveLength(2);
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("should clear an existing payment note when the inline edit form is submitted with a blank note", async () => {
+    const debtWithPayment = buildDebt({
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "75",
+          interestAmount: "15",
+          paymentDate: "2026-03-11T00:00:00.000Z",
+          note: "March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const updatedDebt = buildDebt({
+      totalPaid: "285",
+      totalInterestPaid: "35",
+      principalPaid: "250",
+      currentBalance: "750",
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "85",
+          interestAmount: "15",
+          paymentDate: "2026-03-12T00:00:00.000Z",
+          note: null,
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([debtWithPayment]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 21 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([updatedDebt]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "85" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-03-12" },
+    });
+    fireEvent.change(screen.getByLabelText("Note"), {
+      target: { value: "   " },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/debts/1/payments/21", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: 85,
+          interestAmount: 15,
+          paymentDate: "2026-03-12",
+          note: null,
+        }),
+      });
+    });
+
+    expect(await screen.findByText("No note")).toBeInTheDocument();
+    expect(screen.queryByText("March payment")).not.toBeInTheDocument();
+  });
+
+  it("should show a validation error when the payment edit form is submitted without an amount", async () => {
+    const debtWithPayment = buildDebt({
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "75",
+          interestAmount: "15",
+          paymentDate: "2026-03-11T00:00:00.000Z",
+          note: "March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([debtWithPayment]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("Invalid input: expected number, received NaN"),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("should show the edit error and keep the form open when updating a payment fails", async () => {
+    const debtWithPayment = buildDebt({
+      debtPayments: [
+        {
+          id: 21,
+          debtId: 1,
+          amount: "75",
+          interestAmount: "15",
+          paymentDate: "2026-03-11T00:00:00.000Z",
+          note: "March payment",
+          createdAt: "2026-03-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([debtWithPayment]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Update failed" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Update failed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
   it("should show the page error when deleting a payment fails", async () => {
     const debtWithPayment = buildDebt({
       debtPayments: [

@@ -86,6 +86,15 @@ const paymentFormSchema = z.object({
   },
 );
 
+const paymentEditFormSchema = z.object({
+  amount: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().positive("Payment amount must be greater than 0"),
+  ),
+  paymentDate: z.string().min(1, "Enter a payment date"),
+  note: optionalTrimmedString,
+});
+
 type DebtType = (typeof debtTypeOptions)[number]["value"];
 
 type DebtPayment = {
@@ -122,6 +131,8 @@ type DebtFormValues = z.input<typeof debtFormSchema>;
 type DebtFormSubmitValues = z.output<typeof debtFormSchema>;
 type PaymentFormValues = z.input<typeof paymentFormSchema>;
 type PaymentFormSubmitValues = z.output<typeof paymentFormSchema>;
+type PaymentEditFormValues = z.input<typeof paymentEditFormSchema>;
+type PaymentEditFormSubmitValues = z.output<typeof paymentEditFormSchema>;
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
@@ -137,6 +148,10 @@ function formatDisplayDate(value: string | null) {
   }
 
   return format(new Date(value), "d MMM yyyy");
+}
+
+function formatInputDate(value: string) {
+  return value.slice(0, 10);
 }
 
 function sortPayments(payments: DebtPayment[]) {
@@ -192,6 +207,7 @@ function DebtCard({
   deletingPaymentId,
   onTogglePaymentForm,
   onAddPayment,
+  onUpdatePayment,
   onDeletePayment,
 }: {
   debt: Debt;
@@ -199,6 +215,11 @@ function DebtCard({
   deletingPaymentId: number | null;
   onTogglePaymentForm: (debtId: number) => void;
   onAddPayment: (debtId: number, values: PaymentFormSubmitValues) => Promise<string | null>;
+  onUpdatePayment: (
+    debtId: number,
+    payment: DebtPayment,
+    values: PaymentEditFormSubmitValues,
+  ) => Promise<string | null>;
   onDeletePayment: (debtId: number, paymentId: number) => Promise<string | null>;
 }) {
   const {
@@ -216,9 +237,23 @@ function DebtCard({
     },
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+  const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
+  const {
+    register: registerEdit,
+    handleSubmit: handleEditSubmit,
+    reset: resetEdit,
+    formState: { errors: editErrors, isSubmitting: isEditSubmitting },
+  } = useForm<PaymentEditFormValues, undefined, PaymentEditFormSubmitValues>({
+    resolver: zodResolver(paymentEditFormSchema),
+    defaultValues: {
+      amount: undefined,
+      paymentDate: defaultDate,
+      note: "",
+    },
+  });
 
   const originalBalance = Number(debt.originalBalance);
-  const totalPaid = Number(debt.totalPaid);
   const principalPaid = Number(debt.principalPaid);
   const currentBalance = Number(debt.currentBalance);
   const progressRatio =
@@ -244,6 +279,52 @@ function DebtCard({
       paymentDate: defaultDate,
       note: "",
     });
+  }
+
+  function startEditingPayment(payment: DebtPayment) {
+    setEditSubmitError(null);
+    setEditingPaymentId(payment.id);
+    resetEdit({
+      amount: Number(payment.amount),
+      paymentDate: formatInputDate(payment.paymentDate),
+      note: payment.note ?? "",
+    });
+  }
+
+  function cancelEditingPayment() {
+    setEditSubmitError(null);
+    setEditingPaymentId(null);
+    resetEdit({
+      amount: undefined,
+      paymentDate: defaultDate,
+      note: "",
+    });
+  }
+
+  async function submitEditedPayment(values: PaymentEditFormSubmitValues) {
+    if (editingPaymentId === null) {
+      return;
+    }
+
+    setEditSubmitError(null);
+
+    const payment = debt.debtPayments.find(
+      (item) => item.id === editingPaymentId,
+    );
+
+    if (!payment) {
+      setEditSubmitError("Payment not found");
+      return;
+    }
+
+    const error = await onUpdatePayment(debt.id, payment, values);
+
+    if (error) {
+      setEditSubmitError(error);
+      return;
+    }
+
+    cancelEditingPayment();
   }
 
   return (
@@ -470,34 +551,126 @@ function DebtCard({
                   key={payment.id}
                   className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-stone-950">
-                      {formatDisplayDate(payment.paymentDate)}
-                    </p>
-                    <p className="mt-1 text-sm text-stone-500">
-                      {payment.note || "No note"}
-                    </p>
-                    <p className="mt-1 text-xs text-stone-500">
-                      Interest {formatCurrency(Number(payment.interestAmount))} · Principal{" "}
-                      {formatCurrency(
-                        Number(payment.amount) - Number(payment.interestAmount),
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-4 sm:justify-end">
-                    <p className="text-lg font-semibold text-stone-950">
-                      {formatCurrency(Number(payment.amount))}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void onDeletePayment(debt.id, payment.id)}
-                      disabled={deletingPaymentId === payment.id}
-                      className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  {editingPaymentId === payment.id ? (
+                    <form
+                      className="grid w-full gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_220px_auto]"
+                      onSubmit={handleEditSubmit(submitEditedPayment)}
                     >
-                      {deletingPaymentId === payment.id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-medium text-stone-700">
+                          Amount
+                        </span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          inputMode="decimal"
+                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                          disabled={isEditSubmitting}
+                          placeholder="0.00"
+                          {...registerEdit("amount")}
+                        />
+                        {editErrors.amount ? (
+                          <p className="text-sm text-red-600">
+                            {editErrors.amount.message}
+                          </p>
+                        ) : null}
+                      </label>
+
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-medium text-stone-700">
+                          Date
+                        </span>
+                        <input
+                          type="date"
+                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                          disabled={isEditSubmitting}
+                          {...registerEdit("paymentDate")}
+                        />
+                        {editErrors.paymentDate ? (
+                          <p className="text-sm text-red-600">
+                            {editErrors.paymentDate.message}
+                          </p>
+                        ) : null}
+                      </label>
+
+                      <label className="flex flex-col gap-2 md:col-span-2 xl:col-span-1">
+                        <span className="text-sm font-medium text-stone-700">
+                          Note
+                        </span>
+                        <input
+                          type="text"
+                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                          disabled={isEditSubmitting}
+                          placeholder="Optional"
+                          {...registerEdit("note")}
+                        />
+                      </label>
+
+                      <div className="flex items-end gap-3 md:col-span-2 xl:col-span-1">
+                        <button
+                          type="submit"
+                          className="h-11 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                          disabled={isEditSubmitting}
+                        >
+                          {isEditSubmitting ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditingPayment}
+                          className="h-11 rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:text-stone-400"
+                          disabled={isEditSubmitting}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      {editSubmitError ? (
+                        <p className="text-sm text-red-600 md:col-span-2 xl:col-span-4">
+                          {editSubmitError}
+                        </p>
+                      ) : null}
+                    </form>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-sm font-medium text-stone-950">
+                          {formatDisplayDate(payment.paymentDate)}
+                        </p>
+                        <p className="mt-1 text-sm text-stone-500">
+                          {payment.note || "No note"}
+                        </p>
+                        <p className="mt-1 text-xs text-stone-500">
+                          Interest {formatCurrency(Number(payment.interestAmount))} · Principal{" "}
+                          {formatCurrency(
+                            Number(payment.amount) - Number(payment.interestAmount),
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:justify-end">
+                        <p className="mr-2 text-lg font-semibold text-stone-950">
+                          {formatCurrency(Number(payment.amount))}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => startEditingPayment(payment)}
+                          disabled={deletingPaymentId === payment.id}
+                          className="rounded-lg px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-300"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void onDeletePayment(debt.id, payment.id)}
+                          disabled={deletingPaymentId === payment.id}
+                          className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                        >
+                          {deletingPaymentId === payment.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -679,6 +852,36 @@ export default function DebtsPage() {
       return message;
     } finally {
       setDeletingPaymentId(null);
+    }
+  }
+
+  async function handleUpdatePayment(
+    debtId: number,
+    payment: DebtPayment,
+    values: PaymentEditFormSubmitValues,
+  ) {
+    try {
+      const response = await fetch(`/api/debts/${debtId}/payments/${payment.id}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: values.amount,
+          interestAmount: Number(payment.interestAmount),
+          paymentDate: values.paymentDate,
+          note: values.note?.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to update payment"));
+      }
+
+      await loadDebts();
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : "Failed to update payment";
     }
   }
 
@@ -934,6 +1137,7 @@ export default function DebtsPage() {
                       )
                     }
                     onAddPayment={handleAddPayment}
+                    onUpdatePayment={handleUpdatePayment}
                     onDeletePayment={handleDeletePayment}
                   />
                 ))}
