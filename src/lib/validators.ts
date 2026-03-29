@@ -140,6 +140,16 @@ export const debtPaymentCreateSchema = z.object({
   path: ["interestAmount"],
 });
 
+export const debtPaymentUpdateSchema = z.object({
+  amount: z.coerce.number().positive(),
+  interestAmount: optionalNonnegativeNumber.transform((value) => value ?? 0),
+  paymentDate: z.coerce.date(),
+  note: nullableOptionalTrimmedString,
+}).refine((value) => value.interestAmount <= value.amount, {
+  message: "Interest amount cannot exceed the payment amount",
+  path: ["interestAmount"],
+});
+
 export const savingsGoalCreateSchema = z.object({
   name: z.string().trim().min(1),
   targetAmount: z.coerce.number().positive(),
@@ -444,6 +454,7 @@ export type BudgetUpsertInput = z.infer<typeof budgetUpsertSchema>;
 export type DebtCreateInput = z.infer<typeof debtCreateSchema>;
 export type DebtUpdateInput = z.infer<typeof debtUpdateSchema>;
 export type DebtPaymentCreateInput = z.infer<typeof debtPaymentCreateSchema>;
+export type DebtPaymentUpdateInput = z.infer<typeof debtPaymentUpdateSchema>;
 export type SavingsGoalCreateInput = z.infer<typeof savingsGoalCreateSchema>;
 export type SavingsGoalUpdateInput = z.infer<typeof savingsGoalUpdateSchema>;
 export type SavingsContributionCreateInput = z.infer<typeof savingsContributionCreateSchema>;

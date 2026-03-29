@@ -4,6 +4,7 @@ import {
   budgetUpsertSchema,
   debtCreateSchema,
   debtPaymentCreateSchema,
+  debtPaymentUpdateSchema,
   debtUpdateSchema,
   holidayCreateSchema,
   holidayExpenseCreateSchema,
@@ -398,6 +399,83 @@ describe("[Unit] debtPaymentCreateSchema", () => {
         amount: 25,
         interestAmount: 30,
         paymentDate: "2026-03-11T00:00:00.000Z",
+      }),
+    ).toThrow("Interest amount cannot exceed the payment amount");
+  });
+});
+
+describe("[Unit] debtPaymentUpdateSchema", () => {
+  it("should coerce and trim a valid payment payload when the request uses strings", () => {
+    const result = debtPaymentUpdateSchema.parse({
+      amount: "95.25",
+      interestAmount: "10.25",
+      paymentDate: "2026-03-15T00:00:00.000Z",
+      note: " Updated payment ",
+    });
+
+    expect(result).toEqual({
+      amount: 95.25,
+      interestAmount: 10.25,
+      paymentDate: new Date("2026-03-15T00:00:00.000Z"),
+      note: "Updated payment",
+    });
+  });
+
+  it("should default interestAmount to zero when it is omitted", () => {
+    const result = debtPaymentUpdateSchema.parse({
+      amount: 95.25,
+      paymentDate: "2026-03-15T00:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      amount: 95.25,
+      interestAmount: 0,
+    });
+  });
+
+  it("should convert a blank note to undefined when the note field is omitted by preprocessing", () => {
+    const result = debtPaymentUpdateSchema.parse({
+      amount: 95.25,
+      paymentDate: "2026-03-15T00:00:00.000Z",
+      note: "   ",
+    });
+
+    expect(result.note).toBeUndefined();
+  });
+
+  it("should preserve explicit null when clearing an existing note", () => {
+    const result = debtPaymentUpdateSchema.parse({
+      amount: 95.25,
+      paymentDate: "2026-03-15T00:00:00.000Z",
+      note: null,
+    });
+
+    expect(result.note).toBeNull();
+  });
+
+  it("should reject the payload when amount is zero", () => {
+    expect(() =>
+      debtPaymentUpdateSchema.parse({
+        amount: 0,
+        paymentDate: "2026-03-15T00:00:00.000Z",
+      }),
+    ).toThrow("Too small");
+  });
+
+  it("should reject the payload when paymentDate is missing", () => {
+    expect(() =>
+      debtPaymentUpdateSchema.parse({
+        amount: 25,
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when interestAmount exceeds amount", () => {
+    expect(() =>
+      debtPaymentUpdateSchema.parse({
+        amount: 25,
+        interestAmount: 30,
+        paymentDate: "2026-03-15T00:00:00.000Z",
       }),
     ).toThrow("Interest amount cannot exceed the payment amount");
   });

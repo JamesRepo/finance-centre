@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { prisma } from "@/lib/prisma";
+import { debtPaymentUpdateSchema } from "@/lib/validators";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -21,6 +23,52 @@ type RouteContext = {
     paymentId: string;
   }>;
 };
+
+export async function PUT(request: NextRequest, context: RouteContext) {
+  try {
+    const { id, paymentId } = await context.params;
+    const debtId = parsePositiveInt(id);
+    const parsedPaymentId = parsePositiveInt(paymentId);
+
+    if (!debtId) {
+      return jsonError("Invalid debt id", 400);
+    }
+
+    if (!parsedPaymentId) {
+      return jsonError("Invalid payment id", 400);
+    }
+
+    const body = debtPaymentUpdateSchema.parse(await request.json());
+
+    const payment = await prisma.debtPayment.findFirst({
+      where: {
+        id: parsedPaymentId,
+        debtId,
+      },
+    });
+
+    if (!payment) {
+      return jsonError("Payment not found", 404);
+    }
+
+    const updatedPayment = await prisma.debtPayment.update({
+      where: { id: parsedPaymentId },
+      data: body,
+    });
+
+    return NextResponse.json(updatedPayment);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return jsonError(error.issues[0]?.message ?? "Invalid request body", 400);
+    }
+
+    if (error instanceof SyntaxError) {
+      return jsonError("Invalid JSON body", 400);
+    }
+
+    throw error;
+  }
+}
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   const { id, paymentId } = await context.params;
