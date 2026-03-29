@@ -62,6 +62,45 @@ export async function createTransactionRequest(
   }
 }
 
+export async function updateTransactionRequest(
+  id: string,
+  values: TransactionSubmissionInput,
+  fetchImpl: typeof fetch = fetch,
+) {
+  try {
+    const response = await fetchImpl(`/api/transactions/${id}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        categoryId: values.categoryId,
+        amount: values.amount,
+        transactionDate: `${values.transactionDate}T00:00:00.000Z`,
+        description: values.description,
+        vendor: values.vendor,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false as const,
+        error: await readApiError(response, "Failed to update transaction"),
+      };
+    }
+
+    return {
+      ok: true as const,
+      submittedMonth: values.transactionDate.slice(0, 7),
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Failed to update transaction",
+    };
+  }
+}
+
 export function formatTransactionDisplayDate(transactionDate: string) {
   const datePart = transactionDate.slice(0, 10);
 
