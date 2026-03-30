@@ -13,7 +13,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials, req) {
-        const ip = getClientIp(req.headers);
+        const ip = getClientIp(req.headers ?? {});
 
         if (!credentials?.email || !credentials?.password) {
           logFailedLoginAttempt(ip, "missing_credentials");
