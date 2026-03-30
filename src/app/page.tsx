@@ -453,7 +453,7 @@ export default function Home() {
                           const payload = item.payload as BudgetChartEntry;
 
                           return [
-                            `${formatChartCurrency(Number(value))} spent`,
+                            `${formatChartCurrency(payload.spentAmount)} spent`,
                             `${formatChartCurrency(payload.budgetAmount)} budget`,
                           ];
                         }}
