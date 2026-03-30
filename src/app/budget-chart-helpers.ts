@@ -33,7 +33,7 @@ export function buildBudgetChartEntries(
       name: entry.category.name,
       budgetAmount,
       spentAmount,
-      budgetBarAmount: budgetAmount > 0 ? budgetAmount : Math.max(spentAmount, 1),
+      budgetBarAmount: budgetAmount > 0 ? budgetAmount : spentAmount > 0 ? Math.max(spentAmount, 1) : 0,
       spentFillRatio:
         budgetAmount > 0 ? Math.min(spentAmount / budgetAmount, 1) : spentAmount > 0 ? 1 : 0,
       isOverBudget,

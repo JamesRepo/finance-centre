@@ -257,6 +257,43 @@ describe("[Component] dashboard page", () => {
     });
   });
 
+  it("should set budgetBarAmount to zero for categories with no budget and no spending", async () => {
+    const fetchMock = createFetchMock({
+      budgets: [
+        {
+          categoryId: "category-1",
+          amount: "500",
+          spent: "123.45",
+          category: { id: "category-1", name: "Groceries", colorCode: "#22c55e" },
+        },
+        {
+          categoryId: "category-2",
+          amount: "0",
+          spent: "0",
+          category: { id: "category-2", name: "Transport", colorCode: "#3b82f6" },
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const chartData = await screen.findByTestId("bar-chart-data");
+    const parsedData = JSON.parse(chartData.textContent ?? "[]") as Array<{
+      categoryId: string;
+      budgetBarAmount: number;
+      spentAmount: number;
+      spentFillRatio: number;
+    }>;
+
+    const transport = parsedData.find((entry) => entry.categoryId === "category-2");
+    expect(transport).toMatchObject({
+      budgetBarAmount: 0,
+      spentAmount: 0,
+      spentFillRatio: 0,
+    });
+  });
+
   it("should refetch data for the previous month when the previous button is clicked", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
