@@ -71,6 +71,10 @@ export default function TransactionsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [filterCategoryId, setFilterCategoryId] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   const {
     register,
@@ -158,6 +162,30 @@ export default function TransactionsPage() {
 
     return format(new Date(year, month - 1, 1), "MMMM yyyy");
   }, [selectedMonth]);
+
+  const filteredTransactions = useMemo(() => {
+    let result = transactions;
+
+    if (filterCategoryId) {
+      result = result.filter((t) => t.categoryId === filterCategoryId);
+    }
+
+    if (filterDateFrom) {
+      result = result.filter((t) => t.transactionDate.slice(0, 10) >= filterDateFrom);
+    }
+
+    if (filterDateTo) {
+      result = result.filter((t) => t.transactionDate.slice(0, 10) <= filterDateTo);
+    }
+
+    return [...result].sort((a, b) => {
+      const dateA = a.transactionDate.slice(0, 10);
+      const dateB = b.transactionDate.slice(0, 10);
+      return sortDirection === "asc"
+        ? dateA.localeCompare(dateB)
+        : dateB.localeCompare(dateA);
+    });
+  }, [transactions, filterCategoryId, filterDateFrom, filterDateTo, sortDirection]);
 
   async function onSubmit(values: TransactionFormSubmitValues) {
     setSubmitError(null);
@@ -393,12 +421,66 @@ export default function TransactionsPage() {
                   onChange={(event) => {
                     if (event.target.value) {
                       setSelectedMonth(event.target.value);
+                      setFilterDateFrom("");
+                      setFilterDateTo("");
                     }
                   }}
                   className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 />
               </label>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-4 border-b border-stone-200 px-6 py-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-stone-500">Category</span>
+              <select
+                value={filterCategoryId}
+                onChange={(e) => setFilterCategoryId(e.target.value)}
+                className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+              >
+                <option value="">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-stone-500">From</span>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-stone-500">To</span>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+              />
+            </label>
+
+            {(filterCategoryId || filterDateFrom || filterDateTo) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterCategoryId("");
+                  setFilterDateFrom("");
+                  setFilterDateTo("");
+                }}
+                className="h-9 rounded-lg px-3 text-sm font-medium text-stone-500 transition hover:text-stone-950"
+              >
+                Clear filters
+              </button>
+            ) : null}
           </div>
 
           {transactionsError ? (
@@ -413,7 +495,16 @@ export default function TransactionsPage() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="text-left text-sm text-stone-500">
-                  <th className="border-b border-stone-200 pb-3 pr-4 font-medium">Date</th>
+                  <th className="border-b border-stone-200 pb-3 pr-4 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setSortDirection((d) => d === "desc" ? "asc" : "desc")}
+                      className="inline-flex items-center gap-1 transition hover:text-stone-950"
+                    >
+                      Date
+                      <span className="text-xs">{sortDirection === "desc" ? "↓" : "↑"}</span>
+                    </button>
+                  </th>
                   <th className="border-b border-stone-200 pb-3 pr-4 font-medium">
                     Category
                   </th>
@@ -441,17 +532,19 @@ export default function TransactionsPage() {
                       Loading transactions...
                     </td>
                   </tr>
-                ) : transactions.length === 0 ? (
+                ) : filteredTransactions.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6}
                       className="py-10 text-center text-sm text-stone-500"
                     >
-                      No transactions found for this month.
+                      {transactions.length === 0
+                        ? "No transactions found for this month."
+                        : "No transactions match your filters."}
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((transaction) => {
+                  filteredTransactions.map((transaction) => {
                     const bgColor = transaction.category.colorCode ?? "#a8a29e";
                     const isEditing = editingId === transaction.id;
 

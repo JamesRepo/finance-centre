@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TransactionsPage from "@/app/transactions/page";
@@ -570,3 +570,431 @@ describe("[Component] transactions page — edit transaction", () => {
     expect(row.className).toContain("cursor-pointer");
   });
 });
+
+const multiTransactions = [
+  buildTransaction({
+    id: "txn-a",
+    categoryId: "cat-1",
+    amount: "10.00",
+    transactionDate: "2026-03-05T00:00:00.000Z",
+    vendor: "Alpha",
+    category: { id: "cat-1", name: "Groceries", colorCode: "#22c55e" },
+  }),
+  buildTransaction({
+    id: "txn-b",
+    categoryId: "cat-2",
+    amount: "20.00",
+    transactionDate: "2026-03-15T00:00:00.000Z",
+    vendor: "Beta",
+    category: { id: "cat-2", name: "Transport", colorCode: "#3b82f6" },
+  }),
+  buildTransaction({
+    id: "txn-c",
+    categoryId: "cat-1",
+    amount: "30.00",
+    transactionDate: "2026-03-20T00:00:00.000Z",
+    vendor: "Gamma",
+    category: { id: "cat-1", name: "Groceries", colorCode: "#22c55e" },
+  }),
+];
+
+describe("[Component] transactions page — date sorting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should display a sort button on the Date column header with a descending indicator by default", async () => {
+    stubFetch(defaultCategories, [buildTransaction()]);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const sortButton = within(table).getByRole("button", { name: /Date/ });
+
+    expect(sortButton).toBeInTheDocument();
+    expect(sortButton.textContent).toContain("↓");
+  });
+
+  it("should toggle the sort indicator to ascending when the Date header is clicked", async () => {
+    stubFetch(defaultCategories, [buildTransaction()]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const sortButton = within(table).getByRole("button", { name: /Date/ });
+
+    await user.click(sortButton);
+
+    expect(sortButton.textContent).toContain("↑");
+  });
+
+  it("should sort transactions in descending date order by default", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    const html = table.innerHTML;
+    const posGamma = html.indexOf("Gamma");
+    const posBeta = html.indexOf("Beta");
+    const posAlpha = html.indexOf("Alpha");
+
+    expect(posGamma).toBeLessThan(posBeta);
+    expect(posBeta).toBeLessThan(posAlpha);
+  });
+
+  it("should sort transactions in ascending date order when toggled", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    const sortButton = within(table).getByRole("button", { name: /Date/ });
+    await user.click(sortButton);
+
+    const html = table.innerHTML;
+    const posAlpha = html.indexOf("Alpha");
+    const posBeta = html.indexOf("Beta");
+    const posGamma = html.indexOf("Gamma");
+
+    expect(posAlpha).toBeLessThan(posBeta);
+    expect(posBeta).toBeLessThan(posGamma);
+  });
+
+  it("should toggle back to descending when the sort button is clicked twice", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    const sortButton = within(table).getByRole("button", { name: /Date/ });
+    await user.click(sortButton);
+    await user.click(sortButton);
+
+    expect(sortButton.textContent).toContain("↓");
+
+    const html = table.innerHTML;
+    expect(html.indexOf("Gamma")).toBeLessThan(html.indexOf("Alpha"));
+  });
+});
+
+describe("[Component] transactions page — category filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should render a category filter dropdown with 'All categories' as the default", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const filter = await screen.findByDisplayValue("All categories");
+    expect(filter.tagName).toBe("SELECT");
+  });
+
+  it("should populate the category filter with all loaded categories", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const filter = await screen.findByDisplayValue("All categories");
+    const options = within(filter).getAllByRole("option");
+
+    expect(options).toHaveLength(3);
+    expect(options[0]).toHaveTextContent("All categories");
+    expect(options[1]).toHaveTextContent("Groceries");
+    expect(options[2]).toHaveTextContent("Transport");
+  });
+
+  it("should filter transactions to show only the selected category", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Beta");
+
+    const filter = screen.getByDisplayValue("All categories");
+    await user.selectOptions(filter, "cat-2");
+
+    expect(within(table).queryByText("Alpha")).not.toBeInTheDocument();
+    expect(within(table).getByText("Beta")).toBeInTheDocument();
+    expect(within(table).queryByText("Gamma")).not.toBeInTheDocument();
+  });
+
+  it("should show all transactions when 'All categories' is re-selected", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Beta");
+
+    const filter = screen.getByDisplayValue("All categories");
+    await user.selectOptions(filter, "cat-2");
+    await user.selectOptions(filter, "");
+
+    expect(within(table).getByText("Alpha")).toBeInTheDocument();
+    expect(within(table).getByText("Beta")).toBeInTheDocument();
+    expect(within(table).getByText("Gamma")).toBeInTheDocument();
+  });
+});
+
+describe("[Component] transactions page — date range filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should filter out transactions before the From date", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-10" } });
+
+    expect(within(table).queryByText("Alpha")).not.toBeInTheDocument();
+    expect(within(table).getByText("Beta")).toBeInTheDocument();
+    expect(within(table).getByText("Gamma")).toBeInTheDocument();
+  });
+
+  it("should filter out transactions after the To date", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Gamma");
+
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-03-10" } });
+
+    expect(within(table).getByText("Alpha")).toBeInTheDocument();
+    expect(within(table).queryByText("Beta")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Gamma")).not.toBeInTheDocument();
+  });
+
+  it("should filter transactions within both From and To date range", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-10" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-03-18" } });
+
+    expect(within(table).queryByText("Alpha")).not.toBeInTheDocument();
+    expect(within(table).getByText("Beta")).toBeInTheDocument();
+    expect(within(table).queryByText("Gamma")).not.toBeInTheDocument();
+  });
+
+  it("should include transactions on the exact From boundary date", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-05" } });
+
+    expect(within(table).getByText("Alpha")).toBeInTheDocument();
+  });
+
+  it("should include transactions on the exact To boundary date", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Gamma");
+
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-03-20" } });
+
+    expect(within(table).getByText("Gamma")).toBeInTheDocument();
+  });
+
+  it("should show 'No transactions match your filters.' when all are filtered out by date", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-25" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-03-28" } });
+
+    expect(screen.getByText("No transactions match your filters.")).toBeInTheDocument();
+  });
+
+  it("should show 'No transactions found for this month.' when there are no transactions at all", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    expect(screen.getByText("No transactions found for this month.")).toBeInTheDocument();
+  });
+});
+
+describe("[Component] transactions page — clear filters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should not show the Clear filters button when no filters are active", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+
+    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+  });
+
+  it("should show the Clear filters button when a category filter is active", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+
+    const filter = await screen.findByDisplayValue("All categories");
+    await user.selectOptions(filter, "cat-1");
+
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("should show the Clear filters button when a date filter is active", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-10" } });
+
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("should clear all filters and show all transactions when Clear filters is clicked", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    await user.selectOptions(screen.getByDisplayValue("All categories"), "cat-2");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-10" } });
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(within(table).getByText("Alpha")).toBeInTheDocument();
+    expect(within(table).getByText("Beta")).toBeInTheDocument();
+    expect(within(table).getByText("Gamma")).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+  });
+});
+
+describe("[Component] transactions page — month change resets date filters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should reset date filters when the month is changed", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+
+    const fromInput = screen.getByLabelText("From") as HTMLInputElement;
+    const toInput = screen.getByLabelText("To") as HTMLInputElement;
+
+    fireEvent.change(fromInput, { target: { value: "2026-03-10" } });
+    fireEvent.change(toInput, { target: { value: "2026-03-20" } });
+
+    expect(fromInput.value).toBe("2026-03-10");
+    expect(toInput.value).toBe("2026-03-20");
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-04" } });
+    });
+
+    expect(fromInput.value).toBe("");
+    expect(toInput.value).toBe("");
+  });
+
+  it("should not reset the category filter when the month is changed", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+
+    const categoryFilter = await screen.findByDisplayValue("All categories") as HTMLSelectElement;
+    await user.selectOptions(categoryFilter, "cat-1");
+
+    expect(categoryFilter.value).toBe("cat-1");
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-04" } });
+    });
+
+    expect(categoryFilter.value).toBe("cat-1");
+  });
+});
+
+describe("[Component] transactions page — combined filters and sort", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should apply both category and date filters simultaneously", async () => {
+    stubFetch(defaultCategories, multiTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    await user.selectOptions(screen.getByDisplayValue("All categories"), "cat-1");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-10" } });
+
+    expect(within(table).queryByText("Alpha")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Beta")).not.toBeInTheDocument();
+    expect(within(table).getByText("Gamma")).toBeInTheDocument();
+  });
+
+  it("should sort filtered results correctly", async () => {
+    const fourTransactions = [
+      ...multiTransactions,
+      buildTransaction({
+        id: "txn-d",
+        categoryId: "cat-1",
+        amount: "40.00",
+        transactionDate: "2026-03-10T00:00:00.000Z",
+        vendor: "Delta",
+        category: { id: "cat-1", name: "Groceries", colorCode: "#22c55e" },
+      }),
+    ];
+
+    stubFetch(defaultCategories, fourTransactions);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Alpha");
+
+    await user.selectOptions(screen.getByDisplayValue("All categories"), "cat-1");
+
+    let html = table.innerHTML;
+    expect(html.indexOf("Gamma")).toBeLessThan(html.indexOf("Delta"));
+    expect(html.indexOf("Delta")).toBeLessThan(html.indexOf("Alpha"));
+
+    await user.click(within(table).getByRole("button", { name: /Date/ }));
+
