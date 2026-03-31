@@ -31,6 +31,11 @@ type TransactionFixture = {
   transactionDate: string;
   description: string | null;
   vendor: string | null;
+  lineItems: Array<{
+    id: string;
+    amount: string;
+    sortOrder: number;
+  }>;
   category: {
     id: string;
     name: string;
@@ -41,16 +46,29 @@ type TransactionFixture = {
 function buildTransaction(
   overrides: Partial<TransactionFixture> = {},
 ): TransactionFixture {
-  return {
+  const transaction: TransactionFixture = {
     id: "txn-1",
     categoryId: "cat-1",
     amount: "50.00",
     transactionDate: "2026-03-10T00:00:00.000Z",
     description: null,
     vendor: null,
+    lineItems: [{ id: "line-1", amount: "50.00", sortOrder: 0 }],
     category: { id: "cat-1", name: "Groceries", colorCode: "#22c55e" },
     ...overrides,
   };
+
+  if (overrides.lineItems === undefined) {
+    transaction.lineItems = [
+      {
+        id: `${transaction.id}-line-1`,
+        amount: transaction.amount,
+        sortOrder: 0,
+      },
+    ];
+  }
+
+  return transaction;
 }
 
 function stubFetch(
@@ -411,7 +429,7 @@ describe("[Component] transactions page — edit transaction", () => {
       expect(putCall).toBeDefined();
 
       const body = JSON.parse((putCall as [string, RequestInit])[1].body as string);
-      expect(body.amount).toBe(99.99);
+      expect(body.lineItems).toEqual([{ amount: 99.99 }]);
       expect(body.categoryId).toBe("cat-1");
       expect(body.transactionDate).toBe("2026-03-10T00:00:00.000Z");
     });
@@ -584,6 +602,24 @@ describe("[Component] transactions page — edit transaction", () => {
     const row = within(table).getByText("42.50").closest("tr")!;
 
     expect(row.className).toContain("cursor-pointer");
+  });
+
+  it("should show a split item count for multi-value transactions", async () => {
+    stubFetch(defaultCategories, [
+      buildTransaction({
+        amount: "15.75",
+        lineItems: [
+          { id: "line-1", amount: "5.25", sortOrder: 0 },
+          { id: "line-2", amount: "4.50", sortOrder: 1 },
+          { id: "line-3", amount: "6.00", sortOrder: 2 },
+        ],
+      }),
+    ]);
+
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("3 items")).toBeInTheDocument();
   });
 });
 
@@ -951,6 +987,33 @@ describe("[Component] transactions page — remember form values", () => {
 
     await waitFor(() => {
       expect(getAddFormDateInput(form).value).toBe("2026-03-15");
+    });
+  });
+
+  it("should submit multiple amount rows as line items", async () => {
+    const fetchMock = stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByLabelText("Amount 1"), "5.25");
+    await user.click(within(form).getByRole("button", { name: "Add amount" }));
+    await user.type(within(form).getByLabelText("Amount 2"), "4.50");
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (call: [string, RequestInit?]) =>
+          typeof call[0] === "string" &&
+          call[0] === "/api/transactions" &&
+          call[1]?.method === "POST",
+      );
+      expect(postCall).toBeDefined();
+      const body = JSON.parse((postCall as [string, RequestInit])[1].body as string);
+      expect(body.lineItems).toEqual([{ amount: 5.25 }, { amount: 4.5 }]);
     });
   });
 

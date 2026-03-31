@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { addDays, format, isValid, parseISO } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   createTransactionRequest,
@@ -24,10 +24,16 @@ const amountFormatter = new Intl.NumberFormat("en-GB", {
 
 const transactionFormSchema = z.object({
   categoryId: z.string().trim().min(1, "Select a category"),
-  amount: z.preprocess(
-    (value) => (value === "" ? undefined : value),
-    z.coerce.number().positive("Amount must be positive"),
-  ),
+  lineItems: z
+    .array(
+      z.object({
+        amount: z.preprocess(
+          (value) => (value === "" ? undefined : value),
+          z.coerce.number().positive("Amount must be positive"),
+        ),
+      }),
+    )
+    .min(1, "Add at least one amount"),
   transactionDate: z.string().min(1, "Enter a date"),
   description: z.string().trim().optional(),
   vendor: z.string().trim().optional(),
@@ -49,8 +55,52 @@ type Transaction = {
   transactionDate: string;
   description: string | null;
   vendor: string | null;
+  lineItems: Array<{
+    id: string;
+    amount: string;
+    sortOrder: number;
+  }>;
   category: Category;
 };
+
+function createEmptyLineItem() {
+  return {
+    amount: "",
+  };
+}
+
+function getLineItemsErrorMessage(
+  error:
+    | {
+        message?: string;
+        root?: { message?: string };
+        [index: number]: { amount?: { message?: string } } | undefined;
+      }
+    | undefined,
+) {
+  if (!error) {
+    return null;
+  }
+
+  if (error.message) {
+    return error.message;
+  }
+
+  if (error.root?.message) {
+    return error.root.message;
+  }
+
+  for (const value of Object.values(error)) {
+    if (value && typeof value === "object" && "amount" in value) {
+      const lineItem = value as { amount?: { message?: string } };
+      if (lineItem.amount?.message) {
+        return lineItem.amount.message;
+      }
+    }
+  }
+
+  return null;
+}
 
 function isLightColor(hex: string): boolean {
   const c = hex.replace("#", "");
@@ -171,12 +221,13 @@ export default function TransactionsPage() {
     getValues,
     watch,
     clearErrors,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
       categoryId: "",
-      amount: undefined,
+      lineItems: [createEmptyLineItem()],
       transactionDate: defaultDate,
       description: "",
       vendor: "",
@@ -187,9 +238,32 @@ export default function TransactionsPage() {
     register: registerEdit,
     handleSubmit: handleSubmitEdit,
     reset: resetEdit,
+    control: editControl,
+    getValues: getEditValues,
     formState: { errors: editErrors, isSubmitting: isEditSubmitting },
   } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
     resolver: zodResolver(transactionFormSchema),
+    defaultValues: {
+      lineItems: [createEmptyLineItem()],
+    },
+  });
+
+  const {
+    fields: addLineItemFields,
+    append: appendLineItem,
+    remove: removeLineItem,
+  } = useFieldArray({
+    control,
+    name: "lineItems",
+  });
+
+  const {
+    fields: editLineItemFields,
+    append: appendEditLineItem,
+    remove: removeEditLineItem,
+  } = useFieldArray({
+    control: editControl,
+    name: "lineItems",
   });
 
   const loadCategories = useCallback(async () => {
@@ -414,7 +488,9 @@ export default function TransactionsPage() {
 
     const result = await createTransactionRequest({
       categoryId: values.categoryId,
-      amount: values.amount,
+      lineItems: values.lineItems.map((lineItem) => ({
+        amount: lineItem.amount,
+      })),
       transactionDate: normalizedDate,
       description: values.description?.trim() || undefined,
       vendor: values.vendor?.trim() || undefined,
@@ -427,7 +503,7 @@ export default function TransactionsPage() {
 
     reset({
       categoryId: "",
-      amount: "",
+      lineItems: [createEmptyLineItem()],
       transactionDate: normalizedDate,
       description: "",
       vendor: "",
@@ -475,7 +551,12 @@ export default function TransactionsPage() {
     setEditError(null);
     resetEdit({
       categoryId: transaction.categoryId,
-      amount: Number(transaction.amount),
+      lineItems:
+        transaction.lineItems.length > 0
+          ? transaction.lineItems.map((lineItem) => ({
+              amount: Number(lineItem.amount),
+            }))
+          : [{ amount: Number(transaction.amount) }],
       transactionDate: transaction.transactionDate.slice(0, 10),
       description: transaction.description ?? "",
       vendor: transaction.vendor ?? "",
@@ -493,7 +574,9 @@ export default function TransactionsPage() {
 
     const result = await updateTransactionRequest(editingId, {
       categoryId: values.categoryId,
-      amount: values.amount,
+      lineItems: values.lineItems.map((lineItem) => ({
+        amount: lineItem.amount,
+      })),
       transactionDate: values.transactionDate,
       description: values.description?.trim() || undefined,
       vendor: values.vendor?.trim() || undefined,
@@ -580,22 +663,62 @@ export default function TransactionsPage() {
               ) : null}
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-stone-700">Amount</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                inputMode="decimal"
-                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
-                disabled={isSubmitting}
-                placeholder="0.00"
-                {...register("amount")}
-              />
-              {errors.amount ? (
-                <p className="text-sm text-red-600">{errors.amount.message}</p>
+            <div className="flex flex-col gap-2 xl:col-span-2">
+              <span className="text-sm font-medium text-stone-700">Amounts</span>
+              <div className="space-y-2">
+                {addLineItemFields.map((field, index) => (
+                  <div key={field.id} className="flex items-start gap-2">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputMode="decimal"
+                      className="h-11 flex-1 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                      disabled={isSubmitting}
+                      placeholder="0.00"
+                      aria-label={`Amount ${index + 1}`}
+                      {...register(`lineItems.${index}.amount`)}
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => {
+                        if (addLineItemFields.length === 1) {
+                          setValue("lineItems.0.amount", "", {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                            shouldValidate: true,
+                          });
+                          return;
+                        }
+
+                        removeLineItem(index);
+                      }}
+                      disabled={isSubmitting}
+                      className="h-11 rounded-xl border border-stone-300 px-3 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => appendLineItem(createEmptyLineItem())}
+                  disabled={isSubmitting}
+                  className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400"
+                >
+                  Add amount
+                </button>
+              </div>
+              {errors.lineItems ? (
+                <p className="text-sm text-red-600">
+                  {getLineItemsErrorMessage(errors.lineItems)}
+                </p>
               ) : null}
-            </label>
+            </div>
 
             <label className="flex flex-col gap-2">
               <span className="text-sm font-medium text-stone-700">Date</span>
@@ -647,6 +770,7 @@ export default function TransactionsPage() {
               <span className="text-sm font-medium text-stone-700">Vendor</span>
               <input
                 type="text"
+                role="combobox"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 placeholder="Optional"
@@ -654,6 +778,7 @@ export default function TransactionsPage() {
                 aria-autocomplete="list"
                 aria-controls={vendorSuggestionsListId}
                 aria-expanded={shouldShowVendorSuggestions}
+                aria-haspopup="listbox"
                 onFocus={() => {
                   setVendorSuggestionsOpen(true);
                 }}
@@ -955,22 +1080,61 @@ export default function TransactionsPage() {
                                 ) : null}
                               </label>
 
-                              <label className="flex flex-col gap-1">
-                                <span className="text-xs font-medium text-stone-500">Amount</span>
-                                <input
-                                  type="number"
-                                  min="0.01"
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
-                                  disabled={isEditSubmitting}
-                                  placeholder="0.00"
-                                  {...registerEdit("amount")}
-                                />
-                                {editErrors.amount ? (
-                                  <p className="text-xs text-red-600">{editErrors.amount.message}</p>
+                              <div className="flex flex-col gap-1 sm:col-span-2">
+                                <span className="text-xs font-medium text-stone-500">Amounts</span>
+                                <div className="space-y-2">
+                                  {editLineItemFields.map((field, index) => (
+                                    <div key={field.id} className="flex items-start gap-2">
+                                      <input
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        inputMode="decimal"
+                                        className="h-9 flex-1 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                        disabled={isEditSubmitting}
+                                        placeholder="0.00"
+                                        aria-label={`Edit amount ${index + 1}`}
+                                        {...registerEdit(`lineItems.${index}.amount`)}
+                                      />
+                                      <button
+                                        type="button"
+                                        tabIndex={-1}
+                                        onClick={() => {
+                                          if (editLineItemFields.length === 1) {
+                                            resetEdit({
+                                              ...getEditValues(),
+                                              lineItems: [createEmptyLineItem()],
+                                            });
+                                            return;
+                                          }
+
+                                          removeEditLineItem(index);
+                                        }}
+                                        disabled={isEditSubmitting}
+                                        className="h-9 rounded-lg border border-stone-300 px-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex justify-start">
+                                  <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={() => appendEditLineItem(createEmptyLineItem())}
+                                    disabled={isEditSubmitting}
+                                    className="rounded-lg border border-stone-300 px-2 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400"
+                                  >
+                                    Add amount
+                                  </button>
+                                </div>
+                                {editErrors.lineItems ? (
+                                  <p className="text-xs text-red-600">
+                                    {getLineItemsErrorMessage(editErrors.lineItems)}
+                                  </p>
                                 ) : null}
-                              </label>
+                              </div>
 
                               <label className="flex flex-col gap-1">
                                 <span className="text-xs font-medium text-stone-500">Date</span>
@@ -1067,7 +1231,14 @@ export default function TransactionsPage() {
                         {transaction.description || "—"}
                       </td>
                       <td className="border-b border-stone-100 py-4 pr-4 text-right font-medium whitespace-nowrap text-stone-950">
-                        {amountFormatter.format(Number(transaction.amount))}
+                        <div className="flex flex-col items-end">
+                          <span>{amountFormatter.format(Number(transaction.amount))}</span>
+                          {transaction.lineItems.length > 1 ? (
+                            <span className="text-xs font-normal text-stone-500">
+                              {transaction.lineItems.length} items
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="border-b border-stone-100 py-4 text-right">
                         <button
