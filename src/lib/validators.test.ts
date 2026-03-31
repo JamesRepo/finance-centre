@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   budgetListQuerySchema,
   budgetUpsertSchema,
+  categoryCreateSchema,
+  categoryUpdateSchema,
   debtCreateSchema,
   debtPaymentCreateSchema,
   debtPaymentUpdateSchema,
@@ -281,6 +283,49 @@ describe("[Unit] budgetUpsertSchema", () => {
         amount: 100,
       }),
     ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] categoryCreateSchema", () => {
+  it("should trim the category name and allow a blank color value when the payload is valid", () => {
+    const result = categoryCreateSchema.parse({
+      name: " Utilities ",
+      colorCode: "   ",
+    });
+
+    expect(result).toEqual({
+      name: "Utilities",
+      colorCode: undefined,
+    });
+  });
+
+  it("should reject the payload when the color is not a valid 6-digit hex code", () => {
+    expect(() =>
+      categoryCreateSchema.parse({
+        name: "Utilities",
+        colorCode: "#12345",
+      }),
+    ).toThrow("Color must be a valid 6-digit hex code");
+  });
+});
+
+describe("[Unit] categoryUpdateSchema", () => {
+  it("should accept a partial payload and allow the color to be cleared when null is provided", () => {
+    const result = categoryUpdateSchema.parse({
+      name: " Food ",
+      colorCode: null,
+    });
+
+    expect(result).toEqual({
+      name: "Food",
+      colorCode: null,
+    });
+  });
+
+  it("should reject the payload when no fields remain after preprocessing", () => {
+    expect(() =>
+      categoryUpdateSchema.parse({}),
+    ).toThrow("At least one field is required");
   });
 });
 
