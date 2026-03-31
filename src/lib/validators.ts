@@ -80,6 +80,34 @@ export const budgetUpsertSchema = z.object({
   amount: z.coerce.number().nonnegative(),
 });
 
+const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a valid 6-digit hex code");
+
+export const categoryCreateSchema = z.object({
+  name: z.string().trim().min(1, "Category name is required"),
+  colorCode: z.preprocess(
+    emptyStringToUndefined,
+    hexColorSchema.optional(),
+  ),
+});
+
+export const categoryUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Category name is required").optional(),
+    colorCode: z.preprocess((value) => {
+      if (value === null) {
+        return null;
+      }
+
+      return emptyStringToUndefined(value);
+    }, hexColorSchema.nullable().optional()),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
 const debtTypeSchema = z.enum([
   "CREDIT_CARD",
   "STUDENT_LOAN",
