@@ -306,6 +306,8 @@ export default function TransactionsPage() {
           <form
             className="grid gap-4 px-6 py-6 md:grid-cols-2 xl:grid-cols-5"
             onSubmit={handleSubmit(onSubmit)}
+            data-form-type="other"
+            autoComplete="off"
           >
             <label className="flex flex-col gap-2 xl:col-span-2">
               <span className="text-sm font-medium text-stone-700">Category</span>
@@ -354,6 +356,8 @@ export default function TransactionsPage() {
                 type="date"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
+                autoComplete="off"
+                data-form-type="other"
                 {...register("transactionDate")}
               />
               {errors.transactionDate ? (
@@ -555,6 +559,8 @@ export default function TransactionsPage() {
                             <form
                               className="grid gap-3 px-2 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
                               onSubmit={handleSubmitEdit(onEditSubmit)}
+                              data-form-type="other"
+                              autoComplete="off"
                             >
                               <label className="flex flex-col gap-1">
                                 <span className="text-xs font-medium text-stone-500">Category</span>
@@ -598,6 +604,8 @@ export default function TransactionsPage() {
                                   type="date"
                                   className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                                   disabled={isEditSubmitting}
+                                  autoComplete="off"
+                                  data-form-type="other"
                                   {...registerEdit("transactionDate")}
                                 />
                                 {editErrors.transactionDate ? (

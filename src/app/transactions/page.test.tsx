@@ -636,9 +636,9 @@ describe("[Component] transactions page — date sorting", () => {
     await within(table).findByText("Alpha");
 
     const html = table.innerHTML;
-    const posGamma = html.indexOf("Gamma");
-    const posBeta = html.indexOf("Beta");
-    const posAlpha = html.indexOf("Alpha");
+    const posGamma = html.indexOf("Gamma"); // Mar 20
+    const posBeta = html.indexOf("Beta"); // Mar 15
+    const posAlpha = html.indexOf("Alpha"); // Mar 05
 
     expect(posGamma).toBeLessThan(posBeta);
     expect(posBeta).toBeLessThan(posAlpha);
@@ -899,6 +899,90 @@ describe("[Component] transactions page — clear filters", () => {
   });
 });
 
+describe("[Component] transactions page — remember form values", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should remember the transaction date after a successful submission", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+
+    await user.selectOptions(screen.getByDisplayValue("Select a category"), "cat-1");
+    await user.type(screen.getByPlaceholderText("0.00"), "25.50");
+
+    const dateInput = screen.getByLabelText("Date") as HTMLInputElement;
+    fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
+
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-03-15");
+    });
+  });
+
+  it("should clear the amount after a successful submission", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+
+    await user.selectOptions(screen.getByDisplayValue("Select a category"), "cat-1");
+    await user.type(screen.getByPlaceholderText("0.00"), "25.50");
+
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      expect((screen.getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("");
+    });
+  });
+});
+
+describe("[Component] transactions page — autofill prevention", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should have autofill prevention attributes on the add transaction form and date input", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+
+    const form = screen.getByRole("button", { name: "Add transaction" }).closest("form")!;
+    expect(form).toHaveAttribute("data-form-type", "other");
+    expect(form).toHaveAttribute("autocomplete", "off");
+
+    const dateInput = screen.getByLabelText("Date");
+    expect(dateInput).toHaveAttribute("autocomplete", "off");
+    expect(dateInput).toHaveAttribute("data-form-type", "other");
+  });
+
+  it("should have autofill prevention attributes on the edit form and date input", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    const table = await screen.findByRole("table");
+    const row = within(table).getByText("42.50").closest("tr")!;
+    await user.click(row);
+
+    const editForm = screen.getByRole("button", { name: "Save" }).closest("form")!;
+    expect(editForm).toHaveAttribute("data-form-type", "other");
+    expect(editForm).toHaveAttribute("autocomplete", "off");
+
+    const editDateInput = screen.getByDisplayValue("2026-03-10");
+    expect(editDateInput).toHaveAttribute("autocomplete", "off");
+    expect(editDateInput).toHaveAttribute("data-form-type", "other");
+  });
+});
+
 describe("[Component] transactions page — month change resets date filters", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -962,7 +1046,9 @@ describe("[Component] transactions page — combined filters and sort", () => {
     const table = await screen.findByRole("table");
     await within(table).findByText("Alpha");
 
+    // Groceries (cat-1) = Alpha (Mar 5) and Gamma (Mar 20)
     await user.selectOptions(screen.getByDisplayValue("All categories"), "cat-1");
+    // From Mar 10 excludes Alpha
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-03-10" } });
 
     expect(within(table).queryByText("Alpha")).not.toBeInTheDocument();
@@ -990,53 +1076,19 @@ describe("[Component] transactions page — combined filters and sort", () => {
     const table = await screen.findByRole("table");
     await within(table).findByText("Alpha");
 
+    // Filter to Groceries: Alpha (Mar 5), Delta (Mar 10), Gamma (Mar 20)
     await user.selectOptions(screen.getByDisplayValue("All categories"), "cat-1");
 
+    // Default desc: Gamma, Delta, Alpha
     let html = table.innerHTML;
     expect(html.indexOf("Gamma")).toBeLessThan(html.indexOf("Delta"));
     expect(html.indexOf("Delta")).toBeLessThan(html.indexOf("Alpha"));
 
+    // Toggle to asc: Alpha, Delta, Gamma
     await user.click(within(table).getByRole("button", { name: /Date/ }));
 
-
-describe("[Component] transactions page — remember form values", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.unstubAllGlobals();
+    html = table.innerHTML;
+    expect(html.indexOf("Alpha")).toBeLessThan(html.indexOf("Delta"));
+    expect(html.indexOf("Delta")).toBeLessThan(html.indexOf("Gamma"));
   });
-
-  it("should remember the transaction date after a successful submission", async () => {
-    stubFetch(defaultCategories, []);
-    const user = userEvent.setup();
-    render(<TransactionsPage />);
-
-    await screen.findByText("No transactions found for this month.");
-
-    await user.selectOptions(screen.getByDisplayValue("Select a category"), "cat-1");
-    await user.type(screen.getByPlaceholderText("0.00"), "25.50");
-
-    const dateInput = screen.getByLabelText("Date") as HTMLInputElement;
-    fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
-
-    await user.click(screen.getByRole("button", { name: "Add transaction" }));
-
-    await waitFor(() => {
-      expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-03-15");
-    });
-  });
-
-  it("should clear the amount after a successful submission", async () => {
-    stubFetch(defaultCategories, []);
-    const user = userEvent.setup();
-    render(<TransactionsPage />);
-
-    await screen.findByText("No transactions found for this month.");
-
-    await user.selectOptions(screen.getByDisplayValue("Select a category"), "cat-1");
-    await user.type(screen.getByPlaceholderText("0.00"), "25.50");
-
-    await user.click(screen.getByRole("button", { name: "Add transaction" }));
-
-    await waitFor(() => {
-      expect((screen.getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("");
-    });
+});
