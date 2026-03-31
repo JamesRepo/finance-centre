@@ -950,6 +950,67 @@ describe("[Component] transactions page — remember form values", () => {
     });
   });
 
+  it("should normalize a shorthand date before submitting", async () => {
+    const fetchMock = stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
+    await user.clear(getAddFormDateInput(form));
+    await user.type(getAddFormDateInput(form), "31/3");
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (call: [string, RequestInit?]) =>
+          typeof call[0] === "string" &&
+          call[0] === "/api/transactions" &&
+          call[1]?.method === "POST",
+      );
+      expect(postCall).toBeDefined();
+      const body = JSON.parse((postCall as [string, RequestInit])[1].body as string);
+      expect(body.transactionDate).toBe("2026-03-31T00:00:00.000Z");
+    });
+
+    expect(getAddFormDateInput(form).value).toBe("2026-03-31");
+  });
+
+  it("should apply a relative date once when submitting", async () => {
+    const fetchMock = stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    fireEvent.change(getAddFormDateInput(form), { target: { value: "2026-03-15" } });
+    fireEvent.blur(getAddFormDateInput(form));
+
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
+    await user.clear(getAddFormDateInput(form));
+    await user.type(getAddFormDateInput(form), "+1");
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (call: [string, RequestInit?]) =>
+          typeof call[0] === "string" &&
+          call[0] === "/api/transactions" &&
+          call[1]?.method === "POST",
+      );
+      expect(postCall).toBeDefined();
+      const body = JSON.parse((postCall as [string, RequestInit])[1].body as string);
+      expect(body.transactionDate).toBe("2026-03-16T00:00:00.000Z");
+    });
+
+    expect(getAddFormDateInput(form).value).toBe("2026-03-16");
+  });
+
   it("should clear the amount after a successful submission", async () => {
     stubFetch(defaultCategories, []);
     const user = userEvent.setup();
@@ -1000,6 +1061,157 @@ describe("[Component] transactions page — remember form values", () => {
   });
 });
 
+describe("[Component] transactions page — date controls", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should normalize shorthand text dates on blur", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    const dateInput = getAddFormDateInput(form);
+    await user.clear(dateInput);
+    await user.type(dateInput, "31/3");
+    fireEvent.blur(dateInput);
+
+    await waitFor(() => {
+      expect(dateInput.value).toBe("2026-03-31");
+    });
+  });
+
+  it("should apply a relative date once on blur using the last absolute date", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    const dateInput = getAddFormDateInput(form);
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-03-15");
+    fireEvent.blur(dateInput);
+
+    await user.clear(dateInput);
+    await user.type(dateInput, "+1");
+    fireEvent.blur(dateInput);
+
+    await waitFor(() => {
+      expect(dateInput.value).toBe("2026-03-16");
+    });
+  });
+
+  it("should support today and yesterday shorthand", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+    const dateInput = getAddFormDateInput(form);
+
+    await act(async () => {
+      fireEvent.change(dateInput, { target: { value: "t" } });
+      fireEvent.blur(dateInput);
+    });
+    const todayValue = dateInput.value;
+
+    await act(async () => {
+      fireEvent.change(dateInput, { target: { value: "y" } });
+      fireEvent.blur(dateInput);
+    });
+
+    expect(dateInput.value).not.toBe(todayValue);
+  });
+
+  it("should move the date by one day with Arrow Up and Arrow Down", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    const dateInput = getAddFormDateInput(form);
+    fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
+    dateInput.focus();
+
+    await act(async () => {
+      fireEvent.keyDown(dateInput, { key: "ArrowUp" });
+    });
+    expect(dateInput.value).toBe("2026-03-16");
+
+    await act(async () => {
+      fireEvent.keyDown(dateInput, { key: "ArrowDown" });
+    });
+    expect(dateInput.value).toBe("2026-03-15");
+  });
+
+  it("should use the last absolute date when nudging a relative shortcut", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    const dateInput = getAddFormDateInput(form);
+    fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
+    fireEvent.blur(dateInput);
+    fireEvent.change(dateInput, { target: { value: "+1" } });
+    dateInput.focus();
+
+    await act(async () => {
+      fireEvent.keyDown(dateInput, { key: "ArrowUp" });
+    });
+
+    expect(dateInput.value).toBe("2026-03-16");
+  });
+
+  it("should move the date by one week with Shift+Arrow Up and Down", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    const dateInput = getAddFormDateInput(form);
+    fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
+    dateInput.focus();
+
+    await act(async () => {
+      fireEvent.keyDown(dateInput, { key: "ArrowUp", shiftKey: true });
+    });
+    expect(dateInput.value).toBe("2026-03-22");
+
+    await act(async () => {
+      fireEvent.keyDown(dateInput, { key: "ArrowDown", shiftKey: true });
+    });
+    expect(dateInput.value).toBe("2026-03-15");
+  });
+
+  it("should show a validation error for an invalid text date", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
+    await user.clear(getAddFormDateInput(form));
+    await user.type(getAddFormDateInput(form), "31/31");
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    expect(await screen.findByText("Enter a valid date")).toBeInTheDocument();
+    expect(getAddFormDateInput(form)).toHaveFocus();
+  });
+});
+
 describe("[Component] transactions page — autofill prevention", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1019,6 +1231,7 @@ describe("[Component] transactions page — autofill prevention", () => {
     const dateInput = getAddFormDateInput(form);
     expect(dateInput).toHaveAttribute("autocomplete", "off");
     expect(dateInput).toHaveAttribute("data-form-type", "other");
+    expect(dateInput).not.toHaveAttribute("inputmode", "numeric");
   });
 
   it("should have autofill prevention attributes on the edit form and date input", async () => {

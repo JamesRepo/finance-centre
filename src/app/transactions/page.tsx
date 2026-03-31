@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
+import { addDays, format, isValid, parseISO } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -59,6 +59,79 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 150;
 }
 
+function parseQuickDateInput(
+  value: string,
+  fallbackDate: Date = new Date(),
+): Date | null {
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (normalizedValue === "t" || normalizedValue === "today") {
+    return new Date();
+  }
+
+  if (normalizedValue === "y" || normalizedValue === "yesterday") {
+    return addDays(new Date(), -1);
+  }
+
+  if (/^[+-]\d+$/.test(normalizedValue)) {
+    return addDays(fallbackDate, Number(normalizedValue));
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    const parsed = parseISO(normalizedValue);
+    return isValid(parsed) ? parsed : null;
+  }
+
+  const shortDateMatch = normalizedValue.match(
+    /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2}|\d{4}))?$/,
+  );
+
+  if (!shortDateMatch) {
+    return null;
+  }
+
+  const day = Number(shortDateMatch[1]);
+  const month = Number(shortDateMatch[2]);
+  const yearToken = shortDateMatch[3];
+  const year = yearToken
+    ? yearToken.length === 2
+      ? 2000 + Number(yearToken)
+      : Number(yearToken)
+    : fallbackDate.getFullYear();
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function normalizeTransactionDateInput(
+  value: string,
+  fallbackDate: Date = new Date(),
+): string | null {
+  const parsed = parseQuickDateInput(value, fallbackDate);
+  return parsed ? format(parsed, "yyyy-MM-dd") : null;
+}
+
+function parseAbsoluteTransactionDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : null;
+}
+
 export default function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -78,12 +151,17 @@ export default function TransactionsPage() {
   const [shouldRestoreCategoryFocus, setShouldRestoreCategoryFocus] = useState(false);
   const hasAppliedInitialFormFocus = useRef(false);
   const categoryFieldRef = useRef<HTMLSelectElement | null>(null);
+  const lastResolvedTransactionDateRef = useRef(parseISO(defaultDate));
 
   const {
     register,
     handleSubmit,
     reset,
     setFocus,
+    setError,
+    setValue,
+    getValues,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
     resolver: zodResolver(transactionFormSchema),
@@ -218,13 +296,74 @@ export default function TransactionsPage() {
     });
   }, [transactions, filterCategoryId, filterDateFrom, filterDateTo, sortDirection]);
 
+  function setTransactionDateValue(value: string) {
+    const parsed = parseISO(value);
+
+    if (isValid(parsed)) {
+      lastResolvedTransactionDateRef.current = parsed;
+    }
+
+    setValue("transactionDate", value, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }
+
+  function getBaseTransactionDate() {
+    const currentValue = getValues("transactionDate") || "";
+    const currentAbsoluteDate = parseAbsoluteTransactionDate(currentValue);
+
+    if (currentAbsoluteDate) {
+      return currentAbsoluteDate;
+    }
+
+    return lastResolvedTransactionDateRef.current;
+  }
+
+  function shiftTransactionDate(days: number) {
+    setTransactionDateValue(
+      format(addDays(getBaseTransactionDate(), days), "yyyy-MM-dd"),
+    );
+    clearErrors("transactionDate");
+  }
+
+  function normalizeAddFormDateInput(value: string) {
+    const normalizedValue = normalizeTransactionDateInput(value, getBaseTransactionDate());
+
+    if (!normalizedValue) {
+      return null;
+    }
+
+    setTransactionDateValue(normalizedValue);
+    clearErrors("transactionDate");
+    return normalizedValue;
+  }
+
   async function onSubmit(values: TransactionFormSubmitValues) {
     setSubmitError(null);
+    const normalizedDate = normalizeTransactionDateInput(
+      values.transactionDate,
+      getBaseTransactionDate(),
+    );
+
+    if (!normalizedDate) {
+      setError("transactionDate", {
+        type: "validate",
+        message: "Enter a valid date",
+      });
+      setFocus("transactionDate");
+      return;
+    }
+
+    if (normalizedDate !== values.transactionDate) {
+      setTransactionDateValue(normalizedDate);
+    }
 
     const result = await createTransactionRequest({
       categoryId: values.categoryId,
       amount: values.amount,
-      transactionDate: values.transactionDate,
+      transactionDate: normalizedDate,
       description: values.description?.trim() || undefined,
       vendor: values.vendor?.trim() || undefined,
     });
@@ -237,7 +376,7 @@ export default function TransactionsPage() {
     reset({
       categoryId: "",
       amount: "",
-      transactionDate: values.transactionDate,
+      transactionDate: normalizedDate,
       description: "",
       vendor: "",
     });
@@ -323,6 +462,8 @@ export default function TransactionsPage() {
   }
 
   const categoryField = register("categoryId");
+  const transactionDateField = register("transactionDate");
+
   return (
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -390,13 +531,44 @@ export default function TransactionsPage() {
             <label className="flex flex-col gap-2">
               <span className="text-sm font-medium text-stone-700">Date</span>
               <input
-                type="date"
+                type="text"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 autoComplete="off"
                 data-form-type="other"
-                {...register("transactionDate")}
+                placeholder="t, y, +1, 31/3"
+                onKeyDown={(event) => {
+                  if (event.altKey || event.ctrlKey || event.metaKey) {
+                    return;
+                  }
+
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    shiftTransactionDate(event.shiftKey ? 7 : 1);
+                  }
+
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    shiftTransactionDate(event.shiftKey ? -7 : -1);
+                  }
+                }}
+                onBlur={(event) => {
+                  transactionDateField.onBlur(event);
+
+                  if (!event.target.value.trim()) {
+                    return;
+                  }
+
+                  normalizeAddFormDateInput(event.target.value);
+                }}
+                name={transactionDateField.name}
+                ref={transactionDateField.ref}
+                onChange={transactionDateField.onChange}
               />
+              <p className="text-xs text-stone-500">
+                Type `t`, `y`, `+1`, or `31/3`. Arrow Up and Arrow Down move one day,
+                Shift moves a week.
+              </p>
               {errors.transactionDate ? (
                 <p className="text-sm text-red-600">{errors.transactionDate.message}</p>
               ) : null}
