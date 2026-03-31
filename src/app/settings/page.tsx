@@ -8,6 +8,7 @@ import { z } from "zod";
 const settingsFormSchema = z.object({
   currency: z.string().trim().min(1, "Currency is required"),
   locale: z.string().trim().min(1, "Locale is required"),
+  theme: z.enum(["light", "dark"]),
   monthlyBudgetTotal: z.string(),
 });
 
@@ -17,6 +18,7 @@ type SettingsData = {
   id: number;
   currency: string;
   locale: string;
+  theme: "light" | "dark";
   monthlyBudgetTotal: string | null;
   updatedAt: string;
 };
@@ -41,6 +43,7 @@ export default function SettingsPage() {
     defaultValues: {
       currency: "GBP",
       locale: "en-GB",
+      theme: "light",
       monthlyBudgetTotal: "",
     },
   });
@@ -56,6 +59,7 @@ export default function SettingsPage() {
           form.reset({
             currency: data.currency,
             locale: data.locale,
+            theme: data.theme ?? "light",
             monthlyBudgetTotal: data.monthlyBudgetTotal ?? "",
           });
         }
@@ -78,6 +82,7 @@ export default function SettingsPage() {
       const payload = {
         currency: values.currency,
         locale: values.locale,
+        theme: values.theme,
         monthlyBudgetTotal:
           values.monthlyBudgetTotal.trim() === ""
             ? null
@@ -94,6 +99,8 @@ export default function SettingsPage() {
         throw new Error(await readApiError(response, "Failed to save settings"));
       }
 
+      document.documentElement.dataset.theme = values.theme;
+      document.documentElement.classList.toggle("dark", values.theme === "dark");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (submitError) {
@@ -121,7 +128,7 @@ export default function SettingsPage() {
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-2xl">
         <section className="rounded-[2rem] border border-stone-200 bg-white shadow-sm">
-          <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fafaf9_0%,#f5f5f4_52%,#ede9e7_100%)] px-6 py-6">
+          <div className="app-hero-surface border-b border-stone-200 px-6 py-6">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
               Finance Centre
             </p>
@@ -129,7 +136,7 @@ export default function SettingsPage() {
               Settings
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-              Configure your currency, locale, and optional monthly budget total.
+              Configure your currency, locale, theme, and optional monthly budget total.
             </p>
           </div>
 
@@ -172,6 +179,22 @@ export default function SettingsPage() {
               {form.formState.errors.locale ? (
                 <p className="text-sm text-red-600">
                   {form.formState.errors.locale.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Theme</span>
+              <select
+                {...form.register("theme")}
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              {form.formState.errors.theme ? (
+                <p className="text-sm text-red-600">
+                  {form.formState.errors.theme.message}
                 </p>
               ) : null}
             </label>

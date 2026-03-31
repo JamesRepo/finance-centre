@@ -16,6 +16,7 @@ const defaultSettingsData = {
   id: 1,
   currency: "GBP",
   locale: "en-GB",
+  theme: "light",
   monthlyBudgetTotal: null,
   updatedAt: "2026-03-10T00:00:00.000Z",
 };
@@ -24,6 +25,8 @@ describe("[Component] settings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+    delete document.documentElement.dataset.theme;
+    document.documentElement.classList.remove("dark");
   });
 
   it("should show loading state while settings are being fetched", () => {
@@ -48,6 +51,7 @@ describe("[Component] settings page", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("GBP")).toHaveValue("GBP");
     expect(screen.getByPlaceholderText("en-GB")).toHaveValue("en-GB");
+    expect(screen.getByRole("combobox")).toHaveValue("light");
     expect(screen.getByPlaceholderText("Optional")).toHaveValue(null);
   });
 
@@ -76,6 +80,7 @@ describe("[Component] settings page", () => {
           ...defaultSettingsData,
           currency: "USD",
           locale: "en-US",
+          theme: "dark",
         }),
       ),
     );
@@ -86,6 +91,7 @@ describe("[Component] settings page", () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText("GBP")).toHaveValue("USD");
       expect(screen.getByPlaceholderText("en-GB")).toHaveValue("en-US");
+      expect(screen.getByRole("combobox")).toHaveValue("dark");
     });
   });
 
@@ -101,6 +107,7 @@ describe("[Component] settings page", () => {
 
     expect(screen.getByPlaceholderText("GBP")).toHaveValue("GBP");
     expect(screen.getByPlaceholderText("en-GB")).toHaveValue("en-GB");
+    expect(screen.getByRole("combobox")).toHaveValue("light");
   });
 
   it("should render with defaults when the fetch throws a network error", async () => {
@@ -150,8 +157,41 @@ describe("[Component] settings page", () => {
     expect(sentBody).toMatchObject({
       currency: "GBP",
       locale: "en-GB",
+      theme: "light",
       monthlyBudgetTotal: null,
     });
+  });
+
+  it("should submit the selected theme", async () => {
+    const user = userEvent.setup();
+
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        return Promise.resolve(jsonResponse({ ...defaultSettingsData, theme: "dark" }));
+      }
+      return Promise.resolve(jsonResponse(defaultSettingsData));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Loading settings...")).not.toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByRole("combobox"), "dark");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Settings saved successfully.")).toBeInTheDocument();
+    });
+
+    const putCall = fetchMock.mock.calls.find(
+      (call) => call[1]?.method === "PUT",
+    );
+    const sentBody = JSON.parse(putCall![1]!.body as string);
+    expect(sentBody.theme).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
   it("should send the monthly budget total as a number when provided", async () => {
@@ -312,7 +352,7 @@ describe("[Component] settings page", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Finance Centre")).toBeInTheDocument();
     expect(
-      screen.getByText("Configure your currency, locale, and optional monthly budget total."),
+      screen.getByText("Configure your currency, locale, theme, and optional monthly budget total."),
     ).toBeInTheDocument();
   });
 

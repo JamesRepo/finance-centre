@@ -11,6 +11,7 @@ const publicFields = {
   id: true,
   currency: true,
   locale: true,
+  theme: true,
   monthlyBudgetTotal: true,
   updatedAt: true,
 } as const;
@@ -42,6 +43,7 @@ export async function PUT(request: NextRequest) {
           data: {
             currency: body.currency ?? "GBP",
             locale: body.locale ?? "en-GB",
+            theme: body.theme ?? "light",
             monthlyBudgetTotal: body.monthlyBudgetTotal ?? undefined,
           },
           select: publicFields,

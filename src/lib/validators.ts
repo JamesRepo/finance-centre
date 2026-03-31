@@ -434,10 +434,13 @@ export const holidayExpenseUpdateSchema = z
 
 // --- Settings ---
 
+const themeSchema = z.enum(["light", "dark"]);
+
 export const settingsUpdateSchema = z
   .object({
     currency: z.string().trim().min(1).optional(),
     locale: z.string().trim().min(1).optional(),
+    theme: themeSchema.optional(),
     monthlyBudgetTotal: nullableOptionalNonnegativeNumber,
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
