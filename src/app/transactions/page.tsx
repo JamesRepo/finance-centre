@@ -205,8 +205,8 @@ export default function TransactionsPage() {
 
     reset({
       categoryId: "",
-      amount: undefined,
-      transactionDate: defaultDate,
+      amount: "",
+      transactionDate: values.transactionDate,
       description: "",
       vendor: "",
     });
