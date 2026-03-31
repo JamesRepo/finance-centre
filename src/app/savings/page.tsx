@@ -612,7 +612,7 @@ export default function SavingsPage() {
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm">
-          <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fafaf9_0%,#f5f5f4_52%,#ede9e7_100%)] px-6 py-6">
+          <div className="app-hero-surface border-b border-stone-200 px-6 py-6">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">

@@ -75,6 +75,15 @@ describe("[Component] NavBar", () => {
     expect(transactionsLink.className).toContain("border-transparent");
   });
 
+  it("should include dark-mode classes for the active navigation state", () => {
+    mockPathname = "/";
+    render(<NavBar />);
+
+    const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
+    expect(dashboardLink.className).toContain("dark:border-stone-100");
+    expect(dashboardLink.className).toContain("dark:text-stone-50");
+  });
+
   it("should highlight the Transactions link when on /transactions", () => {
     mockPathname = "/transactions";
     render(<NavBar />);

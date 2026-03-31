@@ -126,7 +126,7 @@ function BudgetBar({
         width={Math.max(width, 0)}
         height={height}
         rx={radius}
-        fill="#e7e5e4"
+        fill="var(--chart-track)"
       />
       {spentWidth > 0 ? (
         <rect
@@ -332,7 +332,7 @@ export default function Home() {
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm">
-          <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fafaf9_0%,#f5f5f4_52%,#ede9e7_100%)] px-6 py-6">
+          <div className="app-hero-surface border-b border-stone-200 px-6 py-6">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
@@ -437,7 +437,7 @@ export default function Home() {
                         tickFormatter={(value) => formatChartCurrency(Number(value))}
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: "#78716c", fontSize: 12 }}
+                        tick={{ fill: "var(--chart-axis-muted)", fontSize: 12 }}
                       />
                       <YAxis
                         type="category"
@@ -445,10 +445,10 @@ export default function Home() {
                         width={140}
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: "#292524", fontSize: 13 }}
+                        tick={{ fill: "var(--chart-axis)", fontSize: 13 }}
                       />
                       <Tooltip
-                        cursor={{ fill: "rgba(231, 229, 228, 0.55)" }}
+                        cursor={{ fill: "var(--chart-cursor)" }}
                         formatter={(value, _name, item) => {
                           const payload = item.payload as BudgetChartEntry;
 
@@ -460,8 +460,8 @@ export default function Home() {
                         labelFormatter={(value) => `${value}`}
                         contentStyle={{
                           borderRadius: "16px",
-                          borderColor: "#d6d3d1",
-                          boxShadow: "0 8px 24px rgba(28, 25, 23, 0.08)",
+                          borderColor: "var(--tooltip-border)",
+                          boxShadow: "var(--tooltip-shadow)",
                         }}
                       />
                       <Bar

@@ -46,8 +46,8 @@ export function NavBar() {
   const linkClasses = (href: string) =>
     `whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${
       isActive(href)
-        ? "border-stone-950 text-stone-950"
-        : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-700"
+        ? "border-stone-950 text-stone-950 dark:border-stone-100 dark:text-stone-50"
+        : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-700 dark:text-stone-400 dark:hover:border-stone-500 dark:hover:text-stone-200"
     }`;
 
   return (
@@ -80,7 +80,7 @@ export function NavBar() {
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-stone-500 transition hover:border-stone-300 hover:text-stone-700"
+            className="whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-medium text-stone-500 transition hover:border-stone-300 hover:text-stone-700 dark:text-stone-400 dark:hover:border-stone-500 dark:hover:text-stone-200"
           >
             Logout
           </button>

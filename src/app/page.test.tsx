@@ -43,9 +43,30 @@ vi.mock("recharts", () => ({
   ),
   Bar: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   Cell: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
+  XAxis: ({
+    tick,
+  }: {
+    tick?: { fill?: string; fontSize?: number };
+  }) => <div data-testid="x-axis-tick">{JSON.stringify(tick ?? {})}</div>,
+  YAxis: ({
+    tick,
+  }: {
+    tick?: { fill?: string; fontSize?: number };
+  }) => <div data-testid="y-axis-tick">{JSON.stringify(tick ?? {})}</div>,
+  Tooltip: ({
+    cursor,
+    contentStyle,
+  }: {
+    cursor?: { fill?: string };
+    contentStyle?: { borderColor?: string; boxShadow?: string };
+  }) => (
+    <div
+      data-testid="chart-tooltip"
+      data-cursor-fill={cursor?.fill}
+      data-border-color={contentStyle?.borderColor}
+      data-box-shadow={contentStyle?.boxShadow}
+    />
+  ),
 }));
 
 const budgetsResponse = [
@@ -214,6 +235,27 @@ describe("[Component] dashboard page", () => {
       cache: "no-store",
     });
     expect(screen.getByText("March 2026")).toBeInTheDocument();
+  });
+
+  it("should use theme tokens for chart axis and tooltip colors", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    await screen.findByText("Groceries, Transport");
+
+    expect(screen.getByTestId("x-axis-tick")).toHaveTextContent(
+      JSON.stringify({ fill: "var(--chart-axis-muted)", fontSize: 12 }),
+    );
+    expect(screen.getByTestId("y-axis-tick")).toHaveTextContent(
+      JSON.stringify({ fill: "var(--chart-axis)", fontSize: 13 }),
+    );
+
+    const tooltip = screen.getByTestId("chart-tooltip");
+    expect(tooltip).toHaveAttribute("data-cursor-fill", "var(--chart-cursor)");
+    expect(tooltip).toHaveAttribute("data-border-color", "var(--tooltip-border)");
+    expect(tooltip).toHaveAttribute("data-box-shadow", "var(--tooltip-shadow)");
   });
 
   it("should render budget summary cards with correct values", async () => {
