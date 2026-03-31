@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -75,11 +75,15 @@ export default function TransactionsPage() {
   const [filterCategoryId, setFilterCategoryId] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [shouldRestoreCategoryFocus, setShouldRestoreCategoryFocus] = useState(false);
+  const hasAppliedInitialFormFocus = useRef(false);
+  const categoryFieldRef = useRef<HTMLSelectElement | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
     resolver: zodResolver(transactionFormSchema),
@@ -157,6 +161,33 @@ export default function TransactionsPage() {
     void loadTransactions(selectedMonth);
   }, [loadTransactions, selectedMonth]);
 
+  useEffect(() => {
+    if (
+      hasAppliedInitialFormFocus.current ||
+      categoriesLoading ||
+      categories.length === 0
+    ) {
+      return;
+    }
+
+    setFocus("categoryId");
+    hasAppliedInitialFormFocus.current = true;
+  }, [categories, categoriesLoading, setFocus]);
+
+  useEffect(() => {
+    if (
+      !shouldRestoreCategoryFocus ||
+      categoriesLoading ||
+      !categoryFieldRef.current
+    ) {
+      return;
+    }
+
+    categoryFieldRef.current.focus();
+    setFocus("categoryId");
+    setShouldRestoreCategoryFocus(false);
+  }, [categoriesLoading, setFocus, shouldRestoreCategoryFocus]);
+
   const monthLabel = useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
 
@@ -210,6 +241,7 @@ export default function TransactionsPage() {
       description: "",
       vendor: "",
     });
+    setShouldRestoreCategoryFocus(true);
 
     const submittedMonth = result.submittedMonth;
 
@@ -290,6 +322,7 @@ export default function TransactionsPage() {
     await loadTransactions(selectedMonth);
   }
 
+  const categoryField = register("categoryId");
   return (
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -314,7 +347,11 @@ export default function TransactionsPage() {
               <select
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={categoriesLoading || isSubmitting}
-                {...register("categoryId")}
+                {...categoryField}
+                ref={(element) => {
+                  categoryField.ref(element);
+                  categoryFieldRef.current = element;
+                }}
               >
                 <option value="">
                   {categoriesLoading ? "Loading categories..." : "Select a category"}

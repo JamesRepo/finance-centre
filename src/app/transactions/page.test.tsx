@@ -12,6 +12,18 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function getAddTransactionForm() {
+  return screen.getByRole("button", { name: "Add transaction" }).closest("form")!;
+}
+
+function getAddFormCategory(form: HTMLFormElement) {
+  return form.querySelector('select[name="categoryId"]') as HTMLSelectElement;
+}
+
+function getAddFormDateInput(form: HTMLFormElement) {
+  return form.querySelector('input[name="transactionDate"]') as HTMLInputElement;
+}
+
 type TransactionFixture = {
   id: string;
   categoryId: string;
@@ -905,23 +917,36 @@ describe("[Component] transactions page — remember form values", () => {
     vi.unstubAllGlobals();
   });
 
+  it("should focus the category field after categories load", async () => {
+    stubFetch(defaultCategories, []);
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    await waitFor(() => {
+      expect(getAddFormCategory(form)).toHaveFocus();
+    });
+  });
+
   it("should remember the transaction date after a successful submission", async () => {
     stubFetch(defaultCategories, []);
     const user = userEvent.setup();
     render(<TransactionsPage />);
 
     await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
 
-    await user.selectOptions(screen.getByDisplayValue("Select a category"), "cat-1");
-    await user.type(screen.getByPlaceholderText("0.00"), "25.50");
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
 
-    const dateInput = screen.getByLabelText("Date") as HTMLInputElement;
+    const dateInput = getAddFormDateInput(form);
     fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
 
     await user.click(screen.getByRole("button", { name: "Add transaction" }));
 
     await waitFor(() => {
-      expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-03-15");
+      expect(getAddFormDateInput(form).value).toBe("2026-03-15");
     });
   });
 
@@ -931,14 +956,46 @@ describe("[Component] transactions page — remember form values", () => {
     render(<TransactionsPage />);
 
     await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
 
-    await user.selectOptions(screen.getByDisplayValue("Select a category"), "cat-1");
-    await user.type(screen.getByPlaceholderText("0.00"), "25.50");
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
 
     await user.click(screen.getByRole("button", { name: "Add transaction" }));
 
     await waitFor(() => {
-      expect((screen.getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("");
+      expect((within(form).getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("");
+    });
+  });
+
+  it("should return focus to category after a successful submission", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      expect(getAddFormCategory(form)).toHaveFocus();
+    });
+  });
+
+  it("should focus the first invalid field when submission fails validation", async () => {
+    stubFetch(defaultCategories, []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      expect(getAddFormCategory(form)).toHaveFocus();
     });
   });
 });
@@ -955,11 +1012,11 @@ describe("[Component] transactions page — autofill prevention", () => {
 
     await screen.findByText("No transactions found for this month.");
 
-    const form = screen.getByRole("button", { name: "Add transaction" }).closest("form")!;
+    const form = getAddTransactionForm();
     expect(form).toHaveAttribute("data-form-type", "other");
     expect(form).toHaveAttribute("autocomplete", "off");
 
-    const dateInput = screen.getByLabelText("Date");
+    const dateInput = getAddFormDateInput(form);
     expect(dateInput).toHaveAttribute("autocomplete", "off");
     expect(dateInput).toHaveAttribute("data-form-type", "other");
   });
