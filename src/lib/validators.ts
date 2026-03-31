@@ -41,6 +41,11 @@ export const transactionListQuerySchema = z.object({
   categoryId: z.string().trim().min(1).optional(),
 });
 
+export const transactionVendorLookupQuerySchema = z.object({
+  q: z.string().trim().optional(),
+  limit: z.coerce.number().int().positive().max(20).optional(),
+});
+
 export const budgetMonthSchema = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Month must be in YYYY-MM format");
@@ -452,6 +457,9 @@ export const settingsUpdateSchema = z
 export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>;
 export type TransactionUpdateInput = z.infer<typeof transactionUpdateSchema>;
 export type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
+export type TransactionVendorLookupQuery = z.infer<
+  typeof transactionVendorLookupQuerySchema
+>;
 export type BudgetListQuery = z.infer<typeof budgetListQuerySchema>;
 export type BudgetUpsertInput = z.infer<typeof budgetUpsertSchema>;
 export type DebtCreateInput = z.infer<typeof debtCreateSchema>;

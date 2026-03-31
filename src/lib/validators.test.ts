@@ -30,6 +30,7 @@ import {
   subscriptionUpdateSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
+  transactionVendorLookupQuerySchema,
   transactionUpdateSchema,
 } from "@/lib/validators";
 
@@ -151,6 +152,34 @@ describe("[Unit] transactionListQuerySchema", () => {
         categoryId: "   ",
       }),
     ).toThrow();
+  });
+});
+
+describe("[Unit] transactionVendorLookupQuerySchema", () => {
+  it("should accept an empty query", () => {
+    const result = transactionVendorLookupQuerySchema.parse({});
+
+    expect(result).toEqual({});
+  });
+
+  it("should trim the search query and coerce the limit", () => {
+    const result = transactionVendorLookupQuerySchema.parse({
+      q: " train ",
+      limit: "8",
+    });
+
+    expect(result).toEqual({
+      q: "train",
+      limit: 8,
+    });
+  });
+
+  it("should reject limits above the maximum", () => {
+    expect(() =>
+      transactionVendorLookupQuerySchema.parse({
+        limit: 21,
+      }),
+    ).toThrow("Too big");
   });
 });
 
