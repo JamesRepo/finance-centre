@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { addDays, format, isValid, parseISO } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   createTransactionRequest,
+  fetchVendorSuggestions,
   formatTransactionDisplayDate,
   readApiError,
   updateTransactionRequest,
@@ -148,10 +149,17 @@ export default function TransactionsPage() {
   const [filterCategoryId, setFilterCategoryId] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([]);
+  const [vendorSuggestionsLoading, setVendorSuggestionsLoading] = useState(false);
+  const [vendorSuggestionsOpen, setVendorSuggestionsOpen] = useState(false);
+  const [highlightedVendorIndex, setHighlightedVendorIndex] = useState(-1);
   const [shouldRestoreCategoryFocus, setShouldRestoreCategoryFocus] = useState(false);
   const hasAppliedInitialFormFocus = useRef(false);
   const categoryFieldRef = useRef<HTMLSelectElement | null>(null);
+  const vendorInputRef = useRef<HTMLInputElement | null>(null);
+  const vendorLookupRequestIdRef = useRef(0);
   const lastResolvedTransactionDateRef = useRef(parseISO(defaultDate));
+  const vendorSuggestionsListId = useId();
 
   const {
     register,
@@ -161,6 +169,7 @@ export default function TransactionsPage() {
     setError,
     setValue,
     getValues,
+    watch,
     clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<TransactionFormValues, undefined, TransactionFormSubmitValues>({
@@ -265,6 +274,49 @@ export default function TransactionsPage() {
     setFocus("categoryId");
     setShouldRestoreCategoryFocus(false);
   }, [categoriesLoading, setFocus, shouldRestoreCategoryFocus]);
+
+  const vendorValue = watch("vendor") ?? "";
+
+  useEffect(() => {
+    if (!vendorSuggestionsOpen) {
+      return;
+    }
+
+    const requestId = ++vendorLookupRequestIdRef.current;
+
+    setVendorSuggestionsLoading(true);
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        const result = await fetchVendorSuggestions(vendorValue);
+
+        if (requestId !== vendorLookupRequestIdRef.current) {
+          return;
+        }
+
+        if (!result.ok) {
+          setVendorSuggestions([]);
+          setHighlightedVendorIndex(-1);
+          setVendorSuggestionsLoading(false);
+          return;
+        }
+
+        setVendorSuggestions(result.vendors);
+        setHighlightedVendorIndex((currentIndex) => {
+          if (result.vendors.length === 0) {
+            return -1;
+          }
+
+          return Math.min(currentIndex, result.vendors.length - 1);
+        });
+        setVendorSuggestionsLoading(false);
+      })();
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [vendorSuggestionsOpen, vendorValue]);
 
   const monthLabel = useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
@@ -380,6 +432,9 @@ export default function TransactionsPage() {
       description: "",
       vendor: "",
     });
+    setVendorSuggestions([]);
+    setVendorSuggestionsOpen(false);
+    setHighlightedVendorIndex(-1);
     setShouldRestoreCategoryFocus(true);
 
     const submittedMonth = result.submittedMonth;
@@ -461,8 +516,22 @@ export default function TransactionsPage() {
     await loadTransactions(selectedMonth);
   }
 
+  function selectVendorSuggestion(vendor: string) {
+    setValue("vendor", vendor, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+    setVendorSuggestionsOpen(false);
+    setHighlightedVendorIndex(-1);
+    vendorInputRef.current?.focus();
+  }
+
   const categoryField = register("categoryId");
   const transactionDateField = register("transactionDate");
+  const vendorField = register("vendor");
+  const shouldShowVendorSuggestions =
+    vendorSuggestionsOpen && (vendorSuggestionsLoading || vendorSuggestions.length > 0);
 
   return (
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
@@ -574,15 +643,111 @@ export default function TransactionsPage() {
               ) : null}
             </label>
 
-            <label className="flex flex-col gap-2">
+            <label className="relative flex flex-col gap-2">
               <span className="text-sm font-medium text-stone-700">Vendor</span>
               <input
                 type="text"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 placeholder="Optional"
-                {...register("vendor")}
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-controls={vendorSuggestionsListId}
+                aria-expanded={shouldShowVendorSuggestions}
+                onFocus={() => {
+                  setVendorSuggestionsOpen(true);
+                }}
+                onBlur={(event) => {
+                  vendorField.onBlur(event);
+                  setVendorSuggestionsOpen(false);
+                  setHighlightedVendorIndex(-1);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setVendorSuggestionsOpen(true);
+                    setHighlightedVendorIndex((currentIndex) => {
+                      if (vendorSuggestions.length === 0) {
+                        return -1;
+                      }
+
+                      return currentIndex >= vendorSuggestions.length - 1
+                        ? 0
+                        : currentIndex + 1;
+                    });
+                  }
+
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setVendorSuggestionsOpen(true);
+                    setHighlightedVendorIndex((currentIndex) => {
+                      if (vendorSuggestions.length === 0) {
+                        return -1;
+                      }
+
+                      return currentIndex <= 0
+                        ? vendorSuggestions.length - 1
+                        : currentIndex - 1;
+                    });
+                  }
+
+                  if (event.key === "Enter" && highlightedVendorIndex >= 0) {
+                    event.preventDefault();
+                    selectVendorSuggestion(vendorSuggestions[highlightedVendorIndex]);
+                  }
+
+                  if (event.key === "Escape") {
+                    setVendorSuggestionsOpen(false);
+                    setHighlightedVendorIndex(-1);
+                  }
+                }}
+                name={vendorField.name}
+                ref={(element) => {
+                  vendorField.ref(element);
+                  vendorInputRef.current = element;
+                }}
+                onChange={(event) => {
+                  vendorField.onChange(event);
+                  setVendorSuggestionsOpen(true);
+                  setHighlightedVendorIndex(-1);
+                }}
               />
+              {shouldShowVendorSuggestions ? (
+                <div
+                  className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-stone-200 bg-white p-1 shadow-lg"
+                  id={vendorSuggestionsListId}
+                  role="listbox"
+                >
+                  {vendorSuggestionsLoading ? (
+                    <div className="px-3 py-2 text-sm text-stone-500">Loading vendors...</div>
+                  ) : (
+                    vendorSuggestions.map((vendor, index) => (
+                      <button
+                        key={vendor}
+                        type="button"
+                        role="option"
+                        aria-selected={index === highlightedVendorIndex}
+                        className={`flex w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+                          index === highlightedVendorIndex
+                            ? "bg-stone-950 text-white"
+                            : "text-stone-700 hover:bg-stone-100"
+                        }`}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                        }}
+                        onMouseEnter={() => {
+                          setHighlightedVendorIndex(index);
+                        }}
+                        onClick={() => {
+                          selectVendorSuggestion(vendor);
+                        }}
+                      >
+                        {vendor}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
             </label>
 
             <label className="flex flex-col gap-2 md:col-span-2 xl:col-span-4">

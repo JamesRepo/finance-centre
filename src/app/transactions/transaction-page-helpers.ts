@@ -12,6 +12,40 @@ export type TransactionSubmissionInput = {
   vendor?: string;
 };
 
+export async function fetchVendorSuggestions(
+  query: string,
+  fetchImpl: typeof fetch = fetch,
+) {
+  try {
+    const searchParams = new URLSearchParams();
+
+    if (query.trim()) {
+      searchParams.set("q", query.trim());
+    }
+
+    const response = await fetchImpl(
+      `/api/transactions/vendors?${searchParams.toString()}`,
+      {
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(await readApiError(response, "Failed to load vendors"));
+    }
+
+    return {
+      ok: true as const,
+      vendors: (await response.json()) as string[],
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Failed to load vendors",
+    };
+  }
+}
+
 export async function readApiError(
   response: Response,
   fallbackMessage: string,

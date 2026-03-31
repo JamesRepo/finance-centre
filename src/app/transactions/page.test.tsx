@@ -56,10 +56,14 @@ function buildTransaction(
 function stubFetch(
   categories: Array<{ id: string; name: string; colorCode: string | null }>,
   transactions: TransactionFixture[],
+  vendors: string[] = [],
 ) {
   const fetchMock = vi.fn().mockImplementation((url: string) => {
     if (url.startsWith("/api/categories")) {
       return Promise.resolve(jsonResponse(categories));
+    }
+    if (url.startsWith("/api/transactions/vendors")) {
+      return Promise.resolve(jsonResponse(vendors));
     }
     if (url.startsWith("/api/transactions")) {
       return Promise.resolve(jsonResponse(transactions));
@@ -1057,6 +1061,139 @@ describe("[Component] transactions page — remember form values", () => {
 
     await waitFor(() => {
       expect(getAddFormCategory(form)).toHaveFocus();
+    });
+  });
+});
+
+describe("[Component] transactions page — vendor autocomplete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should load and render vendor suggestions when the field is focused", async () => {
+    const fetchMock = stubFetch(defaultCategories, [], ["Tesco", "Trainline"]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const vendorInput = screen.getByLabelText("Vendor");
+
+    await user.click(vendorInput);
+
+    await screen.findByRole("option", { name: "Tesco" });
+    expect(screen.getByRole("option", { name: "Trainline" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/transactions/vendors?", {
+      cache: "no-store",
+    });
+  });
+
+  it("should select a vendor suggestion with the keyboard", async () => {
+    stubFetch(defaultCategories, [], ["Tesco", "Trainline"]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const vendorInput = screen.getByLabelText("Vendor");
+
+    await user.click(vendorInput);
+    await screen.findByRole("option", { name: "Tesco" });
+
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    await waitFor(() => {
+      expect(vendorInput).toHaveValue("Tesco");
+    });
+
+    expect(screen.queryByRole("option", { name: "Tesco" })).not.toBeInTheDocument();
+  });
+
+  it("should keep other form fields unchanged when a vendor suggestion is selected", async () => {
+    stubFetch(defaultCategories, [], ["Tesco"]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+    const categorySelect = getAddFormCategory(form);
+    const amountInput = within(form).getByPlaceholderText("0.00");
+    const dateInput = getAddFormDateInput(form);
+    const descriptionInput = within(form).getAllByPlaceholderText("Optional")[1];
+    const vendorInput = screen.getByLabelText("Vendor");
+
+    await user.selectOptions(categorySelect, "cat-2");
+    await user.type(amountInput, "12.34");
+    fireEvent.change(dateInput, { target: { value: "2026-03-22" } });
+    await user.type(descriptionInput, "Bus fare");
+    await user.click(vendorInput);
+    await screen.findByRole("option", { name: "Tesco" });
+    await user.click(screen.getByRole("option", { name: "Tesco" }));
+
+    expect(categorySelect).toHaveValue("cat-2");
+    expect(amountInput).toHaveValue(12.34);
+    expect(dateInput).toHaveValue("2026-03-22");
+    expect(descriptionInput).toHaveValue("Bus fare");
+    expect(vendorInput).toHaveValue("Tesco");
+  });
+
+  it("should allow free-text vendor submission without selecting a suggestion", async () => {
+    const fetchMock = stubFetch(defaultCategories, [], []);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+
+    await user.selectOptions(getAddFormCategory(form), "cat-1");
+    await user.type(within(form).getByPlaceholderText("0.00"), "25.50");
+    await user.type(screen.getByLabelText("Vendor"), "New Cafe");
+    await user.click(screen.getByRole("button", { name: "Add transaction" }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (call: [string, RequestInit?]) =>
+          typeof call[0] === "string" &&
+          call[0] === "/api/transactions" &&
+          call[1]?.method === "POST",
+      );
+      expect(postCall).toBeDefined();
+      const body = JSON.parse((postCall as [string, RequestInit])[1].body as string);
+      expect(body.vendor).toBe("New Cafe");
+    });
+  });
+
+  it("should close vendor suggestions when escape is pressed", async () => {
+    stubFetch(defaultCategories, [], ["Tesco"]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const vendorInput = screen.getByLabelText("Vendor");
+
+    await user.click(vendorInput);
+    await screen.findByRole("option", { name: "Tesco" });
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("option", { name: "Tesco" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("should close vendor suggestions when the field loses focus", async () => {
+    stubFetch(defaultCategories, [], ["Tesco"]);
+    const user = userEvent.setup();
+    render(<TransactionsPage />);
+
+    await screen.findByText("No transactions found for this month.");
+    const form = getAddTransactionForm();
+    const vendorInput = screen.getByLabelText("Vendor");
+
+    await user.click(vendorInput);
+    await screen.findByRole("option", { name: "Tesco" });
+    await user.click(getAddFormCategory(form));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("option", { name: "Tesco" })).not.toBeInTheDocument();
     });
   });
 });
