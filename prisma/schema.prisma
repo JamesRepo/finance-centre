@@ -42,9 +42,22 @@ model Transaction {
   vendor          String?
   createdAt       DateTime @default(now()) @map("created_at")
 
-  category Category @relation(fields: [categoryId], references: [id])
+  category  Category              @relation(fields: [categoryId], references: [id])
+  lineItems TransactionLineItem[]
 
   @@map("transactions")
+}
+
+model TransactionLineItem {
+  id            String   @id @default(cuid())
+  transactionId String   @map("transaction_id")
+  amount        Decimal
+  sortOrder     Int      @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("transaction_line_items")
 }
 
 model Budget {

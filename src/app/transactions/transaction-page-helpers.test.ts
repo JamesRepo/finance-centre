@@ -25,7 +25,7 @@ describe("[Unit] transaction page helpers", () => {
     const result = await createTransactionRequest(
       {
         categoryId: "cat-1",
-        amount: 12.5,
+        lineItems: [{ amount: 12.5 }],
         transactionDate: "2026-03-10",
         description: "Lunch",
         vendor: "Cafe",
@@ -44,7 +44,7 @@ describe("[Unit] transaction page helpers", () => {
       },
       body: JSON.stringify({
         categoryId: "cat-1",
-        amount: 12.5,
+        lineItems: [{ amount: 12.5 }],
         transactionDate: "2026-03-10T00:00:00.000Z",
         description: "Lunch",
         vendor: "Cafe",
@@ -58,7 +58,7 @@ describe("[Unit] transaction page helpers", () => {
     const result = await createTransactionRequest(
       {
         categoryId: "cat-1",
-        amount: 12.5,
+        lineItems: [{ amount: 12.5 }],
         transactionDate: "2026-03-10",
       },
       fetchMock,
@@ -81,7 +81,7 @@ describe("[Unit] transaction page helpers", () => {
     const result = await createTransactionRequest(
       {
         categoryId: "missing",
-        amount: 10,
+        lineItems: [{ amount: 10 }],
         transactionDate: "2026-03-10",
       },
       fetchMock,
@@ -107,7 +107,7 @@ describe("[Unit] updateTransactionRequest", () => {
       "txn-1",
       {
         categoryId: "cat-2",
-        amount: 25.5,
+        lineItems: [{ amount: 10 }, { amount: 15.5 }],
         transactionDate: "2026-04-15",
         description: "Dinner",
         vendor: "Restaurant",
@@ -126,7 +126,7 @@ describe("[Unit] updateTransactionRequest", () => {
       },
       body: JSON.stringify({
         categoryId: "cat-2",
-        amount: 25.5,
+        lineItems: [{ amount: 10 }, { amount: 15.5 }],
         transactionDate: "2026-04-15T00:00:00.000Z",
         description: "Dinner",
         vendor: "Restaurant",
@@ -146,7 +146,7 @@ describe("[Unit] updateTransactionRequest", () => {
       "txn-1",
       {
         categoryId: "cat-1",
-        amount: 10,
+        lineItems: [{ amount: 10 }],
         transactionDate: "2026-03-01",
       },
       fetchMock,
@@ -171,7 +171,7 @@ describe("[Unit] updateTransactionRequest", () => {
       "missing",
       {
         categoryId: "cat-1",
-        amount: 10,
+        lineItems: [{ amount: 10 }],
         transactionDate: "2026-03-10",
       },
       fetchMock,
@@ -194,7 +194,7 @@ describe("[Unit] updateTransactionRequest", () => {
       "txn-1",
       {
         categoryId: "cat-1",
-        amount: 10,
+        lineItems: [{ amount: 10 }],
         transactionDate: "2026-03-10",
       },
       fetchMock,
@@ -213,7 +213,7 @@ describe("[Unit] updateTransactionRequest", () => {
       "txn-1",
       {
         categoryId: "cat-1",
-        amount: 10,
+        lineItems: [{ amount: 10 }],
         transactionDate: "2026-03-10",
       },
       fetchMock,
@@ -232,7 +232,7 @@ describe("[Unit] updateTransactionRequest", () => {
       "txn-1",
       {
         categoryId: "cat-1",
-        amount: 10,
+        lineItems: [{ amount: 10 }],
         transactionDate: "2026-03-10",
       },
       fetchMock,

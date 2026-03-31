@@ -37,6 +37,7 @@ describe("[Unit] transaction item route PUT", () => {
       id: "txn-1",
       amount: "18.75",
       categoryId: "cat-2",
+      lineItems: [{ id: "line-1", amount: "18.75", sortOrder: 0 }],
       category: {
         id: "cat-2",
         name: "Transport",
@@ -73,18 +74,85 @@ describe("[Unit] transaction item route PUT", () => {
         amount: 18.75,
         categoryId: "cat-2",
         vendor: "Trainline",
+        lineItems: {
+          deleteMany: {},
+          create: [{ amount: 18.75, sortOrder: 0 }],
+        },
       },
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
     });
     expect(await response.json()).toEqual({
       id: "txn-1",
       amount: "18.75",
       categoryId: "cat-2",
+      lineItems: [{ id: "line-1", amount: "18.75", sortOrder: 0 }],
       category: {
         id: "cat-2",
         name: "Transport",
+      },
+    });
+  });
+
+  it("should replace line items and recompute the amount when split values are provided", async () => {
+    mockPrisma.transaction.findUnique.mockResolvedValueOnce({
+      id: "txn-1",
+    });
+    mockPrisma.transaction.update.mockResolvedValue({
+      id: "txn-1",
+      amount: "14.50",
+      categoryId: "cat-1",
+      lineItems: [
+        { id: "line-1", amount: "6.50", sortOrder: 0 },
+        { id: "line-2", amount: "8.00", sortOrder: 1 },
+      ],
+      category: {
+        id: "cat-1",
+        name: "Groceries",
+      },
+    });
+
+    const response = await PUT(
+      new NextRequest("http://localhost/api/transactions/txn-1", {
+        method: "PUT",
+        body: JSON.stringify({
+          lineItems: [{ amount: 6.5 }, { amount: "8.00" }],
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+      {
+        params: Promise.resolve({ id: "txn-1" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+      where: { id: "txn-1" },
+      data: {
+        amount: 14.5,
+        lineItems: {
+          deleteMany: {},
+          create: [
+            { amount: 6.5, sortOrder: 0 },
+            { amount: 8, sortOrder: 1 },
+          ],
+        },
+      },
+      include: {
+        category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
     });
   });

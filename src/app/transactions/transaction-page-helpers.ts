@@ -6,10 +6,11 @@ type ApiError = {
 
 export type TransactionSubmissionInput = {
   categoryId: string;
-  amount: number;
   transactionDate: string;
   description?: string;
   vendor?: string;
+  amount?: number;
+  lineItems?: Array<{ amount: number }>;
 };
 
 export async function fetchVendorSuggestions(
@@ -71,6 +72,7 @@ export async function createTransactionRequest(
       body: JSON.stringify({
         categoryId: values.categoryId,
         amount: values.amount,
+        lineItems: values.lineItems,
         transactionDate: `${values.transactionDate}T00:00:00.000Z`,
         description: values.description,
         vendor: values.vendor,
@@ -110,6 +112,7 @@ export async function updateTransactionRequest(
       body: JSON.stringify({
         categoryId: values.categoryId,
         amount: values.amount,
+        lineItems: values.lineItems,
         transactionDate: `${values.transactionDate}T00:00:00.000Z`,
         description: values.description,
         vendor: values.vendor,

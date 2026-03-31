@@ -30,6 +30,7 @@ describe("[Unit] transactions collection route GET", () => {
         id: "txn-1",
         amount: "12.50",
         transactionDate: "2026-03-10T12:00:00.000Z",
+        lineItems: [{ id: "line-1", amount: "12.50", sortOrder: 0 }],
         category: { id: "cat-1", name: "Groceries" },
       },
     ]);
@@ -46,6 +47,7 @@ describe("[Unit] transactions collection route GET", () => {
         id: "txn-1",
         amount: "12.50",
         transactionDate: "2026-03-10T12:00:00.000Z",
+        lineItems: [{ id: "line-1", amount: "12.50", sortOrder: 0 }],
         category: { id: "cat-1", name: "Groceries" },
       },
     ]);
@@ -59,6 +61,11 @@ describe("[Unit] transactions collection route GET", () => {
       },
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
       orderBy: {
         transactionDate: "desc",
@@ -77,6 +84,11 @@ describe("[Unit] transactions collection route GET", () => {
       where: {},
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
       orderBy: {
         transactionDate: "desc",
@@ -138,6 +150,7 @@ describe("[Unit] transactions collection route POST", () => {
       description: "Lunch",
       vendor: "Cafe",
       categoryId: "cat-1",
+      lineItems: [{ id: "line-1", amount: "12.5", sortOrder: 0 }],
       category: {
         id: "cat-1",
         name: "Groceries",
@@ -171,9 +184,17 @@ describe("[Unit] transactions collection route POST", () => {
         description: "Lunch",
         vendor: "Cafe",
         categoryId: "cat-1",
+        lineItems: {
+          create: [{ amount: 12.5, sortOrder: 0 }],
+        },
       },
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
     });
     expect(await response.json()).toEqual({
@@ -183,9 +204,76 @@ describe("[Unit] transactions collection route POST", () => {
       description: "Lunch",
       vendor: "Cafe",
       categoryId: "cat-1",
+      lineItems: [{ id: "line-1", amount: "12.5", sortOrder: 0 }],
       category: {
         id: "cat-1",
         name: "Groceries",
+      },
+    });
+  });
+
+  it("should create a split transaction and sum the parent amount", async () => {
+    mockPrisma.category.findUnique.mockResolvedValue({
+      id: "cat-1",
+      name: "Groceries",
+    });
+    mockPrisma.transaction.create.mockResolvedValue({
+      id: "txn-2",
+      amount: "15.75",
+      transactionDate: "2026-03-10T12:00:00.000Z",
+      description: "Pub",
+      vendor: "Local",
+      categoryId: "cat-1",
+      lineItems: [
+        { id: "line-1", amount: "5.25", sortOrder: 0 },
+        { id: "line-2", amount: "4.50", sortOrder: 1 },
+        { id: "line-3", amount: "6.00", sortOrder: 2 },
+      ],
+      category: {
+        id: "cat-1",
+        name: "Groceries",
+      },
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          lineItems: [{ amount: 5.25 }, { amount: "4.5" }, { amount: 6 }],
+          transactionDate: "2026-03-10T12:00:00.000Z",
+          description: " Pub ",
+          vendor: " Local ",
+          categoryId: "cat-1",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
+      data: {
+        amount: 15.75,
+        transactionDate: new Date("2026-03-10T12:00:00.000Z"),
+        description: "Pub",
+        vendor: "Local",
+        categoryId: "cat-1",
+        lineItems: {
+          create: [
+            { amount: 5.25, sortOrder: 0 },
+            { amount: 4.5, sortOrder: 1 },
+            { amount: 6, sortOrder: 2 },
+          ],
+        },
+      },
+      include: {
+        category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
     });
   });

@@ -1,10 +1,72 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { prisma } from "@/lib/prisma";
-import { transactionUpdateSchema } from "@/lib/validators";
+import {
+  type TransactionLineItemInput,
+  type TransactionUpdateInput,
+  transactionUpdateSchema,
+} from "@/lib/validators";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function sumLineItems(lineItems: TransactionLineItemInput[]) {
+  return lineItems.reduce((sum, item) => sum + item.amount, 0);
+}
+
+function buildTransactionUpdateData(body: TransactionUpdateInput) {
+  const data: {
+    amount?: number;
+    categoryId?: string;
+    transactionDate?: Date;
+    description?: string;
+    vendor?: string;
+    lineItems?: {
+      deleteMany: Record<string, never>;
+      create: Array<{ amount: number; sortOrder: number }>;
+    };
+  } = {};
+
+  if (body.categoryId !== undefined) {
+    data.categoryId = body.categoryId;
+  }
+
+  if (body.transactionDate !== undefined) {
+    data.transactionDate = body.transactionDate;
+  }
+
+  if (body.description !== undefined) {
+    data.description = body.description;
+  }
+
+  if (body.vendor !== undefined) {
+    data.vendor = body.vendor;
+  }
+
+  if (body.lineItems !== undefined) {
+    data.amount = sumLineItems(body.lineItems);
+    data.lineItems = {
+      deleteMany: {},
+      create: body.lineItems.map((item, index) => ({
+        amount: item.amount,
+        sortOrder: index,
+      })),
+    };
+  } else if (body.amount !== undefined) {
+    data.amount = body.amount;
+    data.lineItems = {
+      deleteMany: {},
+      create: [
+        {
+          amount: body.amount,
+          sortOrder: 0,
+        },
+      ],
+    };
+  }
+
+  return data;
 }
 
 type RouteContext = {
@@ -38,9 +100,14 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const transaction = await prisma.transaction.update({
       where: { id },
-      data: body,
+      data: buildTransactionUpdateData(body),
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
     });
 

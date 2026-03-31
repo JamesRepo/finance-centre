@@ -13,17 +13,37 @@ const optionalTrimmedString = z.preprocess(
   z.string().trim().min(1).optional(),
 );
 
-export const transactionCreateSchema = z.object({
+const transactionLineItemInputSchema = z.object({
   amount: z.coerce.number().positive(),
-  transactionDate: z.coerce.date(),
-  description: optionalTrimmedString,
-  vendor: optionalTrimmedString,
-  categoryId: z.string().trim().min(1),
 });
+
+const transactionLineItemsSchema = z
+  .array(transactionLineItemInputSchema)
+  .min(1, "Add at least one amount");
+
+export const transactionCreateSchema = z
+  .object({
+    amount: z.coerce.number().positive().optional(),
+    lineItems: transactionLineItemsSchema.optional(),
+    transactionDate: z.coerce.date(),
+    description: optionalTrimmedString,
+    vendor: optionalTrimmedString,
+    categoryId: z.string().trim().min(1),
+  })
+  .superRefine((value, context) => {
+    if (value.amount === undefined && value.lineItems === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "Provide an amount or at least one line item",
+        path: ["amount"],
+      });
+    }
+  });
 
 export const transactionUpdateSchema = z
   .object({
     amount: z.coerce.number().positive().optional(),
+    lineItems: transactionLineItemsSchema.optional(),
     transactionDate: z.coerce.date().optional(),
     description: optionalTrimmedString,
     vendor: optionalTrimmedString,
@@ -457,6 +477,7 @@ export const settingsUpdateSchema = z
 export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>;
 export type TransactionUpdateInput = z.infer<typeof transactionUpdateSchema>;
 export type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
+export type TransactionLineItemInput = z.infer<typeof transactionLineItemInputSchema>;
 export type TransactionVendorLookupQuery = z.infer<
   typeof transactionVendorLookupQuerySchema
 >;

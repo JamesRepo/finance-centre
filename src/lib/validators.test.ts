@@ -64,6 +64,16 @@ describe("[Unit] transactionCreateSchema", () => {
     expect(result.vendor).toBeUndefined();
   });
 
+  it("should accept split line items when multiple values are provided", () => {
+    const result = transactionCreateSchema.parse({
+      lineItems: [{ amount: "4.50" }, { amount: 5 }],
+      transactionDate: "2026-03-10T12:00:00.000Z",
+      categoryId: "category-1",
+    });
+
+    expect(result.lineItems).toEqual([{ amount: 4.5 }, { amount: 5 }]);
+  });
+
   it("should reject the payload when amount is zero", () => {
     expect(() =>
       transactionCreateSchema.parse({
@@ -72,6 +82,15 @@ describe("[Unit] transactionCreateSchema", () => {
         categoryId: "category-1",
       }),
     ).toThrow("Too small");
+  });
+
+  it("should reject the payload when neither amount nor line items are provided", () => {
+    expect(() =>
+      transactionCreateSchema.parse({
+        transactionDate: "2026-03-10T12:00:00.000Z",
+        categoryId: "category-1",
+      }),
+    ).toThrow("Provide an amount or at least one line item");
   });
 
   it("should reject the payload when transactionDate is missing", () => {
@@ -106,6 +125,14 @@ describe("[Unit] transactionUpdateSchema", () => {
         vendor: "",
       }),
     ).toThrow("At least one field is required");
+  });
+
+  it("should accept line item replacement without any other fields", () => {
+    const result = transactionUpdateSchema.parse({
+      lineItems: [{ amount: "3.25" }, { amount: 8 }],
+    });
+
+    expect(result.lineItems).toEqual([{ amount: 3.25 }, { amount: 8 }]);
   });
 });
 

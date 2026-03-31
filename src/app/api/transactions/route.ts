@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
+  type TransactionCreateInput,
   transactionCreateSchema,
   transactionListQuerySchema,
 } from "@/lib/validators";
@@ -17,6 +18,24 @@ function getMonthRange(month: string) {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function buildTransactionCreateData(body: TransactionCreateInput) {
+  const lineItems = body.lineItems ?? [{ amount: body.amount! }];
+
+  return {
+    categoryId: body.categoryId,
+    amount: lineItems.reduce((sum, item) => sum + item.amount, 0),
+    transactionDate: body.transactionDate,
+    description: body.description,
+    vendor: body.vendor,
+    lineItems: {
+      create: lineItems.map((item, index) => ({
+        amount: item.amount,
+        sortOrder: index,
+      })),
+    },
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -35,6 +54,11 @@ export async function GET(request: NextRequest) {
       },
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
       orderBy: {
         transactionDate: "desc",
@@ -64,9 +88,14 @@ export async function POST(request: NextRequest) {
     }
 
     const transaction = await prisma.transaction.create({
-      data: body,
+      data: buildTransactionCreateData(body),
       include: {
         category: true,
+        lineItems: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
       },
     });
 
