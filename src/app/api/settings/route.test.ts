@@ -22,7 +22,6 @@ const defaultSettings = {
   id: 1,
   currency: "GBP",
   locale: "en-GB",
-  theme: "light",
   monthlyBudgetTotal: null,
   updatedAt: new Date("2026-03-10T00:00:00.000Z"),
 };
@@ -31,7 +30,6 @@ const publicSelect = {
   id: true,
   currency: true,
   locale: true,
-  theme: true,
   monthlyBudgetTotal: true,
   updatedAt: true,
 };
@@ -52,7 +50,6 @@ describe("[Unit] settings route GET", () => {
       id: 1,
       currency: "GBP",
       locale: "en-GB",
-      theme: "light",
       monthlyBudgetTotal: null,
     });
     expect(mockPrisma.settings.findFirst).toHaveBeenCalledOnce();
@@ -69,7 +66,6 @@ describe("[Unit] settings route GET", () => {
         id: true,
         currency: true,
         locale: true,
-        theme: true,
         monthlyBudgetTotal: true,
         updatedAt: true,
       },
@@ -116,13 +112,12 @@ describe("[Unit] settings route PUT", () => {
       ...defaultSettings,
       currency: "USD",
       locale: "en-US",
-      theme: "dark",
     });
 
     const response = await PUT(
       new NextRequest("http://localhost/api/settings", {
         method: "PUT",
-        body: JSON.stringify({ currency: "USD", locale: "en-US", theme: "dark" }),
+        body: JSON.stringify({ currency: "USD", locale: "en-US" }),
         headers: { "content-type": "application/json" },
       }),
     );
@@ -132,15 +127,13 @@ describe("[Unit] settings route PUT", () => {
     expect(response.status).toBe(200);
     expect(body.currency).toBe("USD");
     expect(body.locale).toBe("en-US");
-    expect(body.theme).toBe("dark");
     expect(mockPrisma.settings.update).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { currency: "USD", locale: "en-US", theme: "dark" },
+      data: { currency: "USD", locale: "en-US" },
       select: {
         id: true,
         currency: true,
         locale: true,
-        theme: true,
         monthlyBudgetTotal: true,
         updatedAt: true,
       },
@@ -153,13 +146,12 @@ describe("[Unit] settings route PUT", () => {
       ...defaultSettings,
       currency: "EUR",
       locale: "de-DE",
-      theme: "dark",
     });
 
     const response = await PUT(
       new NextRequest("http://localhost/api/settings", {
         method: "PUT",
-        body: JSON.stringify({ currency: "EUR", locale: "de-DE", theme: "dark" }),
+        body: JSON.stringify({ currency: "EUR", locale: "de-DE" }),
         headers: { "content-type": "application/json" },
       }),
     );
@@ -169,7 +161,6 @@ describe("[Unit] settings route PUT", () => {
       data: {
         currency: "EUR",
         locale: "de-DE",
-        theme: "dark",
         monthlyBudgetTotal: undefined,
       },
       select: publicSelect,
@@ -193,7 +184,6 @@ describe("[Unit] settings route PUT", () => {
       data: {
         currency: "GBP",
         locale: "en-GB",
-        theme: "light",
         monthlyBudgetTotal: undefined,
       },
       select: publicSelect,
@@ -219,29 +209,6 @@ describe("[Unit] settings route PUT", () => {
     expect(mockPrisma.settings.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { monthlyBudgetTotal: 2500 },
-      select: publicSelect,
-    });
-  });
-
-  it("should update theme when provided on its own", async () => {
-    mockPrisma.settings.findFirst.mockResolvedValue(defaultSettings);
-    mockPrisma.settings.update.mockResolvedValue({
-      ...defaultSettings,
-      theme: "dark",
-    });
-
-    const response = await PUT(
-      new NextRequest("http://localhost/api/settings", {
-        method: "PUT",
-        body: JSON.stringify({ theme: "dark" }),
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(mockPrisma.settings.update).toHaveBeenCalledWith({
-      where: { id: 1 },
-      data: { theme: "dark" },
       select: publicSelect,
     });
   });
@@ -288,7 +255,7 @@ describe("[Unit] settings route PUT", () => {
     expect(mockPrisma.settings.findFirst).not.toHaveBeenCalled();
   });
 
-  it("should return 400 when theme is invalid", async () => {
+  it("should return 400 when unexpected fields are provided", async () => {
     const response = await PUT(
       new NextRequest("http://localhost/api/settings", {
         method: "PUT",
@@ -298,9 +265,7 @@ describe("[Unit] settings route PUT", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: "Invalid option: expected one of \"light\"|\"dark\"",
-    });
+    expect((await response.json()).error).toBe("At least one field is required");
     expect(mockPrisma.settings.findFirst).not.toHaveBeenCalled();
   });
 

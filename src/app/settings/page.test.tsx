@@ -16,7 +16,6 @@ const defaultSettingsData = {
   id: 1,
   currency: "GBP",
   locale: "en-GB",
-  theme: "light",
   monthlyBudgetTotal: null,
   updatedAt: "2026-03-10T00:00:00.000Z",
 };
@@ -202,8 +201,6 @@ describe("[Component] settings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    delete document.documentElement.dataset.theme;
-    document.documentElement.classList.remove("dark");
   });
 
   it("should show loading state while settings and categories are being fetched", () => {
@@ -224,7 +221,6 @@ describe("[Component] settings page", () => {
 
     expect(screen.getByPlaceholderText("GBP")).toHaveValue("GBP");
     expect(screen.getByPlaceholderText("en-GB")).toHaveValue("en-GB");
-    expect(screen.getByRole("combobox")).toHaveValue("light");
     expect(screen.getByText("Categories")).toBeInTheDocument();
     expect(screen.getByText("2 transactions • 1 budget")).toBeInTheDocument();
     expect(screen.getByText("Unused")).toBeInTheDocument();
@@ -265,7 +261,7 @@ describe("[Component] settings page", () => {
     expect(screen.queryByText("Failed to load categories")).not.toBeInTheDocument();
   });
 
-  it("should submit settings and apply the selected theme when the save succeeds", async () => {
+  it("should submit settings when the save succeeds", async () => {
     const user = userEvent.setup();
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
@@ -274,7 +270,6 @@ describe("[Component] settings page", () => {
 
     await waitForPageToLoad();
 
-    await user.selectOptions(screen.getByRole("combobox"), "dark");
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
     await waitFor(() => {
@@ -286,11 +281,8 @@ describe("[Component] settings page", () => {
     expect(JSON.parse(putCall![1]!.body as string)).toMatchObject({
       currency: "GBP",
       locale: "en-GB",
-      theme: "dark",
       monthlyBudgetTotal: null,
     });
-    expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
 
   it("should show a settings error when the settings save fails", async () => {

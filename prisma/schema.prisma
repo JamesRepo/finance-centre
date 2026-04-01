@@ -224,7 +224,6 @@ model Settings {
   id                 Int      @id @default(autoincrement())
   currency           String   @default("GBP")
   locale             String   @default("en-GB")
-  theme              String   @default("light")
   monthlyBudgetTotal Decimal? @map("monthly_budget_total")
   email              String?
   passwordHash       String?  @map("password_hash")
