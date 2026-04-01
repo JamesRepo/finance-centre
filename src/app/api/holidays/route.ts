@@ -8,20 +8,12 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function getMonthRange(month: string) {
-  const [year, monthNumber] = month.split("-").map(Number);
-
-  return {
-    gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
-    lt: new Date(Date.UTC(year, monthNumber, 1)),
-  };
-}
-
 function attachHolidaySummary<
   T extends {
     id: number;
     name: string;
     destination: string;
+    assignedMonth: string;
     startDate: Date;
     endDate: Date;
     description: string | null;
@@ -39,24 +31,17 @@ function attachHolidaySummary<
     (sum, expense) => sum.plus(expense.amount),
     new Prisma.Decimal(0),
   );
-  const monthRange = month ? getMonthRange(month) : null;
   const expenseTypeTotals = new Map<string, Prisma.Decimal>();
-  let monthlyCost = new Prisma.Decimal(0);
 
   for (const expense of holiday.holidayExpenses) {
     const currentTotal =
       expenseTypeTotals.get(expense.expenseType) ?? new Prisma.Decimal(0);
 
     expenseTypeTotals.set(expense.expenseType, currentTotal.plus(expense.amount));
-
-    if (
-      monthRange &&
-      expense.expenseDate >= monthRange.gte &&
-      expense.expenseDate < monthRange.lt
-    ) {
-      monthlyCost = monthlyCost.plus(expense.amount);
-    }
   }
+
+  const monthlyCost =
+    month && holiday.assignedMonth === month ? totalCost : new Prisma.Decimal(0);
 
   const { holidayExpenses: _holidayExpenses, _count, ...holidaySummary } = holiday;
 
@@ -80,6 +65,11 @@ export async function GET(request: NextRequest) {
     const month = monthParam ? budgetMonthSchema.parse(monthParam) : undefined;
 
     const holidays = await prisma.holiday.findMany({
+      where: month
+        ? {
+            assignedMonth: month,
+          }
+        : undefined,
       include: {
         holidayExpenses: {
           select: {
@@ -94,9 +84,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        startDate: "desc",
-      },
+      orderBy: [{ assignedMonth: "desc" }, { startDate: "desc" }],
     });
 
     return NextResponse.json(holidays.map((holiday) => attachHolidaySummary(holiday, month)));

@@ -28,6 +28,7 @@ describe("[Unit] holiday item route GET", () => {
       id: 7,
       name: "Japan",
       destination: "Tokyo",
+      assignedMonth: "2026-10",
       startDate: new Date("2026-10-01T00:00:00.000Z"),
       endDate: new Date("2026-10-10T00:00:00.000Z"),
       description: "Autumn trip",
@@ -85,6 +86,7 @@ describe("[Unit] holiday item route GET", () => {
     });
     expect(body).toMatchObject({
       id: 7,
+      assignedMonth: "2026-10",
       totalCost: "758",
       expenseBreakdown: [
         { expenseType: "FLIGHT", totalCost: "700" },
@@ -129,6 +131,7 @@ describe("[Unit] holiday item route PUT", () => {
       id: 7,
       name: "Japan",
       destination: "Tokyo",
+      assignedMonth: "2026-10",
       startDate: new Date("2026-10-01T00:00:00.000Z"),
       endDate: new Date("2026-10-10T00:00:00.000Z"),
       description: "Autumn trip",
@@ -140,6 +143,7 @@ describe("[Unit] holiday item route PUT", () => {
       id: 7,
       name: "Japan Updated",
       destination: "Kyoto",
+      assignedMonth: "2026-11",
       startDate: new Date("2026-10-01T00:00:00.000Z"),
       endDate: new Date("2026-10-12T00:00:00.000Z"),
       description: null,
@@ -165,6 +169,7 @@ describe("[Unit] holiday item route PUT", () => {
         body: JSON.stringify({
           name: " Japan Updated ",
           destination: " Kyoto ",
+          assignedMonth: "2026-11",
           endDate: "2026-10-12T00:00:00.000Z",
           description: null,
           isActive: false,
@@ -184,6 +189,7 @@ describe("[Unit] holiday item route PUT", () => {
       data: {
         name: "Japan Updated",
         destination: "Kyoto",
+        assignedMonth: "2026-11",
         endDate: new Date("2026-10-12T00:00:00.000Z"),
         description: null,
         isActive: false,
@@ -199,6 +205,7 @@ describe("[Unit] holiday item route PUT", () => {
     expect(await response.json()).toMatchObject({
       id: 7,
       name: "Japan Updated",
+      assignedMonth: "2026-11",
       totalCost: "450",
       expenseBreakdown: [
         { expenseType: "ACCOMMODATION", totalCost: "450" },
@@ -259,6 +266,7 @@ describe("[Unit] holiday item route PUT", () => {
       id: 7,
       name: "Japan",
       destination: "Tokyo",
+      assignedMonth: "2026-10",
       startDate: new Date("2026-10-10T00:00:00.000Z"),
       endDate: new Date("2026-10-20T00:00:00.000Z"),
       description: null,
@@ -287,6 +295,29 @@ describe("[Unit] holiday item route PUT", () => {
       error: "End date must be on or after start date",
     });
     expect(mockPrisma.holiday.update).not.toHaveBeenCalled();
+  });
+
+  it("should return a 400 error when assignedMonth is invalid", async () => {
+    const response = await PUT(
+      new NextRequest("http://localhost/api/holidays/7", {
+        method: "PUT",
+        body: JSON.stringify({
+          assignedMonth: "2026-13",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+      {
+        params: Promise.resolve({ id: "7" }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Month must be in YYYY-MM format",
+    });
+    expect(mockPrisma.holiday.findUnique).not.toHaveBeenCalled();
   });
 
   it("should return a 400 error when the JSON body is malformed", async () => {

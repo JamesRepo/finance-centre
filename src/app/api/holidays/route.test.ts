@@ -28,6 +28,7 @@ describe("[Unit] holidays collection route GET", () => {
         id: 2,
         name: "Barcelona",
         destination: "Spain",
+        assignedMonth: "2026-03",
         startDate: new Date("2026-08-05T00:00:00.000Z"),
         endDate: new Date("2026-08-12T00:00:00.000Z"),
         description: "Summer break",
@@ -63,6 +64,9 @@ describe("[Unit] holidays collection route GET", () => {
 
     expect(response.status).toBe(200);
     expect(mockPrisma.holiday.findMany).toHaveBeenCalledWith({
+      where: {
+        assignedMonth: "2026-03",
+      },
       include: {
         holidayExpenses: {
           select: {
@@ -77,15 +81,13 @@ describe("[Unit] holidays collection route GET", () => {
           },
         },
       },
-      orderBy: {
-        startDate: "desc",
-      },
+      orderBy: [{ assignedMonth: "desc" }, { startDate: "desc" }],
     });
     expect(body).toEqual([
       expect.objectContaining({
         id: 2,
         totalCost: "220",
-        monthlyCost: "200",
+        monthlyCost: "220",
         expenseCount: 3,
         expenseBreakdown: [
           {
@@ -101,6 +103,60 @@ describe("[Unit] holidays collection route GET", () => {
     ]);
     expect(body[0]).not.toHaveProperty("holidayExpenses");
     expect(body[0]).not.toHaveProperty("_count");
+  });
+
+  it("should return zero monthlyCost when no month query is provided", async () => {
+    mockPrisma.holiday.findMany.mockResolvedValue([
+      {
+        id: 5,
+        name: "Prague",
+        destination: "Czechia",
+        assignedMonth: "2026-04",
+        startDate: new Date("2026-04-12T00:00:00.000Z"),
+        endDate: new Date("2026-04-18T00:00:00.000Z"),
+        description: null,
+        isActive: true,
+        createdAt: new Date("2026-03-01T00:00:00.000Z"),
+        holidayExpenses: [
+          {
+            expenseType: "FLIGHT",
+            amount: new Prisma.Decimal("300"),
+            expenseDate: new Date("2026-02-15T00:00:00.000Z"),
+          },
+        ],
+        _count: {
+          holidayExpenses: 1,
+        },
+      },
+    ]);
+
+    const response = await GET(new NextRequest("http://localhost/api/holidays"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.holiday.findMany).toHaveBeenCalledWith({
+      where: undefined,
+      include: {
+        holidayExpenses: {
+          select: {
+            expenseType: true,
+            amount: true,
+            expenseDate: true,
+          },
+        },
+        _count: {
+          select: {
+            holidayExpenses: true,
+          },
+        },
+      },
+      orderBy: [{ assignedMonth: "desc" }, { startDate: "desc" }],
+    });
+    expect(body[0]).toMatchObject({
+      assignedMonth: "2026-04",
+      totalCost: "300",
+      monthlyCost: "0",
+    });
   });
 
   it("should return a 400 error when the month query is invalid", async () => {
@@ -126,6 +182,7 @@ describe("[Unit] holidays collection route POST", () => {
       id: 3,
       name: "Rome",
       destination: "Italy",
+      assignedMonth: "2026-09",
       startDate: new Date("2026-09-10T00:00:00.000Z"),
       endDate: new Date("2026-09-14T00:00:00.000Z"),
       description: "City break",
@@ -143,6 +200,7 @@ describe("[Unit] holidays collection route POST", () => {
         body: JSON.stringify({
           name: " Rome ",
           destination: " Italy ",
+          assignedMonth: "2026-09",
           startDate: "2026-09-10T00:00:00.000Z",
           endDate: "2026-09-14T00:00:00.000Z",
           description: " City break ",
@@ -160,6 +218,7 @@ describe("[Unit] holidays collection route POST", () => {
       data: {
         name: "Rome",
         destination: "Italy",
+        assignedMonth: "2026-09",
         startDate: new Date("2026-09-10T00:00:00.000Z"),
         endDate: new Date("2026-09-14T00:00:00.000Z"),
         description: "City break",
@@ -183,6 +242,7 @@ describe("[Unit] holidays collection route POST", () => {
     expect(body).toMatchObject({
       id: 3,
       name: "Rome",
+      assignedMonth: "2026-09",
       totalCost: "0",
       monthlyCost: "0",
       expenseCount: 0,
@@ -197,6 +257,7 @@ describe("[Unit] holidays collection route POST", () => {
         body: JSON.stringify({
           name: "Trip",
           destination: "Paris",
+          assignedMonth: "2026-09",
           startDate: "2026-09-14T00:00:00.000Z",
           endDate: "2026-09-10T00:00:00.000Z",
         }),
@@ -210,6 +271,26 @@ describe("[Unit] holidays collection route POST", () => {
     expect(await response.json()).toEqual({
       error: "End date must be on or after start date",
     });
+    expect(mockPrisma.holiday.create).not.toHaveBeenCalled();
+  });
+
+  it("should return a 400 error when assignedMonth is missing", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/holidays", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Trip",
+          destination: "Paris",
+          startDate: "2026-09-10T00:00:00.000Z",
+          endDate: "2026-09-14T00:00:00.000Z",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
     expect(mockPrisma.holiday.create).not.toHaveBeenCalled();
   });
 

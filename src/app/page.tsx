@@ -88,7 +88,7 @@ type HolidayEntry = {
   name: string;
   destination: string;
   isActive: boolean;
-  endDate: string;
+  assignedMonth: string;
   totalCost: string;
   monthlyCost: string;
 };
@@ -131,13 +131,6 @@ function readAmount(value: string) {
 
 function isSameMonth(value: string, month: string) {
   return value.slice(0, 7) === month;
-}
-
-function isActiveHoliday(holiday: Pick<HolidayEntry, "isActive" | "endDate">) {
-  const todayAtMidnight = new Date();
-  todayAtMidnight.setHours(0, 0, 0, 0);
-
-  return holiday.isActive && new Date(holiday.endDate).getTime() >= todayAtMidnight.getTime();
 }
 
 function formatLabel(value: string) {
@@ -429,11 +422,6 @@ export default function Home() {
       remaining: budget - spent,
     };
   }, [dailyChartData]);
-
-  const activeHolidays = useMemo(
-    () => holidays.filter((holiday) => isActiveHoliday(holiday)),
-    [holidays],
-  );
 
   const totalHousing = useMemo(
     () => housing.reduce((sum, entry) => sum + readAmount(entry.amount), 0),
@@ -787,7 +775,7 @@ export default function Home() {
                 Holidays
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
-                Active trips and spend so far
+                Trips and spend so far
               </h2>
             </div>
             <Link
@@ -802,13 +790,13 @@ export default function Home() {
             <div className="mt-6">
               <LoadingPanel message="Loading holidays..." />
             </div>
-          ) : activeHolidays.length === 0 ? (
+          ) : holidays.length === 0 ? (
             <p className="mt-6 rounded-[1.5rem] border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-sm text-stone-500">
-              No active holidays
+              No holidays for this month
             </p>
           ) : (
             <div className="mt-6 grid gap-4 lg:grid-cols-3">
-              {activeHolidays.map((holiday) => (
+              {holidays.map((holiday) => (
                 <article
                   key={holiday.id}
                   className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-5 py-5"

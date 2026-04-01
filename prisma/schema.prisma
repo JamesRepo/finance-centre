@@ -194,6 +194,7 @@ model Holiday {
   id          Int      @id @default(autoincrement())
   name        String   @db.VarChar(200)
   destination String   @db.VarChar(200)
+  assignedMonth String @map("assigned_month") @db.VarChar(7)
   startDate   DateTime @map("start_date")
   endDate     DateTime @map("end_date")
   description String?

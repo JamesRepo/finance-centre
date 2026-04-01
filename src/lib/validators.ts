@@ -445,6 +445,7 @@ export const holidayCreateSchema = z
   .object({
     name: z.string().trim().min(1),
     destination: z.string().trim().min(1),
+    assignedMonth: budgetMonthSchema,
     startDate: z.coerce.date(),
     endDate: z.coerce.date(),
     description: optionalTrimmedString,
@@ -459,6 +460,7 @@ export const holidayUpdateSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     destination: z.string().trim().min(1).optional(),
+    assignedMonth: budgetMonthSchema.optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
     description: nullableOptionalTrimmedString,

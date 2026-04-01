@@ -112,6 +112,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     holidayCreateSchema.parse({
       name: body.name ?? existingHoliday.name,
       destination: body.destination ?? existingHoliday.destination,
+      assignedMonth: body.assignedMonth ?? existingHoliday.assignedMonth,
       startDate: body.startDate ?? existingHoliday.startDate,
       endDate: body.endDate ?? existingHoliday.endDate,
       description:

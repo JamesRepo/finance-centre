@@ -202,27 +202,27 @@ const holidaysResponse = [
     name: "Japan Spring",
     destination: "Tokyo",
     isActive: true,
-    endDate: "2099-03-28T00:00:00.000Z",
+    assignedMonth: "2026-03",
     totalCost: "1200",
-    monthlyCost: "300",
+    monthlyCost: "1200",
   },
   {
     id: 2,
     name: "Past Weekend",
     destination: "Lisbon",
     isActive: true,
-    endDate: "2026-01-12T00:00:00.000Z",
+    assignedMonth: "2026-03",
     totalCost: "400",
-    monthlyCost: "0",
+    monthlyCost: "400",
   },
   {
     id: 3,
     name: "Inactive Break",
     destination: "Rome",
     isActive: false,
-    endDate: "2099-04-10T00:00:00.000Z",
+    assignedMonth: "2026-03",
     totalCost: "100",
-    monthlyCost: "0",
+    monthlyCost: "100",
   },
 ];
 
@@ -367,7 +367,7 @@ describe("[Component] dashboard page", () => {
     );
   });
 
-  it("should render fixed costs active holidays debt savings and monthly summary totals when data loads", async () => {
+  it("should render fixed costs holidays debt savings and monthly summary totals when data loads", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -384,8 +384,8 @@ describe("[Component] dashboard page", () => {
 
     expect(screen.getByText("Tokyo")).toBeInTheDocument();
     expect(screen.getByText("£1,200.00")).toBeInTheDocument();
-    expect(screen.queryByText("Past Weekend")).not.toBeInTheDocument();
-    expect(screen.queryByText("Inactive Break")).not.toBeInTheDocument();
+    expect(screen.getByText("Past Weekend")).toBeInTheDocument();
+    expect(screen.getByText("Inactive Break")).toBeInTheDocument();
 
     expect(screen.getByText("£15,500.00")).toBeInTheDocument();
     expect(screen.getByText("Credit Card")).toBeInTheDocument();
@@ -394,34 +394,24 @@ describe("[Component] dashboard page", () => {
     expect(screen.getByText("Holiday Pot")).toBeInTheDocument();
 
     expect(screen.getByText("Total spent across everything")).toBeInTheDocument();
-    expect(screen.getAllByText("£2,079.44")).toHaveLength(2);
+    expect(screen.getAllByText("£3,479.44")).toHaveLength(2);
     expect(screen.getByText("£3,700.00")).toBeInTheDocument();
     expect(screen.getByText("Outgoings")).toBeInTheDocument();
-    expect(screen.getByText("£1,620.56")).toBeInTheDocument();
+    expect(screen.getByText("£220.56")).toBeInTheDocument();
   });
 
-  it("should show a subtle empty message when there are no active holidays", async () => {
+  it("should show a subtle empty message when there are no holidays for the selected month", async () => {
     const fetchMock = createFetchMock({
-      holidays: [
-        {
-          id: 7,
-          name: "Old Trip",
-          destination: "Paris",
-          isActive: true,
-          endDate: "2026-01-03T00:00:00.000Z",
-          totalCost: "400",
-          monthlyCost: "0",
-        },
-      ],
+      holidays: [],
     });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
 
-    expect(await screen.findByText("No active holidays")).toBeInTheDocument();
+    expect(await screen.findByText("No holidays for this month")).toBeInTheDocument();
   });
 
-  it("should include monthly spend from non-active holidays in outgoings while only rendering active holidays in the holidays section", async () => {
+  it("should include all assigned-month holiday spend in outgoings and render all holidays returned for that month", async () => {
     const fetchMock = createFetchMock({
       holidays: [
         {
@@ -429,18 +419,18 @@ describe("[Component] dashboard page", () => {
           name: "Japan Spring",
           destination: "Tokyo",
           isActive: true,
-          endDate: "2099-03-28T00:00:00.000Z",
+          assignedMonth: "2026-03",
           totalCost: "1200",
-          monthlyCost: "300",
+          monthlyCost: "1200",
         },
         {
           id: 2,
           name: "Finished Ski Trip",
           destination: "Geneva",
           isActive: true,
-          endDate: "2026-03-02T00:00:00.000Z",
+          assignedMonth: "2026-03",
           totalCost: "800",
-          monthlyCost: "200",
+          monthlyCost: "800",
         },
       ],
     });
@@ -450,10 +440,10 @@ describe("[Component] dashboard page", () => {
 
     await screen.findByText("Japan Spring");
 
-    expect(screen.queryByText("Finished Ski Trip")).not.toBeInTheDocument();
+    expect(screen.getByText("Finished Ski Trip")).toBeInTheDocument();
     expect(screen.getByText("Outgoings")).toBeInTheDocument();
-    expect(screen.getAllByText("£2,279.44")).toHaveLength(2);
-    expect(screen.getByText("£1,420.56")).toBeInTheDocument();
+    expect(screen.getAllByText("£3,779.44")).toHaveLength(2);
+    expect(screen.getByText("-£79.44")).toBeInTheDocument();
   });
 
   it("should show an empty-state message when no daily spending categories are available", async () => {

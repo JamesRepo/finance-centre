@@ -1610,6 +1610,7 @@ describe("[Unit] holidayCreateSchema", () => {
     const result = holidayCreateSchema.parse({
       name: " Summer Trip ",
       destination: " Barcelona ",
+      assignedMonth: "2026-07",
       startDate: "2026-07-15T00:00:00.000Z",
       endDate: "2026-07-22T00:00:00.000Z",
       description: " Week in Spain ",
@@ -1618,6 +1619,7 @@ describe("[Unit] holidayCreateSchema", () => {
     expect(result).toEqual({
       name: "Summer Trip",
       destination: "Barcelona",
+      assignedMonth: "2026-07",
       startDate: new Date("2026-07-15T00:00:00.000Z"),
       endDate: new Date("2026-07-22T00:00:00.000Z"),
       description: "Week in Spain",
@@ -1628,6 +1630,7 @@ describe("[Unit] holidayCreateSchema", () => {
     const result = holidayCreateSchema.parse({
       name: "Day Trip",
       destination: "Brighton",
+      assignedMonth: "2026-08",
       startDate: "2026-08-01T00:00:00.000Z",
       endDate: "2026-08-01T00:00:00.000Z",
     });
@@ -1639,6 +1642,7 @@ describe("[Unit] holidayCreateSchema", () => {
     const result = holidayCreateSchema.parse({
       name: "Trip",
       destination: "Paris",
+      assignedMonth: "2026-06",
       startDate: "2026-06-01T00:00:00.000Z",
       endDate: "2026-06-05T00:00:00.000Z",
       description: "   ",
@@ -1652,6 +1656,7 @@ describe("[Unit] holidayCreateSchema", () => {
       holidayCreateSchema.parse({
         name: "Trip",
         destination: "Paris",
+        assignedMonth: "2026-07",
         startDate: "2026-07-22T00:00:00.000Z",
         endDate: "2026-07-15T00:00:00.000Z",
       }),
@@ -1663,6 +1668,7 @@ describe("[Unit] holidayCreateSchema", () => {
       holidayCreateSchema.parse({
         name: "   ",
         destination: "Paris",
+        assignedMonth: "2026-06",
         startDate: "2026-06-01T00:00:00.000Z",
         endDate: "2026-06-05T00:00:00.000Z",
       }),
@@ -1674,10 +1680,34 @@ describe("[Unit] holidayCreateSchema", () => {
       holidayCreateSchema.parse({
         name: "Trip",
         destination: "   ",
+        assignedMonth: "2026-06",
         startDate: "2026-06-01T00:00:00.000Z",
         endDate: "2026-06-05T00:00:00.000Z",
       }),
     ).toThrow();
+  });
+
+  it("should reject the payload when assignedMonth is missing", () => {
+    expect(() =>
+      holidayCreateSchema.parse({
+        name: "Trip",
+        destination: "Paris",
+        startDate: "2026-06-01T00:00:00.000Z",
+        endDate: "2026-06-05T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("should reject the payload when assignedMonth is not in YYYY-MM format", () => {
+    expect(() =>
+      holidayCreateSchema.parse({
+        name: "Trip",
+        destination: "Paris",
+        assignedMonth: "2026/06",
+        startDate: "2026-06-01T00:00:00.000Z",
+        endDate: "2026-06-05T00:00:00.000Z",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
   });
 
   it("should reject the payload when startDate is missing", () => {
@@ -1685,6 +1715,7 @@ describe("[Unit] holidayCreateSchema", () => {
       holidayCreateSchema.parse({
         name: "Trip",
         destination: "Paris",
+        assignedMonth: "2026-06",
         endDate: "2026-06-05T00:00:00.000Z",
       }),
     ).toThrow();
@@ -1716,6 +1747,14 @@ describe("[Unit] holidayUpdateSchema", () => {
     expect(result).toMatchObject({ isActive: false });
   });
 
+  it("should accept assignedMonth as a valid update field", () => {
+    const result = holidayUpdateSchema.parse({
+      assignedMonth: "2026-11",
+    });
+
+    expect(result).toMatchObject({ assignedMonth: "2026-11" });
+  });
+
   it("should reject the payload when no fields are provided", () => {
     expect(() => holidayUpdateSchema.parse({})).toThrow(
       "At least one field is required",
@@ -1737,6 +1776,14 @@ describe("[Unit] holidayUpdateSchema", () => {
         endDate: "2026-07-15T00:00:00.000Z",
       }),
     ).toThrow("End date must be on or after start date");
+  });
+
+  it("should reject the payload when assignedMonth is invalid", () => {
+    expect(() =>
+      holidayUpdateSchema.parse({
+        assignedMonth: "2026-13",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
   });
 });
 
