@@ -100,7 +100,9 @@ const dailyCategoryNames = [
   "General",
 ] as const;
 
-const dailyCategoryOrder = new Map(dailyCategoryNames.map((name, index) => [name, index]));
+const dailyCategoryOrder: ReadonlyMap<string, number> = new Map(
+  dailyCategoryNames.map((name, index) => [name, index]),
+);
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
