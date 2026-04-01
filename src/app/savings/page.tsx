@@ -387,7 +387,7 @@ function GoalCard({
               No contributions recorded yet.
             </p>
           ) : (
-            <div className="mt-4 divide-y divide-stone-200 rounded-[1.5rem] border border-stone-200 bg-white">
+            <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-white">
               {recentContributions.map((contribution) => (
                 <div
                   key={contribution.id}
