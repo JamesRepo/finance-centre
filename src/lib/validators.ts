@@ -304,9 +304,9 @@ export const subscriptionCreateSchema = z.object({
   name: z.string().trim().min(1),
   amount: z.coerce.number().positive(),
   frequency: paymentFrequencySchema,
-  nextPaymentDate: z.coerce.date(),
+  month: budgetMonthSchema,
+  paymentDate: z.coerce.date(),
   description: optionalTrimmedString,
-  isActive: z.boolean().optional(),
 });
 
 export const subscriptionUpdateSchema = z
@@ -314,13 +314,22 @@ export const subscriptionUpdateSchema = z
     name: z.string().trim().min(1).optional(),
     amount: z.coerce.number().positive().optional(),
     frequency: paymentFrequencySchema.optional(),
-    nextPaymentDate: z.coerce.date().optional(),
+    month: budgetMonthSchema.optional(),
+    paymentDate: z.coerce.date().optional(),
     description: nullableOptionalTrimmedString,
-    isActive: z.boolean().optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     message: "At least one field is required",
   });
+
+export const subscriptionListQuerySchema = z.object({
+  month: budgetMonthSchema.optional(),
+});
+
+export const subscriptionCopySchema = z.object({
+  sourceMonth: budgetMonthSchema,
+  targetMonth: budgetMonthSchema,
+});
 
 // --- Income Source ---
 
@@ -542,6 +551,8 @@ export type HousingExpenseCreateInput = z.infer<typeof housingExpenseCreateSchem
 export type HousingExpenseUpdateInput = z.infer<typeof housingExpenseUpdateSchema>;
 export type SubscriptionCreateInput = z.infer<typeof subscriptionCreateSchema>;
 export type SubscriptionUpdateInput = z.infer<typeof subscriptionUpdateSchema>;
+export type SubscriptionListQuery = z.infer<typeof subscriptionListQuerySchema>;
+export type SubscriptionCopyInput = z.infer<typeof subscriptionCopySchema>;
 export type IncomeSourceCreateInput = z.infer<typeof incomeSourceCreateSchema>;
 export type IncomeSourceListQuery = z.infer<typeof incomeSourceListQuerySchema>;
 export type IncomeSourceUpdateInput = z.infer<typeof incomeSourceUpdateSchema>;

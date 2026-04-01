@@ -28,7 +28,9 @@ import {
   savingsGoalCreateSchema,
   savingsGoalUpdateSchema,
   settingsUpdateSchema,
+  subscriptionCopySchema,
   subscriptionCreateSchema,
+  subscriptionListQuerySchema,
   subscriptionUpdateSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
@@ -1013,7 +1015,8 @@ describe("[Unit] subscriptionCreateSchema", () => {
       name: " Netflix ",
       amount: "15.99",
       frequency: "MONTHLY",
-      nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      month: "2026-04",
+      paymentDate: "2026-04-01T00:00:00.000Z",
       description: " Streaming service ",
     });
 
@@ -1021,7 +1024,8 @@ describe("[Unit] subscriptionCreateSchema", () => {
       name: "Netflix",
       amount: 15.99,
       frequency: "MONTHLY",
-      nextPaymentDate: new Date("2026-04-01T00:00:00.000Z"),
+      month: "2026-04",
+      paymentDate: new Date("2026-04-01T00:00:00.000Z"),
       description: "Streaming service",
     });
   });
@@ -1031,7 +1035,8 @@ describe("[Unit] subscriptionCreateSchema", () => {
       name: "Spotify",
       amount: 9.99,
       frequency: "MONTHLY",
-      nextPaymentDate: "2026-04-01T00:00:00.000Z",
+      month: "2026-04",
+      paymentDate: "2026-04-01T00:00:00.000Z",
       description: "   ",
     });
 
@@ -1043,7 +1048,8 @@ describe("[Unit] subscriptionCreateSchema", () => {
       name: "Annual License",
       amount: 120,
       frequency: "YEARLY",
-      nextPaymentDate: "2027-01-01T00:00:00.000Z",
+      month: "2027-01",
+      paymentDate: "2027-01-01T00:00:00.000Z",
     });
 
     expect(result.frequency).toBe("YEARLY");
@@ -1055,7 +1061,8 @@ describe("[Unit] subscriptionCreateSchema", () => {
         name: "   ",
         amount: 10,
         frequency: "MONTHLY",
-        nextPaymentDate: "2026-04-01T00:00:00.000Z",
+        month: "2026-04",
+        paymentDate: "2026-04-01T00:00:00.000Z",
       }),
     ).toThrow();
   });
@@ -1066,7 +1073,8 @@ describe("[Unit] subscriptionCreateSchema", () => {
         name: "Test",
         amount: 0,
         frequency: "MONTHLY",
-        nextPaymentDate: "2026-04-01T00:00:00.000Z",
+        month: "2026-04",
+        paymentDate: "2026-04-01T00:00:00.000Z",
       }),
     ).toThrow("Too small");
   });
@@ -1077,12 +1085,13 @@ describe("[Unit] subscriptionCreateSchema", () => {
         name: "Test",
         amount: 10,
         frequency: "QUARTERLY",
-        nextPaymentDate: "2026-04-01T00:00:00.000Z",
+        month: "2026-04",
+        paymentDate: "2026-04-01T00:00:00.000Z",
       }),
     ).toThrow();
   });
 
-  it("should reject the payload when nextPaymentDate is missing", () => {
+  it("should reject the payload when month is missing", () => {
     expect(() =>
       subscriptionCreateSchema.parse({
         name: "Test",
@@ -1110,12 +1119,12 @@ describe("[Unit] subscriptionUpdateSchema", () => {
     expect(result.description).toBeNull();
   });
 
-  it("should accept isActive as a valid update field", () => {
+  it("should accept month as a valid update field", () => {
     const result = subscriptionUpdateSchema.parse({
-      isActive: false,
+      month: "2026-04",
     });
 
-    expect(result).toMatchObject({ isActive: false });
+    expect(result).toMatchObject({ month: "2026-04" });
   });
 
   it("should reject the payload when no fields are provided", () => {
@@ -1130,6 +1139,45 @@ describe("[Unit] subscriptionUpdateSchema", () => {
         description: "   ",
       }),
     ).toThrow("At least one field is required");
+  });
+});
+
+describe("[Unit] subscriptionListQuerySchema", () => {
+  it("should accept an empty payload when month is omitted", () => {
+    const result = subscriptionListQuerySchema.parse({});
+
+    expect(result).toEqual({});
+  });
+
+  it("should reject the payload when month is not in YYYY-MM format", () => {
+    expect(() =>
+      subscriptionListQuerySchema.parse({
+        month: "2026-4",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] subscriptionCopySchema", () => {
+  it("should accept source and target months in YYYY-MM format", () => {
+    const result = subscriptionCopySchema.parse({
+      sourceMonth: "2026-03",
+      targetMonth: "2026-04",
+    });
+
+    expect(result).toEqual({
+      sourceMonth: "2026-03",
+      targetMonth: "2026-04",
+    });
+  });
+
+  it("should reject the payload when either month is invalid", () => {
+    expect(() =>
+      subscriptionCopySchema.parse({
+        sourceMonth: "2026-03",
+        targetMonth: "2026-4",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
   });
 });
 

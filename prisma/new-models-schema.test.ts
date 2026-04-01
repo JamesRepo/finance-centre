@@ -17,6 +17,16 @@ const migrationSource = readFileSync(
   "utf-8",
 );
 
+const subscriptionReworkMigrationSource = readFileSync(
+  path.join(
+    __dirname,
+    "migrations",
+    "20260401185742_rework_subscriptions",
+    "migration.sql",
+  ),
+  "utf-8",
+);
+
 function getModelBlock(source: string, modelName: string) {
   const match = source.match(
     new RegExp(`model\\s+${modelName}\\s+\\{([\\s\\S]*?)\\n\\}`),
@@ -61,27 +71,20 @@ describe("[Unit] Subscription Prisma model", () => {
   it("should map every persisted field to the expected schema columns when the model is declared", () => {
     const block = getModelBlock(schemaSource, "Subscription");
 
-    expect(block).toContain(
-      "id              Int      @id @default(autoincrement())",
-    );
-    expect(block).toContain("name            String   @db.VarChar(200)");
-    expect(block).toContain("amount          Decimal");
-    expect(block).toContain("frequency       String");
-    expect(block).toContain(
-      'nextPaymentDate DateTime @map("next_payment_date")',
-    );
-    expect(block).toContain("description     String?");
-    expect(block).toContain(
-      'isActive        Boolean  @default(true) @map("is_active")',
-    );
-    expect(block).toContain(
-      'createdAt       DateTime @default(now()) @map("created_at")',
-    );
+    expect(block).toContain("id           Int      @id @default(autoincrement())");
+    expect(block).toContain("name         String   @db.VarChar(200)");
+    expect(block).toContain("amount       Decimal");
+    expect(block).toContain("frequency    String");
+    expect(block).toContain('paymentDate  DateTime @map("payment_date")');
+    expect(block).toContain('paymentMonth DateTime @map("payment_month")');
+    expect(block).toContain("description  String?");
+    expect(block).toContain('createdAt    DateTime @default(now()) @map("created_at")');
   });
 
-  it("should declare the table mapping when the model is declared", () => {
+  it("should declare the unique constraint and table mapping when the model is declared", () => {
     const block = getModelBlock(schemaSource, "Subscription");
 
+    expect(block).toContain("@@unique([name, paymentMonth])");
     expect(block).toContain('@@map("subscriptions")');
   });
 });
@@ -289,5 +292,35 @@ describe("[Unit] add_fixed_costs_income_holidays_settings migration", () => {
     expect(migrationSource).toContain("DEFAULT false");
     expect(migrationSource).toContain("DEFAULT 'GBP'");
     expect(migrationSource).toContain("DEFAULT 'en-GB'");
+  });
+});
+
+describe("[Unit] rework_subscriptions migration", () => {
+  it("should backfill payment_month from payment_date and preserve active rows for manual duplicate resolution", () => {
+    expect(subscriptionReworkMigrationSource).toContain(
+      'ALTER TABLE "subscriptions"\nRENAME COLUMN "next_payment_date" TO "payment_date";',
+    );
+    expect(subscriptionReworkMigrationSource).toContain(
+      `UPDATE "subscriptions"
+SET "payment_month" = date_trunc('month', "payment_date");`,
+    );
+    expect(subscriptionReworkMigrationSource).toContain(
+      "duplicate active subscriptions exist for the same name and payment_month",
+    );
+    expect(subscriptionReworkMigrationSource).not.toContain(
+      'DELETE FROM "subscriptions"\nUSING ranked_subscriptions',
+    );
+  });
+
+  it("should remove inactive subscriptions and add the new unique index when the migration is applied", () => {
+    expect(subscriptionReworkMigrationSource).toContain(
+      'DELETE FROM "subscriptions"\nWHERE "is_active" = false;',
+    );
+    expect(subscriptionReworkMigrationSource).toContain(
+      'ALTER TABLE "subscriptions"\nDROP COLUMN "is_active";',
+    );
+    expect(subscriptionReworkMigrationSource).toContain(
+      'CREATE UNIQUE INDEX "subscriptions_name_payment_month_key" ON "subscriptions"("name", "payment_month")',
+    );
   });
 });
