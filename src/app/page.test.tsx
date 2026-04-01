@@ -174,32 +174,27 @@ const housingResponse = [
   { id: 2, expenseType: "ENERGY", amount: "120", frequency: "MONTHLY" },
 ];
 
-const subscriptionsResponse = [
-  {
-    id: 1,
-    name: "Netflix",
-    amount: "15.99",
-    frequency: "MONTHLY",
-    monthlyEquivalent: "15.99",
-    isActive: true,
-  },
-  {
-    id: 2,
-    name: "Gym",
-    amount: "360",
-    frequency: "YEARLY",
-    monthlyEquivalent: "30",
-    isActive: true,
-  },
-  {
-    id: 3,
-    name: "Old Service",
-    amount: "10",
-    frequency: "MONTHLY",
-    monthlyEquivalent: "10",
-    isActive: false,
-  },
-];
+const subscriptionsResponse = {
+  month: "2026-03",
+  subscriptions: [
+    {
+      id: 1,
+      name: "Netflix",
+      amount: "15.99",
+      frequency: "MONTHLY",
+      monthlyEquivalent: "15.99",
+    },
+    {
+      id: 2,
+      name: "Gym",
+      amount: "360",
+      frequency: "YEARLY",
+      monthlyEquivalent: "30",
+    },
+  ],
+  total: "375.99",
+  monthlyEquivalentTotal: "45.99",
+};
 
 const holidaysResponse = [
   {
@@ -287,7 +282,7 @@ function createFetchMock({
     if (url.startsWith("/api/housing")) {
       return Promise.resolve(jsonResponse(housing, housingStatus));
     }
-    if (url === "/api/subscriptions") {
+    if (url.startsWith("/api/subscriptions")) {
       return Promise.resolve(jsonResponse(subscriptions, subscriptionsStatus));
     }
     if (url.startsWith("/api/holidays")) {

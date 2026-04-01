@@ -69,7 +69,13 @@ type SubscriptionEntry = {
   amount: string;
   frequency: string;
   monthlyEquivalent: string;
-  isActive: boolean;
+};
+
+type SubscriptionSummary = {
+  month: string;
+  subscriptions: SubscriptionEntry[];
+  total: string;
+  monthlyEquivalentTotal: string;
 };
 
 type IncomeEntry = {
@@ -326,7 +332,7 @@ export default function Home() {
       try {
         const [housingResponse, subscriptionsResponse] = await Promise.all([
           fetch(`/api/housing?month=${selectedMonth}`, { cache: "no-store" }),
-          fetch("/api/subscriptions", { cache: "no-store" }),
+          fetch(`/api/subscriptions?month=${selectedMonth}`, { cache: "no-store" }),
         ]);
 
         if (housingResponse.ok) {
@@ -336,7 +342,9 @@ export default function Home() {
         }
 
         if (subscriptionsResponse.ok) {
-          setSubscriptions((await subscriptionsResponse.json()) as SubscriptionEntry[]);
+          const subscriptionSummary =
+            (await subscriptionsResponse.json()) as SubscriptionSummary;
+          setSubscriptions(subscriptionSummary.subscriptions);
         } else {
           setSubscriptions([]);
         }
@@ -432,18 +440,13 @@ export default function Home() {
     [housing],
   );
 
-  const activeSubscriptions = useMemo(
-    () => subscriptions.filter((entry) => entry.isActive),
-    [subscriptions],
-  );
-
   const totalSubscriptions = useMemo(
     () =>
-      activeSubscriptions.reduce(
+      subscriptions.reduce(
         (sum, entry) => sum + readAmount(entry.monthlyEquivalent),
         0,
       ),
-    [activeSubscriptions],
+    [subscriptions],
   );
 
   const fixedCostsTotal = totalHousing + totalSubscriptions;
@@ -764,12 +767,12 @@ export default function Home() {
                 </div>
                 <div className="mt-4 border-t border-stone-200 pt-4">
                   <CompactSpendList
-                    items={activeSubscriptions.map((entry) => ({
+                    items={subscriptions.map((entry) => ({
                       id: entry.id,
                       label: `${entry.name} (${formatLabel(entry.frequency)})`,
                       value: readAmount(entry.monthlyEquivalent),
                     }))}
-                    emptyLabel="No active subscriptions."
+                    emptyLabel="No subscriptions."
                   />
                 </div>
               </article>
