@@ -190,7 +190,7 @@ export default function BudgetsPage() {
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm">
-          <div className="border-b border-stone-200 px-6 py-5">
+          <div className="px-6 py-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
@@ -217,7 +217,7 @@ export default function BudgetsPage() {
             </div>
           </div>
 
-          <div className="border-b border-stone-200 bg-stone-50 px-6 py-4">
+          <div className="bg-stone-50 px-6 py-4">
             <p className="text-sm font-medium text-stone-600">{monthLabel}</p>
           </div>
 
@@ -230,7 +230,7 @@ export default function BudgetsPage() {
           ) : null}
 
           {!pageError ? (
-            <div className="divide-y divide-stone-200">
+            <div>
               {loading ? (
                 <div className="px-6 py-8 text-sm text-stone-500">
                   Loading budgets...

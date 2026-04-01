@@ -949,14 +949,14 @@ export default function FixedCostsPage() {
                   </div>
                 ) : (
                   <div className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white">
-                    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_160px_120px] gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_160px_120px] gap-3 bg-stone-50 px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                       <p>Expense type</p>
                       <p>Amount</p>
                       <p>Frequency</p>
                       <p>Status</p>
                     </div>
 
-                    <div className="divide-y divide-stone-200">
+                    <div>
                       {housingRows.map((row) => {
                         const isEditing = editingExpenseType === row.expenseType;
                         const draftValue = housingDrafts[row.expenseType] ?? "";
@@ -1077,7 +1077,7 @@ export default function FixedCostsPage() {
                       })}
                     </div>
 
-                    <div className="flex flex-col gap-2 border-t border-stone-200 bg-stone-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-2 bg-stone-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-medium text-stone-600">
                         Total monthly housing cost
                       </p>
