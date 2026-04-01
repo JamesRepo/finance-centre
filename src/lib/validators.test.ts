@@ -32,6 +32,7 @@ import {
   subscriptionUpdateSchema,
   transactionCreateSchema,
   transactionListQuerySchema,
+  transactionSummaryQuerySchema,
   transactionVendorLookupQuerySchema,
   transactionUpdateSchema,
 } from "@/lib/validators";
@@ -181,6 +182,61 @@ describe("[Unit] transactionListQuerySchema", () => {
         categoryId: "   ",
       }),
     ).toThrow();
+  });
+});
+
+describe("[Unit] transactionSummaryQuerySchema", () => {
+  it("should default the period to month when no period is provided", () => {
+    const result = transactionSummaryQuerySchema.parse({
+      month: "2026-04",
+    });
+
+    expect(result).toEqual({
+      period: "month",
+      month: "2026-04",
+    });
+  });
+
+  it("should accept the year period with a valid year filter", () => {
+    const result = transactionSummaryQuerySchema.parse({
+      period: "year",
+      year: "2026",
+    });
+
+    expect(result).toEqual({
+      period: "year",
+      year: "2026",
+    });
+  });
+
+  it("should accept the week period with a valid month filter", () => {
+    const result = transactionSummaryQuerySchema.parse({
+      period: "week",
+      month: "2026-04",
+    });
+
+    expect(result).toEqual({
+      period: "week",
+      month: "2026-04",
+    });
+  });
+
+  it("should reject the query when month is not in YYYY-MM format", () => {
+    expect(() =>
+      transactionSummaryQuerySchema.parse({
+        period: "month",
+        month: "2026-4",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+
+  it("should reject the query when year is not in YYYY format", () => {
+    expect(() =>
+      transactionSummaryQuerySchema.parse({
+        period: "year",
+        year: "26",
+      }),
+    ).toThrow("Year must be in YYYY format");
   });
 });
 

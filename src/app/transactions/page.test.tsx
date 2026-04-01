@@ -1465,8 +1465,10 @@ describe("[Component] transactions page — month change resets date filters", (
 
     await screen.findByRole("table");
 
+    const monthInput = screen.getByLabelText("Month") as HTMLInputElement;
     const fromInput = screen.getByLabelText("From") as HTMLInputElement;
     const toInput = screen.getByLabelText("To") as HTMLInputElement;
+    const nextMonthValue = monthInput.value === "2026-04" ? "2026-05" : "2026-04";
 
     fireEvent.change(fromInput, { target: { value: "2026-03-10" } });
     fireEvent.change(toInput, { target: { value: "2026-03-20" } });
@@ -1475,7 +1477,7 @@ describe("[Component] transactions page — month change resets date filters", (
     expect(toInput.value).toBe("2026-03-20");
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-04" } });
+      fireEvent.change(monthInput, { target: { value: nextMonthValue } });
     });
 
     expect(fromInput.value).toBe("");
