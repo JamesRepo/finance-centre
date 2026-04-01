@@ -18,6 +18,31 @@ function parseSubscriptionId(id: string) {
   return subscriptionId;
 }
 
+function getMonthRange(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+
+  return {
+    gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
+    lt: new Date(Date.UTC(year, monthNumber, 1)),
+  };
+}
+
+function getMonthStart(month: string) {
+  return getMonthRange(month).gte;
+}
+
+function getMonthValue(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+
+  return `${year}-${month}`;
+}
+
+function isDateInMonth(date: Date, month: string) {
+  const monthRange = getMonthRange(month);
+  return date >= monthRange.gte && date < monthRange.lt;
+}
+
 function attachMonthlyEquivalent<T extends { amount: Prisma.Decimal; frequency: string }>(
   subscription: T,
 ) {
@@ -55,9 +80,23 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return jsonError("Subscription not found", 404);
     }
 
+    const nextPaymentDate = body.paymentDate ?? existingSubscription.paymentDate;
+    const nextMonth = body.month ?? getMonthValue(existingSubscription.paymentMonth);
+
+    if (!isDateInMonth(nextPaymentDate, nextMonth)) {
+      return jsonError("Payment date must be within the selected month", 400);
+    }
+
     const subscription = await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: body,
+      data: {
+        name: body.name,
+        amount: body.amount,
+        frequency: body.frequency,
+        paymentDate: body.paymentDate,
+        paymentMonth: body.month ? getMonthStart(body.month) : undefined,
+        description: body.description,
+      },
     });
 
     return NextResponse.json(attachMonthlyEquivalent(subscription));
@@ -68,6 +107,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     if (error instanceof SyntaxError) {
       return jsonError("Invalid JSON body", 400);
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return jsonError("Subscription already exists for this month", 409);
     }
 
     throw error;
