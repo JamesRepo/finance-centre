@@ -447,8 +447,8 @@ export default function Home() {
   const fixedCostsTotal = totalHousing + totalSubscriptions;
 
   const monthlyHolidaySpend = useMemo(
-    () => activeHolidays.reduce((sum, holiday) => sum + readAmount(holiday.monthlyCost), 0),
-    [activeHolidays],
+    () => holidays.reduce((sum, holiday) => sum + readAmount(holiday.monthlyCost), 0),
+    [holidays],
   );
 
   const totalDebtRemaining = useMemo(

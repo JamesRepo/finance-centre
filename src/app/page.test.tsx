@@ -426,6 +426,41 @@ describe("[Component] dashboard page", () => {
     expect(await screen.findByText("No active holidays")).toBeInTheDocument();
   });
 
+  it("should include monthly spend from non-active holidays in outgoings while only rendering active holidays in the holidays section", async () => {
+    const fetchMock = createFetchMock({
+      holidays: [
+        {
+          id: 1,
+          name: "Japan Spring",
+          destination: "Tokyo",
+          isActive: true,
+          endDate: "2099-03-28T00:00:00.000Z",
+          totalCost: "1200",
+          monthlyCost: "300",
+        },
+        {
+          id: 2,
+          name: "Finished Ski Trip",
+          destination: "Geneva",
+          isActive: true,
+          endDate: "2026-03-02T00:00:00.000Z",
+          totalCost: "800",
+          monthlyCost: "200",
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    await screen.findByText("Japan Spring");
+
+    expect(screen.queryByText("Finished Ski Trip")).not.toBeInTheDocument();
+    expect(screen.getByText("Outgoings")).toBeInTheDocument();
+    expect(screen.getAllByText("£2,279.44")).toHaveLength(2);
+    expect(screen.getByText("£1,420.56")).toBeInTheDocument();
+  });
+
   it("should show an empty-state message when no daily spending categories are available", async () => {
     const fetchMock = createFetchMock({
       budgets: [
