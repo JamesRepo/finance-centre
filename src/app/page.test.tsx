@@ -90,6 +90,16 @@ const budgetsResponse = [
       colorCode: "#3b82f6",
     },
   },
+  {
+    categoryId: "category-3",
+    amount: "950",
+    spent: "950",
+    category: {
+      id: "category-3",
+      name: "Rent",
+      colorCode: "#a855f7",
+    },
+  },
 ];
 
 const debtsResponse = [
@@ -100,6 +110,20 @@ const debtsResponse = [
     isActive: true,
     currentBalance: "3500",
     principalPaid: "1500",
+    debtPayments: [
+      {
+        id: 11,
+        amount: "200",
+        interestAmount: "20",
+        paymentDate: "2026-03-10T00:00:00.000Z",
+      },
+      {
+        id: 12,
+        amount: "150",
+        interestAmount: "15",
+        paymentDate: "2026-02-12T00:00:00.000Z",
+      },
+    ],
   },
   {
     id: 2,
@@ -108,6 +132,14 @@ const debtsResponse = [
     isActive: true,
     currentBalance: "12000",
     principalPaid: "8000",
+    debtPayments: [
+      {
+        id: 21,
+        amount: "100",
+        interestAmount: "0",
+        paymentDate: "2026-03-22T00:00:00.000Z",
+      },
+    ],
   },
   {
     id: 3,
@@ -116,6 +148,7 @@ const debtsResponse = [
     isActive: false,
     currentBalance: "0",
     principalPaid: "10000",
+    debtPayments: [],
   },
 ];
 
@@ -129,7 +162,7 @@ const savingsResponse = [
   },
   {
     id: 2,
-    name: "Holiday",
+    name: "Holiday Pot",
     targetAmount: "2000",
     currentAmount: "800",
     progress: "40",
@@ -142,15 +175,65 @@ const housingResponse = [
 ];
 
 const subscriptionsResponse = [
-  { id: 1, name: "Netflix", amount: "15.99", frequency: "MONTHLY", monthlyEquivalent: "15.99", isActive: true },
-  { id: 2, name: "Gym", amount: "360", frequency: "YEARLY", monthlyEquivalent: "30", isActive: true },
-  { id: 3, name: "Old Service", amount: "10", frequency: "MONTHLY", monthlyEquivalent: "10", isActive: false },
+  {
+    id: 1,
+    name: "Netflix",
+    amount: "15.99",
+    frequency: "MONTHLY",
+    monthlyEquivalent: "15.99",
+    isActive: true,
+  },
+  {
+    id: 2,
+    name: "Gym",
+    amount: "360",
+    frequency: "YEARLY",
+    monthlyEquivalent: "30",
+    isActive: true,
+  },
+  {
+    id: 3,
+    name: "Old Service",
+    amount: "10",
+    frequency: "MONTHLY",
+    monthlyEquivalent: "10",
+    isActive: false,
+  },
+];
+
+const holidaysResponse = [
+  {
+    id: 1,
+    name: "Japan Spring",
+    destination: "Tokyo",
+    isActive: true,
+    endDate: "2099-03-28T00:00:00.000Z",
+    totalCost: "1200",
+    monthlyCost: "300",
+  },
+  {
+    id: 2,
+    name: "Past Weekend",
+    destination: "Lisbon",
+    isActive: true,
+    endDate: "2026-01-12T00:00:00.000Z",
+    totalCost: "400",
+    monthlyCost: "0",
+  },
+  {
+    id: 3,
+    name: "Inactive Break",
+    destination: "Rome",
+    isActive: false,
+    endDate: "2099-04-10T00:00:00.000Z",
+    totalCost: "100",
+    monthlyCost: "0",
+  },
 ];
 
 const incomeResponse = [
-  { id: 1, netAmount: "3200", isRecurring: true, recurrenceFrequency: "MONTHLY", isActive: true },
-  { id: 2, netAmount: "500", isRecurring: false, recurrenceFrequency: null, isActive: true },
-  { id: 3, netAmount: "1000", isRecurring: true, recurrenceFrequency: "MONTHLY", isActive: false },
+  { id: 1, netAmount: "3200" },
+  { id: 2, netAmount: "500" },
 ];
 
 function jsonResponse(body: unknown, status = 200) {
@@ -166,12 +249,14 @@ function createFetchMock({
   savings = savingsResponse,
   housing = housingResponse,
   subscriptions = subscriptionsResponse,
+  holidays = holidaysResponse,
   income = incomeResponse,
   budgetsStatus = 200,
   debtsStatus = 200,
   savingsStatus = 200,
   housingStatus = 200,
   subscriptionsStatus = 200,
+  holidaysStatus = 200,
   incomeStatus = 200,
 }: {
   budgets?: unknown;
@@ -179,12 +264,14 @@ function createFetchMock({
   savings?: unknown;
   housing?: unknown;
   subscriptions?: unknown;
+  holidays?: unknown;
   income?: unknown;
   budgetsStatus?: number;
   debtsStatus?: number;
   savingsStatus?: number;
   housingStatus?: number;
   subscriptionsStatus?: number;
+  holidaysStatus?: number;
   incomeStatus?: number;
 } = {}) {
   return vi.fn((url: string) => {
@@ -203,19 +290,14 @@ function createFetchMock({
     if (url === "/api/subscriptions") {
       return Promise.resolve(jsonResponse(subscriptions, subscriptionsStatus));
     }
+    if (url.startsWith("/api/holidays")) {
+      return Promise.resolve(jsonResponse(holidays, holidaysStatus));
+    }
     if (url.startsWith("/api/income")) {
       return Promise.resolve(jsonResponse(income, incomeStatus));
     }
     return Promise.resolve(jsonResponse({ error: "Not found" }, 404));
   });
-}
-
-/** Helper to find a summary card by its label text, then return the value element. */
-function getCardValue(labelText: string) {
-  const label = screen.getByText(labelText);
-  const article = label.closest("article");
-  if (!article) throw new Error(`No article parent found for label "${labelText}"`);
-  return within(article).getAllByText(/./)[1]; // second <p> in the article is the value
 }
 
 describe("[Component] dashboard page", () => {
@@ -224,7 +306,7 @@ describe("[Component] dashboard page", () => {
     vi.unstubAllGlobals();
   });
 
-  it("should fetch the current month and render budget chart when the page loads", async () => {
+  it("should fetch the current month and render the redesigned sections when the page loads", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -234,10 +316,43 @@ describe("[Component] dashboard page", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/budgets?month=2026-03", {
       cache: "no-store",
     });
-    expect(screen.getByText("March 2026")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-03", {
+      cache: "no-store",
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/holidays?month=2026-03", {
+      cache: "no-store",
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-03", {
+      cache: "no-store",
+    });
+    expect(screen.getByText("Monthly Overview")).toBeInTheDocument();
+    expect(screen.getByText("Daily Spending")).toBeInTheDocument();
+    expect(screen.getByText("Fixed Costs")).toBeInTheDocument();
+    expect(screen.getByText("Holidays")).toBeInTheDocument();
+    expect(screen.getByText("Monthly Summary")).toBeInTheDocument();
   });
 
-  it("should use theme tokens for chart axis and tooltip colors", async () => {
+  it("should filter the chart to daily categories and calculate daily totals when fixed-cost categories are present", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
+
+    const chartData = JSON.parse(
+      screen.getByTestId("bar-chart-data").textContent ?? "[]",
+    ) as Array<{ name: string }>;
+    const dailySection = screen.getByText("Daily Spending").closest("section");
+
+    expect(chartData.map((entry) => entry.name)).toEqual(["Groceries", "Transport"]);
+    expect(dailySection).not.toBeNull();
+    expect(within(dailySection as HTMLElement).getAllByText("£363.45")).toHaveLength(2);
+    expect(within(dailySection as HTMLElement).getByText("£700.00")).toBeInTheDocument();
+    expect(within(dailySection as HTMLElement).getByText("Remaining £336.55")).toBeInTheDocument();
+  });
+
+  it("should use theme tokens for chart axis and tooltip colors when the daily chart renders", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -251,68 +366,56 @@ describe("[Component] dashboard page", () => {
     expect(screen.getByTestId("y-axis-tick")).toHaveTextContent(
       JSON.stringify({ fill: "var(--chart-axis)", fontSize: 13 }),
     );
-
-    const tooltip = screen.getByTestId("chart-tooltip");
-    expect(tooltip).toHaveAttribute("data-cursor-fill", "var(--chart-cursor)");
-    expect(tooltip).toHaveAttribute("data-border-color", "var(--tooltip-border)");
-    expect(tooltip).toHaveAttribute("data-box-shadow", "var(--tooltip-shadow)");
+    expect(screen.getByTestId("chart-tooltip")).toHaveAttribute(
+      "data-cursor-fill",
+      "var(--chart-cursor)",
+    );
   });
 
-  it("should render budget summary cards with correct values", async () => {
-    const fetchMock = createFetchMock();
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<Home />);
-    await screen.findByText("Groceries, Transport");
-
-    // Total budgeted: 500 + 200 = 700
-    const budgetedCard = screen.getByText("Total budgeted").closest("article")!;
-    expect(within(budgetedCard).getByText("£700.00")).toBeInTheDocument();
-
-    // Total spent: 123.45 + 240 = 363.45
-    const spentCard = screen.getByText("Total spent").closest("article")!;
-    expect(within(spentCard).getByText("£363.45")).toBeInTheDocument();
-
-    // Remaining: 700 - 363.45 = 336.55
-    const remainingCard = screen.getByText("Remaining").closest("article")!;
-    expect(within(remainingCard).getByText("£336.55")).toBeInTheDocument();
-  });
-
-  it("should keep the budget amount as the chart reference when spending exceeds budget", async () => {
+  it("should render fixed costs active holidays debt savings and monthly summary totals when data loads", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
 
-    const chartData = await screen.findByTestId("bar-chart-data");
-    const parsedData = JSON.parse(chartData.textContent ?? "[]") as Array<{
-      categoryId: string;
-      budgetBarAmount: number;
-      spentFillRatio: number;
-    }>;
-    const transport = parsedData.find((entry) => entry.categoryId === "category-2");
+    await screen.findByText("Japan Spring");
 
-    expect(transport).toMatchObject({
-      categoryId: "category-2",
-      budgetBarAmount: 200,
-      spentFillRatio: 1,
-    });
+    expect(screen.getByText("£1,070.00")).toBeInTheDocument();
+    expect(screen.getByText("Rent")).toBeInTheDocument();
+    expect(screen.getByText("Energy")).toBeInTheDocument();
+    expect(screen.getByText("£45.99")).toBeInTheDocument();
+    expect(screen.getByText("Netflix (Monthly)")).toBeInTheDocument();
+    expect(screen.getByText("Gym (Yearly)")).toBeInTheDocument();
+
+    expect(screen.getByText("Tokyo")).toBeInTheDocument();
+    expect(screen.getByText("£1,200.00")).toBeInTheDocument();
+    expect(screen.queryByText("Past Weekend")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inactive Break")).not.toBeInTheDocument();
+
+    expect(screen.getByText("£15,500.00")).toBeInTheDocument();
+    expect(screen.getByText("Credit Card")).toBeInTheDocument();
+    expect(screen.queryByText("Old Car Loan")).not.toBeInTheDocument();
+    expect(screen.getByText("£5,300.00")).toBeInTheDocument();
+    expect(screen.getByText("Holiday Pot")).toBeInTheDocument();
+
+    expect(screen.getByText("Total spent across everything")).toBeInTheDocument();
+    expect(screen.getAllByText("£2,079.44")).toHaveLength(2);
+    expect(screen.getByText("£3,700.00")).toBeInTheDocument();
+    expect(screen.getByText("Outgoings")).toBeInTheDocument();
+    expect(screen.getByText("£1,620.56")).toBeInTheDocument();
   });
 
-  it("should set budgetBarAmount to zero for categories with no budget and no spending", async () => {
+  it("should show a subtle empty message when there are no active holidays", async () => {
     const fetchMock = createFetchMock({
-      budgets: [
+      holidays: [
         {
-          categoryId: "category-1",
-          amount: "500",
-          spent: "123.45",
-          category: { id: "category-1", name: "Groceries", colorCode: "#22c55e" },
-        },
-        {
-          categoryId: "category-2",
-          amount: "0",
-          spent: "0",
-          category: { id: "category-2", name: "Transport", colorCode: "#3b82f6" },
+          id: 7,
+          name: "Old Trip",
+          destination: "Paris",
+          isActive: true,
+          endDate: "2026-01-03T00:00:00.000Z",
+          totalCost: "400",
+          monthlyCost: "0",
         },
       ],
     });
@@ -320,23 +423,48 @@ describe("[Component] dashboard page", () => {
 
     render(<Home />);
 
-    const chartData = await screen.findByTestId("bar-chart-data");
-    const parsedData = JSON.parse(chartData.textContent ?? "[]") as Array<{
-      categoryId: string;
-      budgetBarAmount: number;
-      spentAmount: number;
-      spentFillRatio: number;
-    }>;
-
-    const transport = parsedData.find((entry) => entry.categoryId === "category-2");
-    expect(transport).toMatchObject({
-      budgetBarAmount: 0,
-      spentAmount: 0,
-      spentFillRatio: 0,
-    });
+    expect(await screen.findByText("No active holidays")).toBeInTheDocument();
   });
 
-  it("should refetch data for the previous month when the previous button is clicked", async () => {
+  it("should show an empty-state message when no daily spending categories are available", async () => {
+    const fetchMock = createFetchMock({
+      budgets: [
+        {
+          categoryId: "category-9",
+          amount: "1000",
+          spent: "950",
+          category: {
+            id: "category-9",
+            name: "Rent",
+            colorCode: null,
+          },
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(
+      await screen.findByText("No daily spending categories found for this month."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
+  });
+
+  it("should show an error message and hide the chart when the budgets request fails", async () => {
+    const fetchMock = createFetchMock({
+      budgets: { error: "Budget API unavailable" },
+      budgetsStatus: 500,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(await screen.findByText("Budget API unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
+  });
+
+  it("should refetch month-scoped data when the previous month is selected", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -349,579 +477,17 @@ describe("[Component] dashboard page", () => {
       expect(fetchMock).toHaveBeenCalledWith("/api/budgets?month=2026-02", {
         cache: "no-store",
       });
+      expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-02", {
+        cache: "no-store",
+      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/holidays?month=2026-02", {
+        cache: "no-store",
+      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-02", {
+        cache: "no-store",
+      });
     });
 
     expect(screen.getByText("February 2026")).toBeInTheDocument();
-  });
-
-  it("should show an error message when the dashboard request fails", async () => {
-    const fetchMock = createFetchMock({
-      budgets: { error: "Budget API unavailable" },
-      budgetsStatus: 500,
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<Home />);
-
-    expect(
-      await screen.findByText("Budget API unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
-  });
-
-  describe("Monthly overview cards", () => {
-    it("should display the monthly income (net) from active income entries", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Active income: 3200 + 500 = 3700 (id:3 is inactive)
-      await waitFor(() => {
-        const card = screen.getByText("Monthly income (net)").closest("article")!;
-        expect(within(card).getByText("£3,700.00")).toBeInTheDocument();
-      });
-    });
-
-    it("should display the budgeted spending in the overview card", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-      await screen.findByText("Groceries, Transport");
-
-      const card = screen.getByText("Budgeted spending").closest("article")!;
-      expect(within(card).getByText("£700.00")).toBeInTheDocument();
-    });
-
-    it("should display the total fixed costs in the overview card", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Housing: 950 + 120 = 1070, active subscriptions: 15.99 + 30 = 45.99
-      // Total: 1070 + 45.99 = 1115.99
-      await waitFor(() => {
-        const card = screen.getByText("Fixed costs").closest("article")!;
-        expect(within(card).getByText("£1,115.99")).toBeInTheDocument();
-      });
-    });
-
-    it("should display the net position (income - budgets - fixed costs)", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Income: 3700, Budgets: 700, Fixed: 1115.99
-      // Net: 3700 - 700 - 1115.99 = 1884.01
-      await waitFor(() => {
-        const card = screen.getByText("Net position").closest("article")!;
-        expect(within(card).getByText("£1,884.01")).toBeInTheDocument();
-      });
-    });
-
-    it("should show net position in red when negative", async () => {
-      const fetchMock = createFetchMock({
-        income: [{ id: 1, netAmount: "100", isRecurring: false, recurrenceFrequency: null, isActive: true }],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Income: 100, Budgets: 700, Fixed: 1115.99 => net = -1715.99
-      await waitFor(() => {
-        const card = screen.getByText("Net position").closest("article")!;
-        const value = within(card).getByText("-£1,715.99");
-        expect(value.className).toContain("text-red-600");
-      });
-    });
-
-    it("should show net position in green when positive", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await waitFor(() => {
-        const card = screen.getByText("Net position").closest("article")!;
-        const value = within(card).getByText("£1,884.01");
-        expect(value.className).toContain("text-green-600");
-      });
-    });
-
-    it("should show £0.00 for income when no income entries exist", async () => {
-      const fetchMock = createFetchMock({ income: [] });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await waitFor(() => {
-        const card = screen.getByText("Monthly income (net)").closest("article")!;
-        expect(within(card).getByText("£0.00")).toBeInTheDocument();
-      });
-    });
-
-    it("should show loading states while data is being fetched", () => {
-      const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(screen.getAllByText("Loading...").length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe("Fixed costs breakdown section", () => {
-    it("should display the Fixed Costs heading and Manage link", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-      await screen.findByText("Fixed Costs");
-
-      const manageLink = screen.getByRole("link", { name: "Manage" });
-      expect(manageLink).toHaveAttribute("href", "/fixed-costs");
-    });
-
-    it("should show housing, subscriptions, and total in the breakdown", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Housing")).toBeInTheDocument();
-        expect(screen.getByText("Subscriptions")).toBeInTheDocument();
-        expect(screen.getByText("Total monthly")).toBeInTheDocument();
-      });
-
-      // Housing: 950 + 120 = 1070
-      const housingLabel = screen.getByText("Housing");
-      const housingCard = housingLabel.closest("div.rounded-2xl")!;
-      expect(within(housingCard).getByText("£1,070.00")).toBeInTheDocument();
-
-      // Active subscriptions: 15.99 + 30 = 45.99
-      const subsLabel = screen.getByText("Subscriptions");
-      const subsCard = subsLabel.closest("div.rounded-2xl")!;
-      expect(within(subsCard).getByText("£45.99")).toBeInTheDocument();
-
-      // Total: 1070 + 45.99 = 1115.99
-      const totalLabel = screen.getByText("Total monthly");
-      const totalCard = totalLabel.closest("div.rounded-2xl")!;
-      expect(within(totalCard).getByText("£1,115.99")).toBeInTheDocument();
-    });
-
-    it("should exclude inactive subscriptions from the total", async () => {
-      const fetchMock = createFetchMock({
-        subscriptions: [
-          { id: 1, name: "Active Sub", amount: "20", frequency: "MONTHLY", monthlyEquivalent: "20", isActive: true },
-          { id: 2, name: "Cancelled", amount: "50", frequency: "MONTHLY", monthlyEquivalent: "50", isActive: false },
-        ],
-        housing: [],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await waitFor(() => {
-        const totalLabel = screen.getByText("Total monthly");
-        const totalCard = totalLabel.closest("div.rounded-2xl")!;
-        expect(within(totalCard).getByText("£20.00")).toBeInTheDocument();
-      });
-    });
-
-    it("should show loading state for fixed costs initially", () => {
-      const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(screen.getByText("Loading fixed costs...")).toBeInTheDocument();
-    });
-
-    it("should show zero when there are no housing expenses or subscriptions", async () => {
-      const fetchMock = createFetchMock({
-        housing: [],
-        subscriptions: [],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await waitFor(() => {
-        const totalLabel = screen.getByText("Total monthly");
-        const totalCard = totalLabel.closest("div.rounded-2xl")!;
-        expect(within(totalCard).getByText("£0.00")).toBeInTheDocument();
-      });
-    });
-
-    it("should refetch housing expenses when the month changes", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-      await screen.findByText("Groceries, Transport");
-
-      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
-
-      await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-02", {
-          cache: "no-store",
-        });
-      });
-    });
-
-    it("should refetch income when the month changes", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-      await screen.findByText("Groceries, Transport");
-
-      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
-
-      await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-02", {
-          cache: "no-store",
-        });
-      });
-    });
-
-    it("should silently handle a failed housing API response", async () => {
-      const fetchMock = createFetchMock({ housingStatus: 500, housing: { error: "fail" } });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Budget chart should still load
-      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
-      // Fixed costs should show with zero housing
-      await waitFor(() => {
-        expect(screen.getByText("Housing")).toBeInTheDocument();
-      });
-    });
-
-    it("should silently handle a failed subscriptions API response", async () => {
-      const fetchMock = createFetchMock({ subscriptionsStatus: 500, subscriptions: { error: "fail" } });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
-    });
-  });
-
-  describe("Debt Payoff section", () => {
-    it("should show loading state for debts initially", () => {
-      const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(screen.getByText("Loading debts...")).toBeInTheDocument();
-    });
-
-    it("should display active debts with progress bars and totals", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Credit Card")).toBeInTheDocument();
-      expect(screen.getByText("Student Loan")).toBeInTheDocument();
-      // Inactive debts should be filtered out
-      expect(screen.queryByText("Old Car Loan")).not.toBeInTheDocument();
-
-      // Check balance labels
-      expect(screen.getByText("£3,500.00 left")).toBeInTheDocument();
-      expect(screen.getByText("£12,000.00 left")).toBeInTheDocument();
-
-      // Check percentage labels
-      expect(screen.getByText("30% paid off")).toBeInTheDocument(); // 1500/5000
-      expect(screen.getByText("40% paid off")).toBeInTheDocument(); // 8000/20000
-
-      // Check total remaining: 3500 + 12000 = 15500
-      expect(screen.getByText("£15,500.00")).toBeInTheDocument();
-    });
-
-    it("should show empty state when there are no active debts", async () => {
-      const fetchMock = createFetchMock({
-        debts: [
-          {
-            id: 1,
-            name: "Old Loan",
-            originalBalance: "5000",
-            isActive: false,
-            currentBalance: "0",
-            principalPaid: "5000",
-          },
-        ],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("No active debts.")).toBeInTheDocument();
-    });
-
-    it("should show empty state when debts response is an empty array", async () => {
-      const fetchMock = createFetchMock({ debts: [] });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("No active debts.")).toBeInTheDocument();
-    });
-
-    it("should render the View all link to /debts", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await screen.findByText("Debt Payoff");
-
-      const viewAllLinks = screen.getAllByRole("link", { name: "View all" });
-      const debtViewAll = viewAllLinks.find((link) => link.getAttribute("href") === "/debts");
-      expect(debtViewAll).toBeInTheDocument();
-    });
-
-    it("should cap debt progress at 100% when principal paid exceeds original balance", async () => {
-      const fetchMock = createFetchMock({
-        debts: [
-          {
-            id: 1,
-            name: "Overpaid Debt",
-            originalBalance: "1000",
-            isActive: true,
-            currentBalance: "0",
-            principalPaid: "1200",
-          },
-        ],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("100% paid off")).toBeInTheDocument();
-    });
-
-    it("should handle zero original balance without NaN", async () => {
-      const fetchMock = createFetchMock({
-        debts: [
-          {
-            id: 1,
-            name: "Zero Debt",
-            originalBalance: "0",
-            isActive: true,
-            currentBalance: "0",
-            principalPaid: "0",
-          },
-        ],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("0% paid off")).toBeInTheDocument();
-    });
-
-    it("should silently handle a failed debts API response", async () => {
-      const fetchMock = createFetchMock({ debtsStatus: 500, debts: { error: "fail" } });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Budgets should still load fine
-      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
-      // Debts should show empty state (not an error)
-      expect(screen.getByText("No active debts.")).toBeInTheDocument();
-    });
-
-    it("should silently handle a network error for debts", async () => {
-      const fetchMock = vi.fn((url: string) => {
-        if (url === "/api/debts") {
-          return Promise.reject(new Error("Network error"));
-        }
-        if (url.startsWith("/api/budgets")) {
-          return Promise.resolve(jsonResponse(budgetsResponse));
-        }
-        if (url === "/api/savings") {
-          return Promise.resolve(jsonResponse(savingsResponse));
-        }
-        if (url.startsWith("/api/housing")) {
-          return Promise.resolve(jsonResponse(housingResponse));
-        }
-        if (url === "/api/subscriptions") {
-          return Promise.resolve(jsonResponse(subscriptionsResponse));
-        }
-        if (url.startsWith("/api/income")) {
-          return Promise.resolve(jsonResponse(incomeResponse));
-        }
-        return Promise.resolve(jsonResponse({}, 404));
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
-      expect(screen.getByText("No active debts.")).toBeInTheDocument();
-    });
-  });
-
-  describe("Savings Goals section", () => {
-    it("should show loading state for savings initially", () => {
-      const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(screen.getByText("Loading savings...")).toBeInTheDocument();
-    });
-
-    it("should display savings goals with progress and totals", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Emergency Fund")).toBeInTheDocument();
-
-      // Check current/target labels
-      expect(screen.getByText("£4,500.00 / £10,000.00")).toBeInTheDocument();
-      expect(screen.getByText("£800.00 / £2,000.00")).toBeInTheDocument();
-
-      // Check percentage labels
-      expect(screen.getByText("45%")).toBeInTheDocument();
-      expect(screen.getByText("40%")).toBeInTheDocument();
-
-      // Check total saved: 4500 + 800 = 5300
-      expect(screen.getByText("£5,300.00")).toBeInTheDocument();
-    });
-
-    it("should show empty state when there are no savings goals", async () => {
-      const fetchMock = createFetchMock({ savings: [] });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("No savings goals yet.")).toBeInTheDocument();
-    });
-
-    it("should render the View all link to /savings", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await screen.findByText("Savings Goals");
-
-      const viewAllLinks = screen.getAllByRole("link", { name: "View all" });
-      const savingsViewAll = viewAllLinks.find((link) => link.getAttribute("href") === "/savings");
-      expect(savingsViewAll).toBeInTheDocument();
-    });
-
-    it("should cap savings progress at 100% when over-saved", async () => {
-      const fetchMock = createFetchMock({
-        savings: [
-          {
-            id: 1,
-            name: "Over-saved Goal",
-            targetAmount: "1000",
-            currentAmount: "1500",
-            progress: "150",
-          },
-        ],
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      // Progress text should be capped at 100%
-      expect(await screen.findByText("100%")).toBeInTheDocument();
-    });
-
-    it("should silently handle a failed savings API response", async () => {
-      const fetchMock = createFetchMock({ savingsStatus: 500, savings: { error: "fail" } });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
-      expect(screen.getByText("No savings goals yet.")).toBeInTheDocument();
-    });
-
-    it("should silently handle a network error for savings", async () => {
-      const fetchMock = vi.fn((url: string) => {
-        if (url === "/api/savings") {
-          return Promise.reject(new Error("Network error"));
-        }
-        if (url.startsWith("/api/budgets")) {
-          return Promise.resolve(jsonResponse(budgetsResponse));
-        }
-        if (url === "/api/debts") {
-          return Promise.resolve(jsonResponse(debtsResponse));
-        }
-        if (url.startsWith("/api/housing")) {
-          return Promise.resolve(jsonResponse(housingResponse));
-        }
-        if (url === "/api/subscriptions") {
-          return Promise.resolve(jsonResponse(subscriptionsResponse));
-        }
-        if (url.startsWith("/api/income")) {
-          return Promise.resolve(jsonResponse(incomeResponse));
-        }
-        return Promise.resolve(jsonResponse({}, 404));
-      });
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
-      expect(screen.getByText("No savings goals yet.")).toBeInTheDocument();
-    });
-  });
-
-  describe("Section headings and layout", () => {
-    it("should render all section headings", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      expect(await screen.findByText("Debt Payoff")).toBeInTheDocument();
-      expect(screen.getByText("Savings Goals")).toBeInTheDocument();
-      expect(screen.getByText("Fixed Costs")).toBeInTheDocument();
-      expect(screen.getByText("Monthly dashboard")).toBeInTheDocument();
-    });
-
-    it("should fetch all endpoints on mount", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-
-      await screen.findByText("Groceries, Transport");
-
-      expect(fetchMock).toHaveBeenCalledWith("/api/budgets?month=2026-03", { cache: "no-store" });
-      expect(fetchMock).toHaveBeenCalledWith("/api/debts", { cache: "no-store" });
-      expect(fetchMock).toHaveBeenCalledWith("/api/savings", { cache: "no-store" });
-      expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-03", { cache: "no-store" });
-      expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions", { cache: "no-store" });
-      expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-03", { cache: "no-store" });
-    });
-
-    it("should render the Edit budgets and View transactions links", async () => {
-      const fetchMock = createFetchMock();
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<Home />);
-      await screen.findByText("Groceries, Transport");
-
-      expect(screen.getByRole("link", { name: "Edit budgets" })).toHaveAttribute("href", "/budgets");
-      expect(screen.getByRole("link", { name: "View transactions" })).toHaveAttribute("href", "/transactions");
-    });
   });
 });

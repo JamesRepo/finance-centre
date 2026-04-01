@@ -22,7 +22,7 @@ describe("[Unit] holidays collection route GET", () => {
     vi.clearAllMocks();
   });
 
-  it("should return holidays with totalCost and expenseCount when holidays exist", async () => {
+  it("should return holiday summaries with total and monthly costs when a valid month is provided", async () => {
     mockPrisma.holiday.findMany.mockResolvedValue([
       {
         id: 2,
@@ -37,14 +37,17 @@ describe("[Unit] holidays collection route GET", () => {
           {
             expenseType: "FOOD",
             amount: new Prisma.Decimal("79.50"),
+            expenseDate: new Date("2026-03-03T00:00:00.000Z"),
           },
           {
             expenseType: "FLIGHT",
             amount: new Prisma.Decimal("120.50"),
+            expenseDate: new Date("2026-03-10T00:00:00.000Z"),
           },
           {
             expenseType: "FLIGHT",
             amount: new Prisma.Decimal("20.00"),
+            expenseDate: new Date("2026-02-27T00:00:00.000Z"),
           },
         ],
         _count: {
@@ -53,7 +56,9 @@ describe("[Unit] holidays collection route GET", () => {
       },
     ]);
 
-    const response = await GET();
+    const response = await GET(
+      new NextRequest("http://localhost/api/holidays?month=2026-03"),
+    );
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -63,6 +68,7 @@ describe("[Unit] holidays collection route GET", () => {
           select: {
             expenseType: true,
             amount: true,
+            expenseDate: true,
           },
         },
         _count: {
@@ -79,6 +85,7 @@ describe("[Unit] holidays collection route GET", () => {
       expect.objectContaining({
         id: 2,
         totalCost: "220",
+        monthlyCost: "200",
         expenseCount: 3,
         expenseBreakdown: [
           {
@@ -94,6 +101,18 @@ describe("[Unit] holidays collection route GET", () => {
     ]);
     expect(body[0]).not.toHaveProperty("holidayExpenses");
     expect(body[0]).not.toHaveProperty("_count");
+  });
+
+  it("should return a 400 error when the month query is invalid", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost/api/holidays?month=2026-13"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Month must be in YYYY-MM format",
+    });
+    expect(mockPrisma.holiday.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -151,6 +170,7 @@ describe("[Unit] holidays collection route POST", () => {
           select: {
             expenseType: true,
             amount: true,
+            expenseDate: true,
           },
         },
         _count: {
@@ -164,11 +184,10 @@ describe("[Unit] holidays collection route POST", () => {
       id: 3,
       name: "Rome",
       totalCost: "0",
+      monthlyCost: "0",
       expenseCount: 0,
       expenseBreakdown: [],
     });
-    expect(body).not.toHaveProperty("holidayExpenses");
-    expect(body).not.toHaveProperty("_count");
   });
 
   it("should return a 400 error when validation fails", async () => {

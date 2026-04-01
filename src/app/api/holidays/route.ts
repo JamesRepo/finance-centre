@@ -2,10 +2,19 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { ZodError } from "zod";
 import { prisma } from "@/lib/prisma";
-import { holidayCreateSchema } from "@/lib/validators";
+import { budgetMonthSchema, holidayCreateSchema } from "@/lib/validators";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function getMonthRange(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+
+  return {
+    gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
+    lt: new Date(Date.UTC(year, monthNumber, 1)),
+  };
 }
 
 function attachHolidaySummary<
@@ -18,21 +27,35 @@ function attachHolidaySummary<
     description: string | null;
     isActive: boolean;
     createdAt: Date;
-    holidayExpenses: Array<{ expenseType: string; amount: Prisma.Decimal }>;
+    holidayExpenses: Array<{
+      expenseType: string;
+      amount: Prisma.Decimal;
+      expenseDate: Date;
+    }>;
     _count: { holidayExpenses: number };
   },
->(holiday: T) {
+>(holiday: T, month?: string) {
   const totalCost = holiday.holidayExpenses.reduce(
     (sum, expense) => sum.plus(expense.amount),
     new Prisma.Decimal(0),
   );
+  const monthRange = month ? getMonthRange(month) : null;
   const expenseTypeTotals = new Map<string, Prisma.Decimal>();
+  let monthlyCost = new Prisma.Decimal(0);
 
   for (const expense of holiday.holidayExpenses) {
     const currentTotal =
       expenseTypeTotals.get(expense.expenseType) ?? new Prisma.Decimal(0);
 
     expenseTypeTotals.set(expense.expenseType, currentTotal.plus(expense.amount));
+
+    if (
+      monthRange &&
+      expense.expenseDate >= monthRange.gte &&
+      expense.expenseDate < monthRange.lt
+    ) {
+      monthlyCost = monthlyCost.plus(expense.amount);
+    }
   }
 
   const { holidayExpenses: _holidayExpenses, _count, ...holidaySummary } = holiday;
@@ -40,6 +63,7 @@ function attachHolidaySummary<
   return {
     ...holidaySummary,
     totalCost,
+    monthlyCost,
     expenseCount: _count.holidayExpenses,
     expenseBreakdown: Array.from(expenseTypeTotals.entries())
       .map(([expenseType, totalCostForType]) => ({
@@ -50,27 +74,39 @@ function attachHolidaySummary<
   };
 }
 
-export async function GET() {
-  const holidays = await prisma.holiday.findMany({
-    include: {
-      holidayExpenses: {
-        select: {
-          expenseType: true,
-          amount: true,
-        },
-      },
-      _count: {
-        select: {
-          holidayExpenses: true,
-        },
-      },
-    },
-    orderBy: {
-      startDate: "desc",
-    },
-  });
+export async function GET(request: NextRequest) {
+  try {
+    const monthParam = request.nextUrl.searchParams.get("month");
+    const month = monthParam ? budgetMonthSchema.parse(monthParam) : undefined;
 
-  return NextResponse.json(holidays.map(attachHolidaySummary));
+    const holidays = await prisma.holiday.findMany({
+      include: {
+        holidayExpenses: {
+          select: {
+            expenseType: true,
+            amount: true,
+            expenseDate: true,
+          },
+        },
+        _count: {
+          select: {
+            holidayExpenses: true,
+          },
+        },
+      },
+      orderBy: {
+        startDate: "desc",
+      },
+    });
+
+    return NextResponse.json(holidays.map((holiday) => attachHolidaySummary(holiday, month)));
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return jsonError(error.issues[0]?.message ?? "Invalid query parameters", 400);
+    }
+
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -84,6 +120,7 @@ export async function POST(request: NextRequest) {
           select: {
             expenseType: true,
             amount: true,
+            expenseDate: true,
           },
         },
         _count: {
