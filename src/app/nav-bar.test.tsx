@@ -61,7 +61,7 @@ describe("[Component] NavBar", () => {
     // However, the first group separator is after Dashboard (1), then between groups (3), then before Settings (1) = 5
     // But the group separators between groups are only rendered when groupIndex > 0 (3 of them)
     // Plus the fixed separator after Dashboard (1) and before Settings (1) = 5 total
-    const separators = container.querySelectorAll("span.bg-stone-200");
+    const separators = container.querySelectorAll("span.bg-sky-900\\/70");
     expect(separators.length).toBe(5);
   });
 
@@ -70,19 +70,19 @@ describe("[Component] NavBar", () => {
     render(<NavBar />);
 
     const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
-    expect(dashboardLink.className).toContain("border-stone-950");
+    expect(dashboardLink.className).toContain("border-sky-400");
 
     const transactionsLink = screen.getByRole("link", { name: "Transactions" });
     expect(transactionsLink.className).toContain("border-transparent");
   });
 
-  it("should include dark-mode classes for the active navigation state", () => {
+  it("should use the accent styling for the active navigation state", () => {
     mockPathname = "/";
     render(<NavBar />);
 
     const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
-    expect(dashboardLink.className).toContain("dark:border-stone-100");
-    expect(dashboardLink.className).toContain("dark:text-stone-50");
+    expect(dashboardLink.className).toContain("border-sky-400");
+    expect(dashboardLink.className).toContain("text-sky-300");
   });
 
   it("should highlight the Transactions link when on /transactions", () => {
@@ -93,7 +93,7 @@ describe("[Component] NavBar", () => {
     expect(dashboardLink.className).toContain("border-transparent");
 
     const transactionsLink = screen.getByRole("link", { name: "Transactions" });
-    expect(transactionsLink.className).toContain("border-stone-950");
+    expect(transactionsLink.className).toContain("border-sky-400");
 
     const summaryLink = screen.getByRole("link", { name: "Summary" });
     expect(summaryLink.className).toContain("border-transparent");
@@ -106,8 +106,8 @@ describe("[Component] NavBar", () => {
     const transactionsLink = screen.getByRole("link", { name: "Transactions" });
     const summaryLink = screen.getByRole("link", { name: "Summary" });
 
-    expect(transactionsLink.className).toContain("border-stone-950");
-    expect(summaryLink.className).toContain("border-stone-950");
+    expect(transactionsLink.className).toContain("border-sky-400");
+    expect(summaryLink.className).toContain("border-sky-400");
   });
 
   it("should highlight both Transactions and Summary when on a nested summary route", () => {
@@ -117,8 +117,8 @@ describe("[Component] NavBar", () => {
     const transactionsLink = screen.getByRole("link", { name: "Transactions" });
     const summaryLink = screen.getByRole("link", { name: "Summary" });
 
-    expect(transactionsLink.className).toContain("border-stone-950");
-    expect(summaryLink.className).toContain("border-stone-950");
+    expect(transactionsLink.className).toContain("border-sky-400");
+    expect(summaryLink.className).toContain("border-sky-400");
   });
 
   it("should highlight the Income link when on /income", () => {
@@ -126,7 +126,7 @@ describe("[Component] NavBar", () => {
     render(<NavBar />);
 
     const incomeLink = screen.getByRole("link", { name: "Income" });
-    expect(incomeLink.className).toContain("border-stone-950");
+    expect(incomeLink.className).toContain("border-sky-400");
   });
 
   it("should highlight the Debts link when on a sub-path like /debts/123", () => {
@@ -134,7 +134,7 @@ describe("[Component] NavBar", () => {
     render(<NavBar />);
 
     const debtsLink = screen.getByRole("link", { name: "Debts" });
-    expect(debtsLink.className).toContain("border-stone-950");
+    expect(debtsLink.className).toContain("border-sky-400");
   });
 
   it("should highlight the Fixed Costs link when on /fixed-costs", () => {
@@ -142,7 +142,7 @@ describe("[Component] NavBar", () => {
     render(<NavBar />);
 
     const fixedCostsLink = screen.getByRole("link", { name: "Fixed Costs" });
-    expect(fixedCostsLink.className).toContain("border-stone-950");
+    expect(fixedCostsLink.className).toContain("border-sky-400");
   });
 
   it("should highlight the Holidays link when on /holidays", () => {
@@ -150,7 +150,7 @@ describe("[Component] NavBar", () => {
     render(<NavBar />);
 
     const holidaysLink = screen.getByRole("link", { name: "Holidays" });
-    expect(holidaysLink.className).toContain("border-stone-950");
+    expect(holidaysLink.className).toContain("border-sky-400");
   });
 
   it("should highlight the Settings link when on /settings", () => {
@@ -158,7 +158,7 @@ describe("[Component] NavBar", () => {
     render(<NavBar />);
 
     const settingsLink = screen.getByRole("link", { name: "Settings" });
-    expect(settingsLink.className).toContain("border-stone-950");
+    expect(settingsLink.className).toContain("border-sky-400");
 
     const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
     expect(dashboardLink.className).toContain("border-transparent");
@@ -172,7 +172,7 @@ describe("[Component] NavBar", () => {
     expect(dashboardLink.className).toContain("border-transparent");
 
     const savingsLink = screen.getByRole("link", { name: "Savings" });
-    expect(savingsLink.className).toContain("border-stone-950");
+    expect(savingsLink.className).toContain("border-sky-400");
   });
 
   it("should render inside a nav element", () => {

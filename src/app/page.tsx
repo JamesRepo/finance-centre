@@ -200,7 +200,7 @@ function BudgetBar({
           width={spentWidth}
           height={height}
           rx={radius}
-          fill={payload.isOverBudget ? "#dc2626" : "#16a34a"}
+          fill={payload.isOverBudget ? "#fb7185" : "#22d3ee"}
         />
       ) : null}
     </g>
