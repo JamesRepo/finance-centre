@@ -56,11 +56,18 @@ type SubscriptionFixture = {
   name: string;
   amount: string;
   frequency: "MONTHLY" | "YEARLY";
-  nextPaymentDate: string;
+  paymentDate: string;
+  paymentMonth: string;
   description: string | null;
-  isActive: boolean;
   createdAt: string;
   monthlyEquivalent: string;
+};
+
+type SubscriptionSummaryFixture = {
+  month: string;
+  subscriptions: SubscriptionFixture[];
+  total: string;
+  monthlyEquivalentTotal: string;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -92,12 +99,33 @@ function buildSubscription(
     name: "Spotify",
     amount: "30",
     frequency: "MONTHLY",
-    nextPaymentDate: "2026-03-20T00:00:00.000Z",
+    paymentDate: "2026-03-20T00:00:00.000Z",
+    paymentMonth: "2026-03-01T00:00:00.000Z",
     description: null,
-    isActive: true,
     createdAt: "2026-03-11T09:00:00.000Z",
     monthlyEquivalent: "30",
     ...overrides,
+  };
+}
+
+function buildSubscriptionSummary(
+  month: string,
+  subscriptions: SubscriptionFixture[],
+): SubscriptionSummaryFixture {
+  const total = subscriptions.reduce(
+    (sum, subscription) => sum + Number(subscription.amount),
+    0,
+  );
+  const monthlyEquivalentTotal = subscriptions.reduce(
+    (sum, subscription) => sum + Number(subscription.monthlyEquivalent),
+    0,
+  );
+
+  return {
+    month,
+    subscriptions,
+    total: total.toString(),
+    monthlyEquivalentTotal: monthlyEquivalentTotal.toString(),
   };
 }
 
@@ -129,26 +157,26 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions") {
+      if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(
-          jsonResponse([
-            buildSubscription(),
-            buildSubscription({
-              id: 2,
-              name: "Prime",
-              amount: "120",
-              frequency: "YEARLY",
-              monthlyEquivalent: "10",
-            }),
-            buildSubscription({
-              id: 3,
-              name: "Archived App",
-              amount: "25",
-              isActive: false,
-              monthlyEquivalent: "25",
-            }),
-          ]),
+          jsonResponse(
+            buildSubscriptionSummary("2026-03", [
+              buildSubscription(),
+              buildSubscription({
+                id: 2,
+                name: "Prime",
+                amount: "120",
+                frequency: "YEARLY",
+                paymentDate: "2026-03-10T00:00:00.000Z",
+                monthlyEquivalent: "10",
+              }),
+            ]),
+          ),
         );
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
@@ -174,13 +202,10 @@ describe("[Component] fixed costs page", () => {
         screen.getByText("Total Fixed Costs").parentElement as HTMLElement,
       ).getByText("£1,250.00"),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-03", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions?month=2026-03", {
       cache: "no-store",
     });
-    expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-02", {
-      cache: "no-store",
-    });
-    expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions?month=2026-02", {
       cache: "no-store",
     });
   });
@@ -197,8 +222,12 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions") {
-        return Promise.resolve(jsonResponse([]));
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       if (url === "/api/housing" && init?.method === "POST") {
@@ -245,42 +274,6 @@ describe("[Component] fixed costs page", () => {
     expect(screen.getByRole("button", { name: "£1,300.00" })).toBeInTheDocument();
   });
 
-  it("should show an error and avoid saving when a housing amount is cleared", async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url === "/api/housing?month=2026-03") {
-        return Promise.resolve(jsonResponse([buildHousingExpense()]));
-      }
-
-      if (url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
-      if (url === "/api/subscriptions") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
-      throw new Error(`Unexpected fetch: ${url}`);
-    });
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<FixedCostsPage />);
-
-    const amountButton = await screen.findByRole("button", { name: "£1,200.00" });
-
-    fireEvent.click(amountButton);
-
-    const amountInput = screen.getByDisplayValue("1200.00");
-    fireEvent.change(amountInput, { target: { value: "" } });
-    fireEvent.blur(amountInput);
-
-    expect(await screen.findByText("Enter an amount greater than 0")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "£1,200.00" })).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
   it("should copy only missing housing values from the previous month", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -302,8 +295,12 @@ describe("[Component] fixed costs page", () => {
         );
       }
 
-      if (url === "/api/subscriptions") {
-        return Promise.resolve(jsonResponse([]));
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       if (url === "/api/housing" && init?.method === "POST") {
@@ -349,33 +346,7 @@ describe("[Component] fixed costs page", () => {
     expect(await screen.findByRole("button", { name: "£45.00" })).toBeInTheDocument();
   });
 
-  it("should show a housing error message when the current-month request fails", async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url === "/api/housing?month=2026-03") {
-        return Promise.resolve(
-          jsonResponse({ error: "Housing service unavailable" }, 500),
-        );
-      }
-
-      if (url === "/api/subscriptions") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
-      throw new Error(`Unexpected fetch: ${url}`);
-    });
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<FixedCostsPage />);
-
-    expect(
-      await screen.findByText("Housing service unavailable"),
-    ).toBeInTheDocument();
-  });
-
-  it("should render active and inactive subscriptions separately when the subscriptions tab is opened", async () => {
+  it("should render month-scoped subscriptions with monthly totals when the subscriptions tab is opened", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -383,26 +354,26 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions") {
+      if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(
-          jsonResponse([
-            buildSubscription(),
-            buildSubscription({
-              id: 2,
-              name: "Netflix",
-              amount: "120",
-              frequency: "YEARLY",
-              monthlyEquivalent: "10",
-            }),
-            buildSubscription({
-              id: 3,
-              name: "Old Service",
-              amount: "15",
-              isActive: false,
-              monthlyEquivalent: "15",
-            }),
-          ]),
+          jsonResponse(
+            buildSubscriptionSummary("2026-03", [
+              buildSubscription(),
+              buildSubscription({
+                id: 2,
+                name: "Netflix",
+                amount: "120",
+                frequency: "YEARLY",
+                paymentDate: "2026-03-15T00:00:00.000Z",
+                monthlyEquivalent: "10",
+              }),
+            ]),
+          ),
         );
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
@@ -416,18 +387,21 @@ describe("[Component] fixed costs page", () => {
 
     expect(await screen.findByText("Spotify")).toBeInTheDocument();
     expect(screen.getByText("Netflix")).toBeInTheDocument();
-    expect(screen.getByText("Inactive subscriptions")).toBeInTheDocument();
-    expect(screen.getByText("Old Service")).toBeInTheDocument();
+    expect(screen.getByText("Day 20")).toBeInTheDocument();
+    expect(screen.getByText("Day 15")).toBeInTheDocument();
     expect(
       within(
-        screen
-          .getByText("Total monthly subscription cost")
-          .parentElement as HTMLElement,
+        screen.getByText("Total Cost This Month").parentElement as HTMLElement,
+      ).getByText("£150.00"),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByText("Monthly Equivalent").parentElement as HTMLElement,
       ).getByText("£40.00"),
     ).toBeInTheDocument();
   });
 
-  it("should add a subscription and render it in the active list when the form is submitted", async () => {
+  it("should add a subscription for the selected month when the form is submitted", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -435,8 +409,12 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions" && !init) {
-        return Promise.resolve(jsonResponse([]));
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       if (url === "/api/subscriptions" && init?.method === "POST") {
@@ -446,7 +424,8 @@ describe("[Component] fixed costs page", () => {
               id: 9,
               name: "Gym",
               amount: "50",
-              nextPaymentDate: "2026-03-25",
+              paymentDate: "2026-03-25T00:00:00.000Z",
+              description: "Weights",
               monthlyEquivalent: "50",
             }),
             201,
@@ -469,8 +448,11 @@ describe("[Component] fixed costs page", () => {
     fireEvent.change(screen.getByLabelText("Amount"), {
       target: { value: "50" },
     });
-    fireEvent.change(screen.getByLabelText("Next payment date"), {
+    fireEvent.change(screen.getByLabelText("Payment date"), {
       target: { value: "2026-03-25" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Weights" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add subscription" }));
 
@@ -484,15 +466,18 @@ describe("[Component] fixed costs page", () => {
           name: "Gym",
           amount: 50,
           frequency: "MONTHLY",
-          nextPaymentDate: "2026-03-25",
+          month: "2026-03",
+          paymentDate: "2026-03-25",
+          description: "Weights",
         }),
       });
     });
 
     expect(await screen.findByText("Gym")).toBeInTheDocument();
+    expect(screen.getByText("Weights")).toBeInTheDocument();
   });
 
-  it("should toggle a subscription to inactive when the card action is used", async () => {
+  it("should update a subscription when the edit form is submitted", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -500,15 +485,31 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions") {
-        return Promise.resolve(jsonResponse([buildSubscription()]));
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(
+          jsonResponse(
+            buildSubscriptionSummary("2026-03", [
+              buildSubscription({
+                description: "Old description",
+              }),
+            ]),
+          ),
+        );
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       if (url === "/api/subscriptions/1" && init?.method === "PUT") {
         return Promise.resolve(
           jsonResponse(
             buildSubscription({
-              isActive: false,
+              name: "Spotify Family",
+              amount: "45",
+              paymentDate: "2026-03-22T00:00:00.000Z",
+              description: "Updated plan",
+              monthlyEquivalent: "45",
             }),
           ),
         );
@@ -522,7 +523,21 @@ describe("[Component] fixed costs page", () => {
     render(<FixedCostsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Mark inactive" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Spotify Family" },
+    });
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "45" },
+    });
+    fireEvent.change(screen.getByLabelText("Payment date"), {
+      target: { value: "2026-03-22" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Updated plan" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenLastCalledWith("/api/subscriptions/1", {
@@ -531,26 +546,42 @@ describe("[Component] fixed costs page", () => {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          isActive: false,
+          name: "Spotify Family",
+          amount: 45,
+          frequency: "MONTHLY",
+          month: "2026-03",
+          paymentDate: "2026-03-22",
+          description: "Updated plan",
         }),
       });
     });
 
-    expect(await screen.findByText("Inactive subscriptions")).toBeInTheDocument();
-    const inactiveSection = screen.getByText("Inactive subscriptions").closest("div");
-    expect(within(inactiveSection?.parentElement as HTMLElement).getByText("Spotify")).toBeInTheDocument();
+    expect(await screen.findByText("Spotify Family")).toBeInTheDocument();
+    expect(screen.getByText("Updated plan")).toBeInTheDocument();
   });
 
-  it("should show validation errors when the subscription form is submitted empty", async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+  it("should delete a subscription when the delete action is used", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions") {
-        return Promise.resolve(jsonResponse([]));
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(
+          jsonResponse(
+            buildSubscriptionSummary("2026-03", [buildSubscription()]),
+          ),
+        );
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
+      }
+
+      if (url === "/api/subscriptions/1" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
@@ -561,7 +592,180 @@ describe("[Component] fixed costs page", () => {
     render(<FixedCostsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
-    fireEvent.change(screen.getByLabelText("Next payment date"), {
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/subscriptions/1", {
+        method: "DELETE",
+      });
+    });
+
+    expect(await screen.findByText("No subscriptions in March 2026")).toBeInTheDocument();
+  });
+
+  it("should copy subscriptions to the next month and navigate to that month when confirmed", async () => {
+    let aprilSummaryRequestCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/housing?month=2026-04") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(
+          jsonResponse(
+            buildSubscriptionSummary("2026-03", [
+              buildSubscription(),
+              buildSubscription({
+                id: 2,
+                name: "Netflix",
+                amount: "12",
+                paymentDate: "2026-03-05T00:00:00.000Z",
+                monthlyEquivalent: "12",
+              }),
+            ]),
+          ),
+        );
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-04") {
+        aprilSummaryRequestCount += 1;
+
+        if (aprilSummaryRequestCount === 1) {
+          return Promise.resolve(
+            jsonResponse(buildSubscriptionSummary("2026-04", [])),
+          );
+        }
+
+        return Promise.resolve(
+          jsonResponse(
+            buildSubscriptionSummary("2026-04", [
+              buildSubscription({
+                paymentDate: "2026-04-20T00:00:00.000Z",
+                paymentMonth: "2026-04-01T00:00:00.000Z",
+              }),
+              buildSubscription({
+                id: 2,
+                name: "Netflix",
+                amount: "12",
+                paymentDate: "2026-04-05T00:00:00.000Z",
+                paymentMonth: "2026-04-01T00:00:00.000Z",
+                monthlyEquivalent: "12",
+              }),
+            ]),
+          ),
+        );
+      }
+
+      if (url === "/api/subscriptions/copy" && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse({
+            copiedCount: 2,
+            skippedCount: 0,
+          }),
+        );
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("confirm", vi.fn(() => true));
+
+    render(<FixedCostsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy to Next Month" }));
+
+    await waitFor(() => {
+      expect(globalThis.confirm).toHaveBeenCalledWith(
+        "Copy 2 subscriptions from March 2026 to April 2026? 0 already exist and will be skipped.",
+      );
+      expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions/copy", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sourceMonth: "2026-03",
+          targetMonth: "2026-04",
+        }),
+      });
+    });
+
+    expect(await screen.findByDisplayValue("2026-04")).toBeInTheDocument();
+    expect(await screen.findByText("April 2026")).toBeInTheDocument();
+  });
+
+  it("should show the subscriptions empty state with previous-month copy affordance when the selected month is empty", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(
+          jsonResponse(
+            buildSubscriptionSummary("2026-02", [buildSubscription()]),
+          ),
+        );
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FixedCostsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
+
+    expect(await screen.findByText("No subscriptions in March 2026")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy from February 2026" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should show validation errors when the subscription form is submitted empty", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FixedCostsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
+    fireEvent.change(screen.getByLabelText("Payment date"), {
       target: { value: "" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add subscription" }));

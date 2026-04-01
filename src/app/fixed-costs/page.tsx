@@ -43,7 +43,8 @@ const subscriptionFormSchema = z.object({
   frequency: z.enum(["MONTHLY", "YEARLY"], {
     message: "Select a frequency",
   }),
-  nextPaymentDate: z.string().min(1, "Enter a payment date"),
+  paymentDate: z.string().min(1, "Enter a payment date"),
+  description: z.string().trim().optional(),
 });
 
 type HousingExpenseType = (typeof housingExpenseTypeOptions)[number]["value"];
@@ -77,11 +78,18 @@ type Subscription = {
   name: string;
   amount: string;
   frequency: Frequency;
-  nextPaymentDate: string;
+  paymentDate: string;
+  paymentMonth: string;
   description: string | null;
-  isActive: boolean;
   createdAt: string;
   monthlyEquivalent: string;
+};
+
+type SubscriptionSummary = {
+  month: string;
+  subscriptions: Subscription[];
+  total: string;
+  monthlyEquivalentTotal: string;
 };
 
 function formatCurrency(value: number) {
@@ -112,6 +120,14 @@ function formatDisplayDate(value: string) {
   return format(new Date(value), "d MMM yyyy");
 }
 
+function getDefaultPaymentDate(month: string) {
+  return `${month}-01`;
+}
+
+function formatPaymentDay(value: string) {
+  return format(new Date(value), "d");
+}
+
 async function readApiError(response: Response, fallback: string) {
   try {
     const body = (await response.json()) as { error?: string };
@@ -119,6 +135,18 @@ async function readApiError(response: Response, fallback: string) {
   } catch {
     return fallback;
   }
+}
+
+async function fetchSubscriptionSummary(month: string) {
+  const response = await fetch(`/api/subscriptions?month=${month}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response, "Failed to load subscriptions"));
+  }
+
+  return (await response.json()) as SubscriptionSummary;
 }
 
 function SummaryCard({
@@ -177,13 +205,22 @@ export default function FixedCostsPage() {
   const [housingError, setHousingError] = useState<string | null>(null);
   const [copyingPreviousMonth, setCopyingPreviousMonth] = useState(false);
 
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary>({
+    month: getCurrentMonthValue(),
+    subscriptions: [],
+    total: "0",
+    monthlyEquivalentTotal: "0",
+  });
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(true);
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
   const [subscriptionSubmitError, setSubscriptionSubmitError] = useState<
     string | null
   >(null);
-  const [subscriptionToggleId, setSubscriptionToggleId] = useState<number | null>(
+  const [subscriptionDeleteId, setSubscriptionDeleteId] = useState<number | null>(null);
+  const [copyingSubscriptions, setCopyingSubscriptions] = useState(false);
+  const [previousMonthSubscriptionCount, setPreviousMonthSubscriptionCount] =
+    useState(0);
+  const [editingSubscriptionId, setEditingSubscriptionId] = useState<number | null>(
     null,
   );
 
@@ -202,7 +239,8 @@ export default function FixedCostsPage() {
       name: "",
       amount: undefined,
       frequency: "MONTHLY",
-      nextPaymentDate: format(new Date(), "yyyy-MM-dd"),
+      paymentDate: getDefaultPaymentDate(selectedMonth),
+      description: "",
     },
   });
 
@@ -292,23 +330,18 @@ export default function FixedCostsPage() {
     }
   }
 
-  async function loadSubscriptions() {
+  async function loadSubscriptions(month: string) {
     setSubscriptionsLoading(true);
     setSubscriptionsError(null);
 
     try {
-      const response = await fetch("/api/subscriptions", {
-        cache: "no-store",
-      });
+      const [currentSummary, previousSummary] = await Promise.all([
+        fetchSubscriptionSummary(month),
+        fetchSubscriptionSummary(shiftMonthValue(month, -1)),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(
-          await readApiError(response, "Failed to load subscriptions"),
-        );
-      }
-
-      const data = (await response.json()) as Subscription[];
-      setSubscriptions(data);
+      setSubscriptionSummary(currentSummary);
+      setPreviousMonthSubscriptionCount(previousSummary.subscriptions.length);
     } catch (error) {
       setSubscriptionsError(
         error instanceof Error ? error.message : "Failed to load subscriptions",
@@ -323,8 +356,59 @@ export default function FixedCostsPage() {
   }, [selectedMonth]);
 
   useEffect(() => {
-    void loadSubscriptions();
-  }, []);
+    let isCancelled = false;
+
+    async function loadCurrentMonthSubscriptions() {
+      setSubscriptionsLoading(true);
+      setSubscriptionsError(null);
+
+      try {
+        const [currentSummary, previousSummary] = await Promise.all([
+          fetchSubscriptionSummary(selectedMonth),
+          fetchSubscriptionSummary(shiftMonthValue(selectedMonth, -1)),
+        ]);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setSubscriptionSummary(currentSummary);
+        setPreviousMonthSubscriptionCount(previousSummary.subscriptions.length);
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setSubscriptionsError(
+          error instanceof Error ? error.message : "Failed to load subscriptions",
+        );
+      } finally {
+        if (!isCancelled) {
+          setSubscriptionsLoading(false);
+        }
+      }
+    }
+
+    void loadCurrentMonthSubscriptions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    if (editingSubscriptionId !== null) {
+      return;
+    }
+
+    reset({
+      name: "",
+      amount: undefined,
+      frequency: "MONTHLY",
+      paymentDate: getDefaultPaymentDate(selectedMonth),
+      description: "",
+    });
+  }, [editingSubscriptionId, reset, selectedMonth]);
 
   const housingRows = useMemo<HousingRow[]>(
     () =>
@@ -361,22 +445,14 @@ export default function FixedCostsPage() {
     [housingRows],
   );
 
-  const activeSubscriptions = useMemo(
-    () => subscriptions.filter((subscription) => subscription.isActive),
-    [subscriptions],
-  );
-  const inactiveSubscriptions = useMemo(
-    () => subscriptions.filter((subscription) => !subscription.isActive),
-    [subscriptions],
+  const subscriptions = subscriptionSummary.subscriptions;
+  const subscriptionsTotal = useMemo(
+    () => Number(subscriptionSummary.total),
+    [subscriptionSummary.total],
   );
   const subscriptionsTotalMonthly = useMemo(
-    () =>
-      activeSubscriptions.reduce(
-        (sum, subscription) =>
-          sum + calculateMonthlyEquivalent(subscription.amount, subscription.frequency),
-        0,
-      ),
-    [activeSubscriptions],
+    () => Number(subscriptionSummary.monthlyEquivalentTotal),
+    [subscriptionSummary.monthlyEquivalentTotal],
   );
   const combinedFixedCosts = housingTotalMonthly + subscriptionsTotalMonthly;
 
@@ -535,92 +611,223 @@ export default function FixedCostsPage() {
     setSubscriptionSubmitError(null);
 
     try {
-      const response = await fetch("/api/subscriptions", {
+      if (!values.paymentDate.startsWith(selectedMonth)) {
+        throw new Error("Payment date must be within the selected month");
+      }
+
+      const payload = {
+        name: values.name.trim(),
+        amount: values.amount,
+        frequency: values.frequency,
+        month: selectedMonth,
+        paymentDate: values.paymentDate,
+        description: values.description?.trim() || undefined,
+      };
+      const endpoint =
+        editingSubscriptionId === null
+          ? "/api/subscriptions"
+          : `/api/subscriptions/${editingSubscriptionId}`;
+      const response = await fetch(endpoint, {
+        method: editingSubscriptionId === null ? "POST" : "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readApiError(
+            response,
+            editingSubscriptionId === null
+              ? "Failed to add subscription"
+              : "Failed to update subscription",
+          ),
+        );
+      }
+
+      const subscription = (await response.json()) as Subscription;
+      const nextSubscriptions =
+        editingSubscriptionId === null
+          ? [...subscriptions, subscription]
+          : subscriptions.map((currentSubscription) =>
+              currentSubscription.id === subscription.id
+                ? subscription
+                : currentSubscription,
+            );
+
+      nextSubscriptions.sort(
+        (left, right) =>
+          new Date(left.paymentDate).getTime() - new Date(right.paymentDate).getTime() ||
+          left.name.localeCompare(right.name),
+      );
+
+      const total = nextSubscriptions.reduce(
+        (sum, currentSubscription) => sum + Number(currentSubscription.amount),
+        0,
+      );
+      const monthlyEquivalentTotal = nextSubscriptions.reduce(
+        (sum, currentSubscription) =>
+          sum + Number(currentSubscription.monthlyEquivalent),
+        0,
+      );
+
+      setSubscriptionSummary({
+        month: selectedMonth,
+        subscriptions: nextSubscriptions,
+        total: total.toString(),
+        monthlyEquivalentTotal: monthlyEquivalentTotal.toString(),
+      });
+      setEditingSubscriptionId(null);
+      reset({
+        name: "",
+        amount: undefined,
+        frequency: "MONTHLY",
+        paymentDate: getDefaultPaymentDate(selectedMonth),
+        description: "",
+      });
+    } catch (error) {
+      setSubscriptionSubmitError(
+        error instanceof Error
+          ? error.message
+          : editingSubscriptionId === null
+            ? "Failed to add subscription"
+            : "Failed to update subscription",
+      );
+    }
+  }
+
+  function handleSubscriptionEdit(subscription: Subscription) {
+    setSubscriptionSubmitError(null);
+    setEditingSubscriptionId(subscription.id);
+    reset({
+      name: subscription.name,
+      amount: Number(subscription.amount),
+      frequency: subscription.frequency,
+      paymentDate: format(new Date(subscription.paymentDate), "yyyy-MM-dd"),
+      description: subscription.description ?? "",
+    });
+  }
+
+  function cancelSubscriptionEdit() {
+    setEditingSubscriptionId(null);
+    setSubscriptionSubmitError(null);
+    reset({
+      name: "",
+      amount: undefined,
+      frequency: "MONTHLY",
+      paymentDate: getDefaultPaymentDate(selectedMonth),
+      description: "",
+    });
+  }
+
+  async function handleSubscriptionDelete(subscriptionId: number) {
+    setSubscriptionDeleteId(subscriptionId);
+
+    try {
+      const response = await fetch(`/api/subscriptions/${subscriptionId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readApiError(response, "Failed to delete subscription"),
+        );
+      }
+
+      const nextSubscriptions = subscriptions.filter(
+        (subscription) => subscription.id !== subscriptionId,
+      );
+      const total = nextSubscriptions.reduce(
+        (sum, subscription) => sum + Number(subscription.amount),
+        0,
+      );
+      const monthlyEquivalentTotal = nextSubscriptions.reduce(
+        (sum, subscription) => sum + Number(subscription.monthlyEquivalent),
+        0,
+      );
+
+      setSubscriptionSummary({
+        month: selectedMonth,
+        subscriptions: nextSubscriptions,
+        total: total.toString(),
+        monthlyEquivalentTotal: monthlyEquivalentTotal.toString(),
+      });
+
+      if (editingSubscriptionId === subscriptionId) {
+        cancelSubscriptionEdit();
+      }
+    } catch (error) {
+      setSubscriptionsError(
+        error instanceof Error ? error.message : "Failed to delete subscription",
+      );
+    } finally {
+      setSubscriptionDeleteId(null);
+    }
+  }
+
+  async function handleCopySubscriptions(sourceMonth: string, targetMonth: string) {
+    setSubscriptionsError(null);
+    setCopyingSubscriptions(true);
+
+    try {
+      const [sourceSummary, targetSummary] = await Promise.all([
+        sourceMonth === selectedMonth
+          ? Promise.resolve(subscriptionSummary)
+          : fetchSubscriptionSummary(sourceMonth),
+        targetMonth === selectedMonth
+          ? Promise.resolve(subscriptionSummary)
+          : fetchSubscriptionSummary(targetMonth),
+      ]);
+
+      const targetNames = new Set(
+        targetSummary.subscriptions.map((subscription) => subscription.name),
+      );
+      const skippedCount = sourceSummary.subscriptions.filter((subscription) =>
+        targetNames.has(subscription.name),
+      ).length;
+      const copiedCount = sourceSummary.subscriptions.length - skippedCount;
+
+      if (sourceSummary.subscriptions.length === 0) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Copy ${copiedCount} subscription${copiedCount === 1 ? "" : "s"} from ${formatMonthLabel(sourceMonth)} to ${formatMonthLabel(targetMonth)}? ${skippedCount} already exist${skippedCount === 1 ? "s" : ""} and will be skipped.`,
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const response = await fetch("/api/subscriptions/copy", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          name: values.name.trim(),
-          amount: values.amount,
-          frequency: values.frequency,
-          nextPaymentDate: values.nextPaymentDate,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await readApiError(response, "Failed to add subscription"));
-      }
-
-      const subscription = (await response.json()) as Subscription;
-
-      setSubscriptions((currentSubscriptions) => {
-        const nextSubscriptions = [...currentSubscriptions, subscription];
-
-        return nextSubscriptions.sort((left, right) => {
-          if (left.isActive !== right.isActive) {
-            return left.isActive ? -1 : 1;
-          }
-
-          return left.name.localeCompare(right.name);
-        });
-      });
-      reset({
-        name: "",
-        amount: undefined,
-        frequency: "MONTHLY",
-        nextPaymentDate: format(new Date(), "yyyy-MM-dd"),
-      });
-    } catch (error) {
-      setSubscriptionSubmitError(
-        error instanceof Error ? error.message : "Failed to add subscription",
-      );
-    }
-  }
-
-  async function handleSubscriptionToggle(subscription: Subscription) {
-    setSubscriptionToggleId(subscription.id);
-
-    try {
-      const response = await fetch(`/api/subscriptions/${subscription.id}`, {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          isActive: !subscription.isActive,
+          sourceMonth,
+          targetMonth,
         }),
       });
 
       if (!response.ok) {
         throw new Error(
-          await readApiError(response, "Failed to update subscription"),
+          await readApiError(response, "Failed to copy subscriptions"),
         );
       }
 
-      const updatedSubscription = (await response.json()) as Subscription;
-
-      setSubscriptions((currentSubscriptions) =>
-        currentSubscriptions
-          .map((currentSubscription) =>
-            currentSubscription.id === updatedSubscription.id
-              ? updatedSubscription
-              : currentSubscription,
-          )
-          .sort((left, right) => {
-            if (left.isActive !== right.isActive) {
-              return left.isActive ? -1 : 1;
-            }
-
-            return left.name.localeCompare(right.name);
-          }),
-      );
+      if (targetMonth === shiftMonthValue(selectedMonth, 1)) {
+        setSelectedMonth(targetMonth);
+      } else {
+        await loadSubscriptions(selectedMonth);
+      }
     } catch (error) {
       setSubscriptionsError(
-        error instanceof Error ? error.message : "Failed to update subscription",
+        error instanceof Error ? error.message : "Failed to copy subscriptions",
       );
     } finally {
-      setSubscriptionToggleId(null);
+      setCopyingSubscriptions(false);
     }
   }
 
@@ -883,27 +1090,60 @@ export default function FixedCostsPage() {
               </section>
             ) : (
               <section className="flex flex-col gap-6">
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_360px]">
-                  <div className="rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
-                    <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Subscriptions
-                    </p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                      Recurring subscription spend
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-stone-600">
-                      Active subscriptions contribute to the monthly total. Inactive
-                      items stay visible at the bottom for reference.
-                    </p>
+                <div className="flex flex-col gap-4 rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
+                        Subscriptions
+                      </p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                        {monthLabel}
+                      </h2>
+                      <p className="mt-2 text-sm leading-6 text-stone-600">
+                        Manage subscriptions month by month, including yearly
+                        payments and carry-forward into the next month.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <label className="flex w-full flex-col gap-2 sm:w-52">
+                        <span className="text-sm font-medium text-stone-700">Month</span>
+                        <input
+                          type="month"
+                          value={selectedMonth}
+                          onChange={(event) => setSelectedMonth(event.target.value)}
+                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCopySubscriptions(
+                            selectedMonth,
+                            shiftMonthValue(selectedMonth, 1),
+                          )
+                        }
+                        disabled={copyingSubscriptions || subscriptions.length === 0}
+                        className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                      >
+                        {copyingSubscriptions
+                          ? "Copying..."
+                          : "Copy to Next Month"}
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5">
-                    <p className="text-sm font-medium text-stone-500">
-                      Total monthly subscription cost
-                    </p>
-                    <p className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
-                      {formatCurrency(subscriptionsTotalMonthly)}
-                    </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <SummaryCard
+                      label="Total Cost This Month"
+                      value={formatCurrency(subscriptionsTotal)}
+                      tone="dark"
+                    />
+                    <SummaryCard
+                      label="Monthly Equivalent"
+                      value={formatCurrency(subscriptionsTotalMonthly)}
+                      tone="light"
+                    />
                   </div>
                 </div>
 
@@ -919,161 +1159,120 @@ export default function FixedCostsPage() {
                       <div className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-12 text-center text-sm text-stone-500">
                         Loading subscriptions...
                       </div>
+                    ) : subscriptions.length === 0 ? (
+                      <div className="rounded-[1.75rem] border border-dashed border-stone-300 bg-white px-5 py-12 text-center">
+                        <h3 className="text-xl font-semibold tracking-tight text-stone-950">
+                          No subscriptions in {monthLabel}
+                        </h3>
+                        <p className="mt-3 text-sm leading-6 text-stone-500">
+                          Add a subscription manually with the form, or copy forward
+                          from {previousMonthLabel} if you want to reuse last
+                          month&apos;s list.
+                        </p>
+                        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleCopySubscriptions(previousMonth, selectedMonth)
+                            }
+                            disabled={
+                              copyingSubscriptions ||
+                              previousMonthSubscriptionCount === 0
+                            }
+                            className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                          >
+                            {copyingSubscriptions
+                              ? "Copying..."
+                              : previousMonthSubscriptionCount === 0
+                                ? `Nothing to copy from ${previousMonthLabel}`
+                                : `Copy from ${previousMonthLabel}`}
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <>
-                        {activeSubscriptions.length === 0 ? (
-                          <div className="rounded-[1.75rem] border border-dashed border-stone-300 bg-white px-5 py-12 text-center text-sm text-stone-500">
-                            No active subscriptions yet.
-                          </div>
-                        ) : (
-                          <div className="grid gap-4 md:grid-cols-2">
-                            {activeSubscriptions.map((subscription) => (
-                              <article
-                                key={subscription.id}
-                                className="rounded-[1.75rem] border border-stone-200 bg-white shadow-sm"
-                              >
-                                <div className="flex h-full flex-col gap-5 px-5 py-5">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <h3 className="text-xl font-semibold tracking-tight text-stone-950">
-                                        {subscription.name}
-                                      </h3>
-                                      <p className="mt-1 text-sm text-stone-500">
-                                        {frequencyOptions.find(
-                                          (option) =>
-                                            option.value === subscription.frequency,
-                                        )?.label ?? subscription.frequency}
-                                      </p>
-                                    </div>
-
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        void handleSubscriptionToggle(subscription)
-                                      }
-                                      disabled={subscriptionToggleId === subscription.id}
-                                      className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      {subscriptionToggleId === subscription.id
-                                        ? "Saving"
-                                        : "Mark inactive"}
-                                    </button>
+                      <div className="grid gap-4">
+                        {subscriptions.map((subscription) => (
+                          <article
+                            key={subscription.id}
+                            className="rounded-[1.75rem] border border-stone-200 bg-white shadow-sm"
+                          >
+                            <div className="flex flex-col gap-5 px-5 py-5">
+                              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <h3 className="text-xl font-semibold tracking-tight text-stone-950">
+                                      {subscription.name}
+                                    </h3>
+                                    <span className="rounded-full bg-stone-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white">
+                                      {subscription.frequency.toLowerCase()}
+                                    </span>
                                   </div>
-
-                                  <div className="grid gap-3 text-sm text-stone-600 sm:grid-cols-2">
-                                    <div>
-                                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                        Amount
-                                      </p>
-                                      <p className="mt-1 text-lg font-semibold text-stone-950">
-                                        {formatCurrency(Number(subscription.amount))}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                        Monthly equivalent
-                                      </p>
-                                      <p className="mt-1 text-lg font-semibold text-stone-950">
-                                        {formatCurrency(
-                                          Number(subscription.monthlyEquivalent),
-                                        )}
-                                      </p>
-                                    </div>
-                                    <div className="sm:col-span-2">
-                                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                        Next payment date
-                                      </p>
-                                      <p className="mt-1 font-medium text-stone-950">
-                                        {formatDisplayDate(subscription.nextPaymentDate)}
-                                      </p>
-                                    </div>
-                                  </div>
+                                  {subscription.description ? (
+                                    <p className="mt-2 text-sm leading-6 text-stone-500">
+                                      {subscription.description}
+                                    </p>
+                                  ) : null}
                                 </div>
-                              </article>
-                            ))}
-                          </div>
-                        )}
 
-                        {inactiveSubscriptions.length > 0 ? (
-                          <div className="pt-2">
-                            <div className="mb-4 flex items-center justify-between gap-3">
-                              <h3 className="text-lg font-semibold text-stone-950">
-                                Inactive subscriptions
-                              </h3>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSubscriptionEdit(subscription)}
+                                    className="h-10 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleSubscriptionDelete(subscription.id)
+                                    }
+                                    disabled={subscriptionDeleteId === subscription.id}
+                                    className="h-10 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {subscriptionDeleteId === subscription.id
+                                      ? "Deleting..."
+                                      : "Delete"}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="grid gap-4 text-sm text-stone-600 sm:grid-cols-3">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                    Amount
+                                  </p>
+                                  <p className="mt-1 text-lg font-semibold text-stone-950">
+                                    {formatCurrency(Number(subscription.amount))}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                    Payment day
+                                  </p>
+                                  <p className="mt-1 text-lg font-semibold text-stone-950">
+                                    Day {formatPaymentDay(subscription.paymentDate)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                    Monthly equivalent
+                                  </p>
+                                  <p className="mt-1 text-lg font-semibold text-stone-950">
+                                    {formatCurrency(
+                                      Number(subscription.monthlyEquivalent),
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
                               <p className="text-sm text-stone-500">
-                                Shown for reference
+                                Paid on {formatDisplayDate(subscription.paymentDate)}
                               </p>
                             </div>
-
-                            <div className="grid gap-4 md:grid-cols-2">
-                              {inactiveSubscriptions.map((subscription) => (
-                                <article
-                                  key={subscription.id}
-                                  className="rounded-[1.75rem] border border-stone-200 bg-stone-100 shadow-sm"
-                                >
-                                  <div className="flex h-full flex-col gap-5 px-5 py-5 text-stone-500">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div>
-                                        <h3 className="text-xl font-semibold tracking-tight text-stone-700">
-                                          {subscription.name}
-                                        </h3>
-                                        <p className="mt-1 text-sm">
-                                          {frequencyOptions.find(
-                                            (option) =>
-                                              option.value === subscription.frequency,
-                                          )?.label ?? subscription.frequency}
-                                        </p>
-                                      </div>
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          void handleSubscriptionToggle(subscription)
-                                        }
-                                        disabled={subscriptionToggleId === subscription.id}
-                                        className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-600 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:opacity-50"
-                                      >
-                                        {subscriptionToggleId === subscription.id
-                                          ? "Saving"
-                                          : "Reactivate"}
-                                      </button>
-                                    </div>
-
-                                    <div className="grid gap-3 text-sm sm:grid-cols-2">
-                                      <div>
-                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                          Amount
-                                        </p>
-                                        <p className="mt-1 text-lg font-semibold text-stone-700">
-                                          {formatCurrency(Number(subscription.amount))}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                          Monthly equivalent
-                                        </p>
-                                        <p className="mt-1 text-lg font-semibold text-stone-700">
-                                          {formatCurrency(
-                                            Number(subscription.monthlyEquivalent),
-                                          )}
-                                        </p>
-                                      </div>
-                                      <div className="sm:col-span-2">
-                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                          Next payment date
-                                        </p>
-                                        <p className="mt-1 font-medium text-stone-700">
-                                          {formatDisplayDate(subscription.nextPaymentDate)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </article>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                      </>
+                          </article>
+                        ))}
+                      </div>
                     )}
                   </div>
 
@@ -1082,10 +1281,14 @@ export default function FixedCostsPage() {
                     onSubmit={handleSubmit(handleSubscriptionSubmit)}
                   >
                     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Add Subscription
+                      {editingSubscriptionId === null
+                        ? "Add Subscription"
+                        : "Edit Subscription"}
                     </p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                      New recurring payment
+                      {editingSubscriptionId === null
+                        ? "New monthly entry"
+                        : "Update monthly entry"}
                     </h2>
 
                     <div className="mt-6 grid gap-4">
@@ -1150,28 +1353,63 @@ export default function FixedCostsPage() {
 
                       <label className="flex flex-col gap-2">
                         <span className="text-sm font-medium text-stone-700">
-                          Next payment date
+                          Payment date
                         </span>
                         <input
                           type="date"
                           className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
                           disabled={isSubmitting}
-                          {...register("nextPaymentDate")}
+                          {...register("paymentDate")}
                         />
-                        {errors.nextPaymentDate ? (
+                        {errors.paymentDate ? (
                           <p className="text-sm text-red-600">
-                            {errors.nextPaymentDate.message}
+                            {errors.paymentDate.message}
                           </p>
                         ) : null}
                       </label>
 
-                      <button
-                        type="submit"
-                        className="mt-2 h-11 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-                        disabled={isSubmitting}
-                      >
-                        {isSubmitting ? "Saving..." : "Add subscription"}
-                      </button>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-medium text-stone-700">
+                          Description
+                        </span>
+                        <textarea
+                          rows={4}
+                          className="rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-stone-950"
+                          disabled={isSubmitting}
+                          placeholder="Optional details"
+                          {...register("description")}
+                        />
+                        {errors.description ? (
+                          <p className="text-sm text-red-600">
+                            {errors.description.message}
+                          </p>
+                        ) : null}
+                      </label>
+
+                      <div className="mt-2 flex gap-3">
+                        <button
+                          type="submit"
+                          className="h-11 flex-1 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting
+                            ? "Saving..."
+                            : editingSubscriptionId === null
+                              ? "Add subscription"
+                              : "Save changes"}
+                        </button>
+
+                        {editingSubscriptionId !== null ? (
+                          <button
+                            type="button"
+                            onClick={cancelSubscriptionEdit}
+                            className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
+                            disabled={isSubmitting}
+                          >
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
 
                       {subscriptionSubmitError ? (
                         <p className="text-sm text-red-600">
