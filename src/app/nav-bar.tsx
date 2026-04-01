@@ -8,7 +8,13 @@ const navGroups = [
   {
     label: "Spending",
     links: [
-      { href: "/transactions", label: "Transactions" },
+      {
+        href: "/transactions",
+        label: "Transactions",
+        children: [
+          { href: "/transactions/summary", label: "Summary" },
+        ],
+      },
       { href: "/budgets", label: "Budgets" },
     ],
   },
@@ -34,6 +40,12 @@ const navGroups = [
   },
 ] as const;
 
+type NavLink = {
+  href: string;
+  label: string;
+  children?: readonly NavLink[];
+};
+
 export function NavBar() {
   const pathname = usePathname();
 
@@ -43,12 +55,31 @@ export function NavBar() {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
   }
 
-  const linkClasses = (href: string) =>
-    `whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${
+  const linkClasses = (href: string, isChild = false) =>
+    `whitespace-nowrap border-b-2 px-3 ${isChild ? "py-2 text-xs" : "py-3 text-sm"} font-medium transition ${
       isActive(href)
         ? "border-stone-950 text-stone-950 dark:border-stone-100 dark:text-stone-50"
         : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-700 dark:text-stone-400 dark:hover:border-stone-500 dark:hover:text-stone-200"
     }`;
+
+  function renderLink({ href, label, children }: NavLink) {
+    return (
+      <div key={href} className="flex flex-col">
+        <Link href={href} className={linkClasses(href)}>
+          {label}
+        </Link>
+        {children?.map((child) => (
+          <Link
+            key={child.href}
+            href={child.href}
+            className={`${linkClasses(child.href, true)} ml-4 self-start`}
+          >
+            {child.label}
+          </Link>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <nav className="border-b border-stone-200 bg-white">
@@ -62,11 +93,7 @@ export function NavBar() {
         {navGroups.map((group, groupIndex) => (
           <div key={group.label} className="flex items-center">
             {groupIndex > 0 && <span className="mx-1 h-5 w-px bg-stone-200" />}
-            {group.links.map(({ href, label }) => (
-              <Link key={href} href={href} className={linkClasses(href)}>
-                {label}
-              </Link>
-            ))}
+            {group.links.map(renderLink)}
           </div>
         ))}
 
