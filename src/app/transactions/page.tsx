@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { addDays, format, isValid, parseISO } from "date-fns";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -621,12 +622,22 @@ export default function TransactionsPage() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="rounded-3xl border border-stone-200 bg-white shadow-sm">
           <div className="border-b border-stone-200 px-6 py-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-              Transactions
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">
-              Add a transaction
-            </h1>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                  Transactions
+                </p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">
+                  Add a transaction
+                </h1>
+              </div>
+              <Link
+                href="/transactions/summary"
+                className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                View Summary
+              </Link>
+            </div>
           </div>
 
           <form
