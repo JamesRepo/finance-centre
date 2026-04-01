@@ -479,6 +479,14 @@ export default function Home() {
     dailySummary.spent + fixedCostsTotal + monthlyHolidaySpend + monthlyDebtPayments;
   const netPosition = totalMonthlyIncome - totalOutgoings;
   const chartHeight = Math.max(dailyChartData.length * 52, 260);
+  const totalBreakdown = [
+    { label: "Daily spending total", value: dailySummary.spent },
+    { label: "Fixed costs total", value: fixedCostsTotal },
+    { label: "Holiday spend", value: monthlyHolidaySpend },
+    { label: "Debt payments this month", value: monthlyDebtPayments },
+  ];
+  const isOutgoingsLoading =
+    budgetLoading || fixedCostsLoading || holidaysLoading || debtsLoading;
 
   return (
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
@@ -540,12 +548,38 @@ export default function Home() {
               <div>
                 <p className="text-sm font-medium text-stone-500">Total spent across everything</p>
                 <p className="mt-2 text-4xl font-semibold tracking-tight text-stone-950">
-                  {budgetLoading || fixedCostsLoading || holidaysLoading || debtsLoading ? (
+                  {isOutgoingsLoading ? (
                     <span className="text-lg text-stone-400">Loading...</span>
                   ) : (
                     formatCurrency(totalOutgoings)
                   )}
                 </p>
+                <details className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+                  <summary className="cursor-pointer list-none text-sm font-medium text-stone-700 marker:hidden">
+                    <span>View total breakdown</span>
+                  </summary>
+                  <div className="mt-3 border-t border-stone-200 pt-3">
+                    {isOutgoingsLoading ? (
+                      <p className="text-sm text-stone-500">
+                        Breakdown will appear once the monthly totals finish loading.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {totalBreakdown.map((item) => (
+                          <li
+                            key={item.label}
+                            className="flex items-center justify-between gap-3 text-sm"
+                          >
+                            <span className="text-stone-600">{item.label}</span>
+                            <span className="font-medium tabular-nums text-stone-950">
+                              {formatCurrency(item.value)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </details>
               </div>
 
               <div className="flex flex-wrap gap-3">
@@ -956,9 +990,7 @@ export default function Home() {
             <article className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-5 py-5">
               <p className="text-sm font-medium text-stone-500">Outgoings</p>
               <p className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
-                {budgetLoading || fixedCostsLoading || holidaysLoading || debtsLoading
-                  ? "Loading..."
-                  : formatCurrency(totalOutgoings)}
+                {isOutgoingsLoading ? "Loading..." : formatCurrency(totalOutgoings)}
               </p>
             </article>
 
@@ -969,9 +1001,7 @@ export default function Home() {
                   netPosition < 0 ? "text-red-600" : "text-emerald-600"
                 }`}
               >
-                {incomeLoading || budgetLoading || fixedCostsLoading || holidaysLoading || debtsLoading
-                  ? "Loading..."
-                  : formatCurrency(netPosition)}
+                {incomeLoading || isOutgoingsLoading ? "Loading..." : formatCurrency(netPosition)}
               </p>
             </article>
           </div>

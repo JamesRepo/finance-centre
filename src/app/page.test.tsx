@@ -395,6 +395,20 @@ describe("[Component] dashboard page", () => {
 
     expect(screen.getByText("Total spent across everything")).toBeInTheDocument();
     expect(screen.getAllByText("£3,479.44")).toHaveLength(2);
+    const breakdownTrigger = screen.getByText("View total breakdown");
+    fireEvent.click(breakdownTrigger);
+    const breakdownPanel = breakdownTrigger.closest("details");
+    expect(breakdownPanel).not.toBeNull();
+    expect(within(breakdownPanel as HTMLElement).getByText("Daily spending total")).toBeInTheDocument();
+    expect(within(breakdownPanel as HTMLElement).getByText("Fixed costs total")).toBeInTheDocument();
+    expect(within(breakdownPanel as HTMLElement).getByText("Holiday spend")).toBeInTheDocument();
+    expect(
+      within(breakdownPanel as HTMLElement).getByText("Debt payments this month"),
+    ).toBeInTheDocument();
+    expect(within(breakdownPanel as HTMLElement).getByText("£363.45")).toBeInTheDocument();
+    expect(within(breakdownPanel as HTMLElement).getByText("£1,115.99")).toBeInTheDocument();
+    expect(within(breakdownPanel as HTMLElement).getByText("£1,700.00")).toBeInTheDocument();
+    expect(within(breakdownPanel as HTMLElement).getByText("£300.00")).toBeInTheDocument();
     expect(screen.getByText("£3,700.00")).toBeInTheDocument();
     expect(screen.getByText("Outgoings")).toBeInTheDocument();
     expect(screen.getByText("£220.56")).toBeInTheDocument();
