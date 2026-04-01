@@ -105,6 +105,60 @@ const sampleTransactions = [
   },
 ] as const;
 
+const sampleHolidays = [
+  {
+    name: "[Seed] Lisbon Long Weekend",
+    destination: "Lisbon",
+    assignedMonthOffset: 0,
+    startDay: 18,
+    endDay: 21,
+    description: "City break with flights, food, and tram-heavy days.",
+    expenses: [
+      { expenseType: "FLIGHT", description: "[Seed] Return flights", amount: 180, day: 2 },
+      {
+        expenseType: "ACCOMMODATION",
+        description: "[Seed] Boutique hotel",
+        amount: 320,
+        day: 5,
+      },
+      { expenseType: "FOOD", description: "[Seed] Restaurants", amount: 140, day: 19 },
+      { expenseType: "TRANSPORT", description: "[Seed] Metro and tram", amount: 38, day: 20 },
+    ],
+  },
+  {
+    name: "[Seed] Tokyo Adventure",
+    destination: "Tokyo",
+    assignedMonthOffset: -1,
+    startDay: 7,
+    endDay: 16,
+    description: "Bigger trip assigned to last month for dashboard visibility.",
+    expenses: [
+      { expenseType: "FLIGHT", description: "[Seed] Long-haul flights", amount: 940, day: 1 },
+      {
+        expenseType: "ACCOMMODATION",
+        description: "[Seed] Shinjuku hotel",
+        amount: 760,
+        day: 3,
+      },
+      { expenseType: "ACTIVITY", description: "[Seed] TeamLab tickets", amount: 55, day: 9 },
+      { expenseType: "FOOD", description: "[Seed] Food budget", amount: 220, day: 12 },
+      { expenseType: "SHOPPING", description: "[Seed] Souvenirs", amount: 95, day: 14 },
+    ],
+  },
+  {
+    name: "[Seed] Cornwall Escape",
+    destination: "Cornwall",
+    assignedMonthOffset: 1,
+    startDay: 12,
+    endDay: 17,
+    description: "Future domestic trip to show forward month assignment.",
+    expenses: [
+      { expenseType: "ACCOMMODATION", description: "[Seed] Cottage deposit", amount: 250, day: 1 },
+      { expenseType: "TRANSPORT", description: "[Seed] Train booking", amount: 84, day: 2 },
+    ],
+  },
+] as const;
+
 function getMonthStart(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
@@ -117,6 +171,20 @@ function subtractDays(date: Date, days: number) {
   return new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - days, 12),
   );
+}
+
+function addMonths(date: Date, months: number) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+}
+
+function createUtcDate(year: number, monthIndex: number, day: number) {
+  return new Date(Date.UTC(year, monthIndex, day, 12));
+}
+
+function formatMonthValue(date: Date) {
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+
+  return `${date.getUTCFullYear()}-${month}`;
 }
 
 async function main() {
@@ -198,6 +266,14 @@ async function main() {
     },
   });
 
+  await prisma.holiday.deleteMany({
+    where: {
+      name: {
+        startsWith: "[Seed]",
+      },
+    },
+  });
+
   for (const transaction of sampleTransactions) {
     const categoryId = categoryIdByName.get(transaction.categoryName);
 
@@ -216,10 +292,48 @@ async function main() {
     });
   }
 
+  for (const holiday of sampleHolidays) {
+    const assignedMonthDate = addMonths(currentMonth, holiday.assignedMonthOffset);
+    const startDate = createUtcDate(
+      assignedMonthDate.getUTCFullYear(),
+      assignedMonthDate.getUTCMonth(),
+      holiday.startDay,
+    );
+    const endDate = createUtcDate(
+      assignedMonthDate.getUTCFullYear(),
+      assignedMonthDate.getUTCMonth(),
+      holiday.endDay,
+    );
+
+    await prisma.holiday.create({
+      data: {
+        name: holiday.name,
+        destination: holiday.destination,
+        assignedMonth: formatMonthValue(assignedMonthDate),
+        startDate,
+        endDate,
+        description: holiday.description,
+        isActive: true,
+        holidayExpenses: {
+          create: holiday.expenses.map((expense) => ({
+            expenseType: expense.expenseType,
+            description: expense.description,
+            amount: expense.amount,
+            expenseDate: createUtcDate(
+              assignedMonthDate.getUTCFullYear(),
+              assignedMonthDate.getUTCMonth(),
+              expense.day,
+            ),
+          })),
+        },
+      },
+    });
+  }
+
   console.log(
     `Seeded ${categories.length} categories, ${
       Object.keys(monthlyBudgets.current).length + Object.keys(monthlyBudgets.previous).length
-    } budgets, and ${sampleTransactions.length} transactions`,
+    } budgets, ${sampleTransactions.length} transactions, and ${sampleHolidays.length} holidays`,
   );
 }
 

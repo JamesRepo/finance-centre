@@ -138,8 +138,10 @@ describe("Unit: Seed script structure", () => {
     expect(seedSource).toContain('description: "[Seed]');
   });
 
-  it("should log the number of seeded categories, budgets, and transactions", () => {
-    expect(seedSource).toContain("budgets, and ${sampleTransactions.length} transactions");
+  it("should log the number of seeded categories, budgets, transactions, and holidays", () => {
+    expect(seedSource).toContain(
+      "budgets, ${sampleTransactions.length} transactions, and ${sampleHolidays.length} holidays",
+    );
   });
 });
 
