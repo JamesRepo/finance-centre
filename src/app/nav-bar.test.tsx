@@ -37,11 +37,12 @@ describe("[Component] NavBar", () => {
     vi.clearAllMocks();
   });
 
-  it("should render all nine navigation links", () => {
+  it("should render all ten navigation links", () => {
     render(<NavBar />);
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/transactions");
+    expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/transactions/summary");
     expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
     expect(screen.getByRole("link", { name: "Debts" })).toHaveAttribute("href", "/debts");
     expect(screen.getByRole("link", { name: "Savings" })).toHaveAttribute("href", "/savings");
@@ -93,6 +94,31 @@ describe("[Component] NavBar", () => {
 
     const transactionsLink = screen.getByRole("link", { name: "Transactions" });
     expect(transactionsLink.className).toContain("border-stone-950");
+
+    const summaryLink = screen.getByRole("link", { name: "Summary" });
+    expect(summaryLink.className).toContain("border-transparent");
+  });
+
+  it("should highlight both Transactions and Summary when on /transactions/summary", () => {
+    mockPathname = "/transactions/summary";
+    render(<NavBar />);
+
+    const transactionsLink = screen.getByRole("link", { name: "Transactions" });
+    const summaryLink = screen.getByRole("link", { name: "Summary" });
+
+    expect(transactionsLink.className).toContain("border-stone-950");
+    expect(summaryLink.className).toContain("border-stone-950");
+  });
+
+  it("should highlight both Transactions and Summary when on a nested summary route", () => {
+    mockPathname = "/transactions/summary/details";
+    render(<NavBar />);
+
+    const transactionsLink = screen.getByRole("link", { name: "Transactions" });
+    const summaryLink = screen.getByRole("link", { name: "Summary" });
+
+    expect(transactionsLink.className).toContain("border-stone-950");
+    expect(summaryLink.className).toContain("border-stone-950");
   });
 
   it("should highlight the Income link when on /income", () => {
@@ -162,9 +188,23 @@ describe("[Component] NavBar", () => {
     const labels = links.map((link) => link.textContent);
 
     const transactionsIdx = labels.indexOf("Transactions");
+    const summaryIdx = labels.indexOf("Summary");
     const budgetsIdx = labels.indexOf("Budgets");
 
+    expect(transactionsIdx).toBeLessThan(summaryIdx);
+    expect(summaryIdx).toBeLessThan(budgetsIdx);
     expect(transactionsIdx).toBeLessThan(budgetsIdx);
+  });
+
+  it("should render Summary as an indented secondary navigation item", () => {
+    render(<NavBar />);
+
+    const summaryLink = screen.getByRole("link", { name: "Summary" });
+
+    expect(summaryLink.className).toContain("ml-4");
+    expect(summaryLink.className).toContain("self-start");
+    expect(summaryLink.className).toContain("text-xs");
+    expect(summaryLink.className).toContain("py-2");
   });
 
   it("should render Tracking group links in correct order", () => {
