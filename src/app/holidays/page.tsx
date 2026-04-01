@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { formatMonthLabel } from "@/lib/months";
 
 const holidayExpenseTypeOptions = [
   { value: "FLIGHT", label: "Flight", colorClass: "bg-sky-500" },
@@ -22,6 +23,7 @@ type HolidaySummary = {
   id: number;
   name: string;
   destination: string;
+  assignedMonth: string;
   startDate: string;
   endDate: string;
   description: string | null;
@@ -58,6 +60,10 @@ type ExpenseFormState = {
   notes: string;
 };
 
+type AssignmentFormState = {
+  assignedMonth: string;
+};
+
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -66,11 +72,15 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
 });
 
 const today = format(new Date(), "yyyy-MM-dd");
+const currentMonth = format(new Date(), "yyyy-MM");
 
 const holidayFormSchema = z
   .object({
     name: z.string().trim().min(1, "Enter a holiday name"),
     destination: z.string().trim().min(1, "Enter a destination"),
+    assignedMonth: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Enter a month in YYYY-MM format"),
     startDate: z.string().min(1, "Enter a start date"),
     endDate: z.string().min(1, "Enter an end date"),
     description: z.string().trim().optional(),
@@ -166,13 +176,16 @@ export default function HolidaysPage() {
   const [holidayDetails, setHolidayDetails] = useState<Record<number, HolidayDetail>>({});
   const [expandedHolidayId, setExpandedHolidayId] = useState<number | null>(null);
   const [expenseDrafts, setExpenseDrafts] = useState<Record<number, ExpenseFormState>>({});
+  const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, AssignmentFormState>>({});
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [expenseErrors, setExpenseErrors] = useState<Record<number, string>>({});
+  const [assignmentErrors, setAssignmentErrors] = useState<Record<number, string>>({});
   const [expandedLoadingId, setExpandedLoadingId] = useState<number | null>(null);
   const [submittingExpenseId, setSubmittingExpenseId] = useState<number | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<number | null>(null);
+  const [savingAssignmentId, setSavingAssignmentId] = useState<number | null>(null);
 
   const {
     register,
@@ -184,6 +197,7 @@ export default function HolidaysPage() {
     defaultValues: {
       name: "",
       destination: "",
+      assignedMonth: currentMonth,
       startDate: today,
       endDate: today,
       description: "",
@@ -210,6 +224,14 @@ export default function HolidaysPage() {
           data.map((holiday) => [
             holiday.id,
             currentDrafts[holiday.id] ?? buildDefaultExpenseFormState(holiday),
+          ]),
+        ),
+      );
+      setAssignmentDrafts((currentDrafts) =>
+        Object.fromEntries(
+          data.map((holiday) => [
+            holiday.id,
+            currentDrafts[holiday.id] ?? { assignedMonth: holiday.assignedMonth },
           ]),
         ),
       );
@@ -275,9 +297,14 @@ export default function HolidaysPage() {
         ...currentDrafts,
         [holiday.id]: buildDefaultExpenseFormState(holiday),
       }));
+      setAssignmentDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [holiday.id]: { assignedMonth: holiday.assignedMonth },
+      }));
       reset({
         name: "",
         destination: "",
+        assignedMonth: currentMonth,
         startDate: today,
         endDate: today,
         description: "",
@@ -323,6 +350,10 @@ export default function HolidaysPage() {
         ...currentDrafts,
         [holidayId]: currentDrafts[holidayId] ?? buildDefaultExpenseFormState(detail),
       }));
+      setAssignmentDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [holidayId]: currentDrafts[holidayId] ?? { assignedMonth: detail.assignedMonth },
+      }));
     } catch (error) {
       setExpenseErrors((currentErrors) => ({
         ...currentErrors,
@@ -348,6 +379,13 @@ export default function HolidaysPage() {
     }));
   }
 
+  function handleAssignmentDraftChange(holidayId: number, assignedMonth: string) {
+    setAssignmentDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [holidayId]: { assignedMonth },
+    }));
+  }
+
   async function refreshHolidayDetail(holidayId: number) {
     const response = await fetch(`/api/holidays/${holidayId}`, {
       cache: "no-store",
@@ -368,6 +406,67 @@ export default function HolidaysPage() {
         holiday.id === holidayId ? toHolidaySummary(detail) : holiday,
       ),
     );
+    setAssignmentDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [holidayId]: { assignedMonth: detail.assignedMonth },
+    }));
+  }
+
+  async function handleSaveAssignment(holidayId: number) {
+    const draft = assignmentDrafts[holidayId];
+
+    if (!draft || !/^\d{4}-(0[1-9]|1[0-2])$/.test(draft.assignedMonth)) {
+      setAssignmentErrors((currentErrors) => ({
+        ...currentErrors,
+        [holidayId]: "Enter a month in YYYY-MM format",
+      }));
+      return;
+    }
+
+    setSavingAssignmentId(holidayId);
+    setAssignmentErrors((currentErrors) => ({
+      ...currentErrors,
+      [holidayId]: "",
+    }));
+
+    try {
+      const response = await fetch(`/api/holidays/${holidayId}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          assignedMonth: draft.assignedMonth,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to update assigned month"));
+      }
+
+      const detail = (await response.json()) as HolidayDetail;
+      setHolidayDetails((currentDetails) => ({
+        ...currentDetails,
+        [holidayId]: detail,
+      }));
+      setHolidays((currentHolidays) =>
+        currentHolidays.map((holiday) =>
+          holiday.id === holidayId ? toHolidaySummary(detail) : holiday,
+        ),
+      );
+      setAssignmentDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [holidayId]: { assignedMonth: detail.assignedMonth },
+      }));
+    } catch (error) {
+      setAssignmentErrors((currentErrors) => ({
+        ...currentErrors,
+        [holidayId]:
+          error instanceof Error ? error.message : "Failed to update assigned month",
+      }));
+    } finally {
+      setSavingAssignmentId(null);
+    }
   }
 
   async function handleAddExpense(holidayId: number) {
@@ -521,6 +620,19 @@ export default function HolidaysPage() {
             </label>
 
             <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Assigned month</span>
+              <input
+                type="month"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                disabled={isSubmitting}
+                {...register("assignedMonth")}
+              />
+              {errors.assignedMonth ? (
+                <p className="text-sm text-red-600">{errors.assignedMonth.message}</p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
               <span className="text-sm font-medium text-stone-700">Start date</span>
               <input
                 type="date"
@@ -605,6 +717,8 @@ export default function HolidaysPage() {
                   const isExpanded = expandedHolidayId === holiday.id;
                   const draft =
                     expenseDrafts[holiday.id] ?? buildDefaultExpenseFormState(holiday);
+                  const assignmentDraft =
+                    assignmentDrafts[holiday.id] ?? { assignedMonth: holiday.assignedMonth };
 
                   return (
                     <article
@@ -638,6 +752,9 @@ export default function HolidaysPage() {
                             </div>
                             <p className="mt-2 text-sm font-medium text-stone-700">
                               {holiday.destination}
+                            </p>
+                            <p className="mt-1 text-sm text-stone-500">
+                              Assigned to {formatMonthLabel(holiday.assignedMonth)}
                             </p>
                             <p className="mt-1 text-sm text-stone-500">
                               {formatDisplayDate(holiday.startDate)} to{" "}
@@ -719,6 +836,48 @@ export default function HolidaysPage() {
                             <p className="text-sm text-stone-500">Loading holiday details...</p>
                           ) : detail ? (
                             <div className="flex flex-col gap-6">
+                              <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                                  <label className="flex flex-1 flex-col gap-2">
+                                    <span className="text-sm font-medium text-stone-700">
+                                      Assigned month
+                                    </span>
+                                    <input
+                                      type="month"
+                                      value={assignmentDraft.assignedMonth}
+                                      onChange={(event) =>
+                                        handleAssignmentDraftChange(
+                                          holiday.id,
+                                          event.target.value,
+                                        )
+                                      }
+                                      className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                      disabled={savingAssignmentId === holiday.id}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleSaveAssignment(holiday.id)}
+                                    className="h-11 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                                    disabled={savingAssignmentId === holiday.id}
+                                  >
+                                    {savingAssignmentId === holiday.id
+                                      ? "Saving..."
+                                      : "Save assigned month"}
+                                  </button>
+                                </div>
+                                {assignmentErrors[holiday.id] ? (
+                                  <p className="mt-3 text-sm text-red-600">
+                                    {assignmentErrors[holiday.id]}
+                                  </p>
+                                ) : (
+                                  <p className="mt-3 text-sm text-stone-500">
+                                    Change this if the holiday should count toward a different
+                                    month dashboard summary.
+                                  </p>
+                                )}
+                              </div>
+
                               <div className="overflow-x-auto">
                                 <table className="min-w-full border-separate border-spacing-0">
                                   <thead>

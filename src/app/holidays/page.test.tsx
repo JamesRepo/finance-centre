@@ -17,6 +17,7 @@ type HolidaySummaryFixture = {
   id: number;
   name: string;
   destination: string;
+  assignedMonth: string;
   startDate: string;
   endDate: string;
   description: string | null;
@@ -59,6 +60,7 @@ function buildHolidaySummary(
     id: 1,
     name: "Japan Spring",
     destination: "Tokyo",
+    assignedMonth: "2099-03",
     startDate: "2099-03-20T00:00:00.000Z",
     endDate: "2099-03-28T00:00:00.000Z",
     description: "Cherry blossom trip",
@@ -164,6 +166,7 @@ describe("[Component] holidays page", () => {
     ]);
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Past")).toBeInTheDocument();
+    expect(screen.getAllByText("Assigned to March 2099")).toHaveLength(2);
   });
 
   it("should render the empty state when no holidays exist", async () => {
@@ -225,6 +228,7 @@ describe("[Component] holidays page", () => {
       totalCost: "0",
       expenseCount: 0,
       expenseBreakdown: [],
+      assignedMonth: "2026-04",
     });
 
     const fetchMock = vi
@@ -243,6 +247,9 @@ describe("[Component] holidays page", () => {
     });
     fireEvent.change(screen.getByLabelText("Destination"), {
       target: { value: " Rome " },
+    });
+    fireEvent.change(screen.getByLabelText("Assigned month"), {
+      target: { value: "2026-04" },
     });
     fireEvent.change(screen.getByLabelText("Start date"), {
       target: { value: "2026-04-10" },
@@ -264,6 +271,7 @@ describe("[Component] holidays page", () => {
       body: JSON.stringify({
         name: "Rome Escape",
         destination: "Rome",
+        assignedMonth: "2026-04",
         startDate: "2026-04-10",
         endDate: "2026-04-15",
         description: "City break",
@@ -271,6 +279,9 @@ describe("[Component] holidays page", () => {
     });
     expect(screen.getByLabelText("Name")).toHaveValue("");
     expect(screen.getByLabelText("Destination")).toHaveValue("");
+    expect(screen.getByLabelText("Assigned month")).toHaveValue(
+      new Date().toISOString().slice(0, 7),
+    );
     expect(screen.getByLabelText("Description")).toHaveValue("");
   });
 
@@ -285,6 +296,7 @@ describe("[Component] holidays page", () => {
       totalCost: "0",
       expenseCount: 0,
       expenseBreakdown: [],
+      assignedMonth: "2026-05",
     });
 
     const fetchMock = vi
@@ -306,6 +318,9 @@ describe("[Component] holidays page", () => {
     fireEvent.change(screen.getByLabelText("Destination"), {
       target: { value: "Athens" },
     });
+    fireEvent.change(screen.getByLabelText("Assigned month"), {
+      target: { value: "2026-05" },
+    });
     fireEvent.change(screen.getByLabelText("Start date"), {
       target: { value: "2026-05-10" },
     });
@@ -321,6 +336,30 @@ describe("[Component] holidays page", () => {
     await waitFor(() => {
       expect(screen.queryByText("Holiday API unavailable")).not.toBeInTheDocument();
     });
+  });
+
+  it("should show a validation error when assigned month is cleared before submit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    await screen.findByText("No holidays have been added yet.");
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Rome Escape" },
+    });
+    fireEvent.change(screen.getByLabelText("Destination"), {
+      target: { value: "Rome" },
+    });
+    fireEvent.change(screen.getByLabelText("Assigned month"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add holiday" }));
+
+    expect(await screen.findByText("Enter a month in YYYY-MM format")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("should load holiday details when a holiday card is expanded", async () => {
@@ -342,6 +381,78 @@ describe("[Component] holidays page", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/holidays/1", {
       cache: "no-store",
     });
+  });
+
+  it("should update the assigned month for an existing holiday when the save succeeds", async () => {
+    const initialDetail = buildHolidayDetail();
+    const updatedDetail = buildHolidayDetail({
+      assignedMonth: "2099-04",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(jsonResponse(updatedDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("2099-03");
+
+    fireEvent.change(within(holidayCard).getByLabelText("Assigned month"), {
+      target: { value: "2099-04" },
+    });
+    fireEvent.click(
+      within(holidayCard).getByRole("button", { name: "Save assigned month" }),
+    );
+
+    await within(holidayCard).findByText("Assigned to April 2099");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/holidays/1", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        assignedMonth: "2099-04",
+      }),
+    });
+  });
+
+  it("should show an error when updating the assigned month for an existing holiday fails", async () => {
+    const initialDetail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(
+        jsonResponse({ error: "Failed to update assigned month" }, 500),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("2099-03");
+
+    fireEvent.change(within(holidayCard).getByLabelText("Assigned month"), {
+      target: { value: "2099-04" },
+    });
+    fireEvent.click(
+      within(holidayCard).getByRole("button", { name: "Save assigned month" }),
+    );
+
+    expect(
+      await within(holidayCard).findByText("Failed to update assigned month"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Assigned to March 2099")).toHaveLength(1);
   });
 
   it("should show an expense validation error when the inline expense form is submitted with missing required fields", async () => {
