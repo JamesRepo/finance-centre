@@ -68,9 +68,6 @@ function getMonthRange(month: string): DateRange {
   };
 }
 
-function getMonthStart(month: string) {
-  return getMonthRange(month).gte;
-}
 
 function getYearRange(year: string): DateRange {
   const parsedYear = Number(year);
@@ -252,6 +249,7 @@ export async function GET(request: NextRequest) {
       period: request.nextUrl.searchParams.get("period") ?? undefined,
       month: request.nextUrl.searchParams.get("month") ?? undefined,
       year: request.nextUrl.searchParams.get("year") ?? undefined,
+      weekOf: request.nextUrl.searchParams.get("weekOf") ?? undefined,
     });
 
     if (query.period === "year") {
@@ -271,8 +269,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (query.period === "week") {
-      const month = query.month ?? getCurrentUtcMonth();
-      const transactionDate = getUtcWeekRangeContaining(getMonthStart(month));
+      const anchorDate = query.weekOf
+        ? (() => {
+            const [y, m, d] = query.weekOf.split("-").map(Number);
+            return new Date(Date.UTC(y, m - 1, d));
+          })()
+        : new Date();
+      const transactionDate = getUtcWeekRangeContaining(anchorDate);
       const [totalSpent, byCategory, byDay] = await Promise.all([
         getRangeTotal(transactionDate),
         getCategorySummary(transactionDate),
@@ -283,6 +286,8 @@ export async function GET(request: NextRequest) {
         totalSpent,
         byCategory,
         byDay,
+        weekStart: formatUtcDate(transactionDate.gte),
+        weekEnd: formatUtcDate(addUtcDays(transactionDate.lt, -1)),
       });
     }
 

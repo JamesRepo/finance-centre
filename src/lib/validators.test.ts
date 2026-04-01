@@ -238,6 +238,36 @@ describe("[Unit] transactionSummaryQuerySchema", () => {
       }),
     ).toThrow("Year must be in YYYY format");
   });
+
+  it("should accept the week period with a valid weekOf date", () => {
+    const result = transactionSummaryQuerySchema.parse({
+      period: "week",
+      weekOf: "2026-04-15",
+    });
+
+    expect(result).toEqual({
+      period: "week",
+      weekOf: "2026-04-15",
+    });
+  });
+
+  it("should reject the query when weekOf is not in YYYY-MM-DD format", () => {
+    expect(() =>
+      transactionSummaryQuerySchema.parse({
+        period: "week",
+        weekOf: "2026-4-5",
+      }),
+    ).toThrow("weekOf must be in YYYY-MM-DD format");
+  });
+
+  it("should reject the query when weekOf is invalid date format", () => {
+    expect(() =>
+      transactionSummaryQuerySchema.parse({
+        period: "week",
+        weekOf: "not-a-date",
+      }),
+    ).toThrow("weekOf must be in YYYY-MM-DD format");
+  });
 });
 
 describe("[Unit] transactionVendorLookupQuerySchema", () => {

@@ -71,6 +71,10 @@ export const transactionSummaryQuerySchema = z.object({
     .string()
     .regex(/^\d{4}$/, "Year must be in YYYY format")
     .optional(),
+  weekOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "weekOf must be in YYYY-MM-DD format")
+    .optional(),
 });
 
 export const transactionVendorLookupQuerySchema = z.object({

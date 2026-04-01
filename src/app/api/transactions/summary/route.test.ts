@@ -281,7 +281,7 @@ describe("[Unit] transactions summary route GET", () => {
     });
   });
 
-  it("should return the week summary for the week containing the selected month start", async () => {
+  it("should return the week summary for the week containing the specified weekOf date using month param", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-15T10:00:00.000Z"));
 
@@ -321,7 +321,7 @@ describe("[Unit] transactions summary route GET", () => {
 
     const response = await GET(
       new NextRequest(
-        "http://localhost/api/transactions/summary?period=week&month=2026-01",
+        "http://localhost/api/transactions/summary?period=week&weekOf=2026-01-01",
       ),
     );
 
@@ -346,6 +346,8 @@ describe("[Unit] transactions summary route GET", () => {
         { date: "2026-01-03", total: "13" },
         { date: "2026-01-04", total: "0" },
       ],
+      weekStart: "2025-12-29",
+      weekEnd: "2026-01-04",
     });
     expect(mockPrisma.transaction.groupBy).toHaveBeenCalledWith({
       by: ["categoryId"],
@@ -369,7 +371,7 @@ describe("[Unit] transactions summary route GET", () => {
     });
   });
 
-  it("should default the week summary to the current month when no month query is provided", async () => {
+  it("should default the week summary to the current date when no weekOf is provided", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-15T10:00:00.000Z"));
 
@@ -409,21 +411,23 @@ describe("[Unit] transactions summary route GET", () => {
       totalSpent: "51.25",
       byCategory: [],
       byDay: [
-        { date: "2026-03-30", total: "2" },
-        { date: "2026-03-31", total: "4" },
-        { date: "2026-04-01", total: "6" },
-        { date: "2026-04-02", total: "8" },
-        { date: "2026-04-03", total: "10.25" },
-        { date: "2026-04-04", total: "9" },
-        { date: "2026-04-05", total: "12" },
+        { date: "2026-04-13", total: "2" },
+        { date: "2026-04-14", total: "4" },
+        { date: "2026-04-15", total: "6" },
+        { date: "2026-04-16", total: "8" },
+        { date: "2026-04-17", total: "10.25" },
+        { date: "2026-04-18", total: "9" },
+        { date: "2026-04-19", total: "12" },
       ],
+      weekStart: "2026-04-13",
+      weekEnd: "2026-04-19",
     });
     expect(mockPrisma.transaction.groupBy).toHaveBeenCalledWith({
       by: ["categoryId"],
       where: {
         transactionDate: {
-          gte: new Date(Date.UTC(2026, 2, 30)),
-          lt: new Date(Date.UTC(2026, 3, 6)),
+          gte: new Date(Date.UTC(2026, 3, 13)),
+          lt: new Date(Date.UTC(2026, 3, 20)),
         },
       },
       _sum: {
@@ -527,6 +531,156 @@ describe("[Unit] transactions summary route GET", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error: "Year must be in YYYY format",
+    });
+    expect(mockPrisma.transaction.aggregate).not.toHaveBeenCalled();
+    expect(mockPrisma.transaction.groupBy).not.toHaveBeenCalled();
+  });
+
+  it("should return the week summary for the week containing the specified weekOf date", async () => {
+    mockPrisma.transaction.aggregate
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("145.50") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("15.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("20.50") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("25.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("30.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("35.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("10.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("10.00") },
+      });
+    mockPrisma.transaction.groupBy.mockResolvedValue([
+      {
+        categoryId: "cat-weekly",
+        _sum: { amount: new Prisma.Decimal("145.50") },
+        _count: { _all: 7 },
+      },
+    ]);
+    mockPrisma.category.findMany.mockResolvedValue([
+      {
+        id: "cat-weekly",
+        name: "Weekly Shopping",
+        colorCode: "#FF5733",
+      },
+    ]);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/transactions/summary?period=week&weekOf=2026-05-20",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toEqual({
+      totalSpent: "145.5",
+      byCategory: [
+        {
+          categoryId: "cat-weekly",
+          categoryName: "Weekly Shopping",
+          colorCode: "#FF5733",
+          total: "145.5",
+          transactionCount: 7,
+        },
+      ],
+      byDay: [
+        { date: "2026-05-18", total: "15" },
+        { date: "2026-05-19", total: "20.5" },
+        { date: "2026-05-20", total: "25" },
+        { date: "2026-05-21", total: "30" },
+        { date: "2026-05-22", total: "35" },
+        { date: "2026-05-23", total: "10" },
+        { date: "2026-05-24", total: "10" },
+      ],
+      weekStart: "2026-05-18",
+      weekEnd: "2026-05-24",
+    });
+    expect(mockPrisma.transaction.groupBy).toHaveBeenCalledWith({
+      by: ["categoryId"],
+      where: {
+        transactionDate: {
+          gte: new Date(Date.UTC(2026, 4, 18)),
+          lt: new Date(Date.UTC(2026, 4, 25)),
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+      _count: {
+        _all: true,
+      },
+      orderBy: {
+        _sum: {
+          amount: "desc",
+        },
+      },
+    });
+  });
+
+  it("should return weekStart and weekEnd in the week summary response", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-25T10:00:00.000Z"));
+
+    mockPrisma.transaction.aggregate
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("50.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("0.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("0.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("0.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("0.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("0.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("0.00") },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal("50.00") },
+      });
+    mockPrisma.transaction.groupBy.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/transactions/summary?period=week"),
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.weekStart).toBe("2026-03-23");
+    expect(json.weekEnd).toBe("2026-03-29");
+  });
+
+  it("should return a 400 error when weekOf has an invalid format", async () => {
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/transactions/summary?period=week&weekOf=2026-4-5",
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "weekOf must be in YYYY-MM-DD format",
     });
     expect(mockPrisma.transaction.aggregate).not.toHaveBeenCalled();
     expect(mockPrisma.transaction.groupBy).not.toHaveBeenCalled();
