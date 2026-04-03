@@ -931,6 +931,7 @@ export default function TransactionsPage() {
                 <span className="text-sm font-medium text-stone-700">Month</span>
                 <input
                   type="month"
+                  autoComplete="off"
                   value={selectedMonth}
                   onChange={(event) => {
                     if (event.target.value) {
@@ -966,6 +967,7 @@ export default function TransactionsPage() {
               <span className="text-xs font-medium text-stone-500">From</span>
               <input
                 type="date"
+                autoComplete="off"
                 value={filterDateFrom}
                 onChange={(e) => setFilterDateFrom(e.target.value)}
                 className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
@@ -976,6 +978,7 @@ export default function TransactionsPage() {
               <span className="text-xs font-medium text-stone-500">To</span>
               <input
                 type="date"
+                autoComplete="off"
                 value={filterDateTo}
                 onChange={(e) => setFilterDateTo(e.target.value)}
                 className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"

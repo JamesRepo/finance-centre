@@ -314,6 +314,7 @@ export default function TransactionSummaryPage() {
                   </button>
                   <input
                     type="month"
+                    autoComplete="off"
                     value={selectedMonth}
                     onChange={(e) => {
                       if (e.target.value) setSelectedMonth(e.target.value);

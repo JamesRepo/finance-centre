@@ -917,6 +917,7 @@ export default function FixedCostsPage() {
                       <span className="text-sm font-medium text-stone-700">Month</span>
                       <input
                         type="month"
+                        autoComplete="off"
                         value={selectedMonth}
                         onChange={(event) => setSelectedMonth(event.target.value)}
                         className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
@@ -1110,6 +1111,7 @@ export default function FixedCostsPage() {
                         <span className="text-sm font-medium text-stone-700">Month</span>
                         <input
                           type="month"
+                          autoComplete="off"
                           value={selectedMonth}
                           onChange={(event) => setSelectedMonth(event.target.value)}
                           className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
@@ -1357,6 +1359,7 @@ export default function FixedCostsPage() {
                         </span>
                         <input
                           type="date"
+                          autoComplete="off"
                           className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
                           disabled={isSubmitting}
                           {...register("paymentDate")}

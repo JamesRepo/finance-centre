@@ -469,6 +469,7 @@ export default function IncomePage() {
                 <span className="text-sm font-medium text-stone-700">Income date</span>
                 <input
                   type="date"
+                  autoComplete="off"
                   className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                   disabled={isSubmitting}
                   {...register("incomeDate")}
