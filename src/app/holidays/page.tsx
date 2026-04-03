@@ -64,6 +64,12 @@ type AssignmentFormState = {
   assignedMonth: string;
 };
 
+type HolidayEditFormState = {
+  name: string;
+  startDate: string;
+  endDate: string;
+};
+
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -84,6 +90,20 @@ const holidayFormSchema = z
     startDate: z.string().min(1, "Enter a start date"),
     endDate: z.string().min(1, "Enter an end date"),
     description: z.string().trim().optional(),
+  })
+  .refine(
+    (value) => new Date(value.endDate).getTime() >= new Date(value.startDate).getTime(),
+    {
+      message: "End date must be on or after start date",
+      path: ["endDate"],
+    },
+  );
+
+const holidayEditFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "Enter a holiday name"),
+    startDate: z.string().min(1, "Enter a start date"),
+    endDate: z.string().min(1, "Enter an end date"),
   })
   .refine(
     (value) => new Date(value.endDate).getTime() >= new Date(value.startDate).getTime(),
@@ -142,6 +162,16 @@ function buildDefaultExpenseFormState(holiday?: Pick<HolidaySummary, "startDate"
   };
 }
 
+function buildHolidayEditFormState(
+  holiday: Pick<HolidaySummary, "name" | "startDate" | "endDate">,
+): HolidayEditFormState {
+  return {
+    name: holiday.name,
+    startDate: holiday.startDate.slice(0, 10),
+    endDate: holiday.endDate.slice(0, 10),
+  };
+}
+
 function toHolidaySummary(holiday: HolidayDetail): HolidaySummary {
   const { holidayExpenses: _holidayExpenses, ...summary } = holiday;
   return summary;
@@ -177,15 +207,18 @@ export default function HolidaysPage() {
   const [expandedHolidayId, setExpandedHolidayId] = useState<number | null>(null);
   const [expenseDrafts, setExpenseDrafts] = useState<Record<number, ExpenseFormState>>({});
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, AssignmentFormState>>({});
+  const [holidayDrafts, setHolidayDrafts] = useState<Record<number, HolidayEditFormState>>({});
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [expenseErrors, setExpenseErrors] = useState<Record<number, string>>({});
   const [assignmentErrors, setAssignmentErrors] = useState<Record<number, string>>({});
+  const [holidayErrors, setHolidayErrors] = useState<Record<number, string>>({});
   const [expandedLoadingId, setExpandedLoadingId] = useState<number | null>(null);
   const [submittingExpenseId, setSubmittingExpenseId] = useState<number | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<number | null>(null);
   const [savingAssignmentId, setSavingAssignmentId] = useState<number | null>(null);
+  const [savingHolidayId, setSavingHolidayId] = useState<number | null>(null);
 
   const {
     register,
@@ -232,6 +265,14 @@ export default function HolidaysPage() {
           data.map((holiday) => [
             holiday.id,
             currentDrafts[holiday.id] ?? { assignedMonth: holiday.assignedMonth },
+          ]),
+        ),
+      );
+      setHolidayDrafts((currentDrafts) =>
+        Object.fromEntries(
+          data.map((holiday) => [
+            holiday.id,
+            currentDrafts[holiday.id] ?? buildHolidayEditFormState(holiday),
           ]),
         ),
       );
@@ -301,6 +342,10 @@ export default function HolidaysPage() {
         ...currentDrafts,
         [holiday.id]: { assignedMonth: holiday.assignedMonth },
       }));
+      setHolidayDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [holiday.id]: buildHolidayEditFormState(holiday),
+      }));
       reset({
         name: "",
         destination: "",
@@ -322,6 +367,10 @@ export default function HolidaysPage() {
 
     setExpandedHolidayId(holidayId);
     setExpenseErrors((currentErrors) => ({
+      ...currentErrors,
+      [holidayId]: "",
+    }));
+    setHolidayErrors((currentErrors) => ({
       ...currentErrors,
       [holidayId]: "",
     }));
@@ -354,6 +403,10 @@ export default function HolidaysPage() {
         ...currentDrafts,
         [holidayId]: currentDrafts[holidayId] ?? { assignedMonth: detail.assignedMonth },
       }));
+      setHolidayDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [holidayId]: currentDrafts[holidayId] ?? buildHolidayEditFormState(detail),
+      }));
     } catch (error) {
       setExpenseErrors((currentErrors) => ({
         ...currentErrors,
@@ -374,6 +427,27 @@ export default function HolidaysPage() {
       ...currentDrafts,
       [holidayId]: {
         ...(currentDrafts[holidayId] ?? buildDefaultExpenseFormState()),
+        [field]: value,
+      },
+    }));
+  }
+
+  function handleHolidayDraftChange(
+    holidayId: number,
+    field: keyof HolidayEditFormState,
+    value: string,
+  ) {
+    setHolidayDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [holidayId]: {
+        ...(currentDrafts[holidayId] ??
+          buildHolidayEditFormState(
+            holidays.find((holiday) => holiday.id === holidayId) ?? {
+              name: "",
+              startDate: today,
+              endDate: today,
+            },
+          )),
         [field]: value,
       },
     }));
@@ -410,6 +484,77 @@ export default function HolidaysPage() {
       ...currentDrafts,
       [holidayId]: { assignedMonth: detail.assignedMonth },
     }));
+    setHolidayDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [holidayId]: buildHolidayEditFormState(detail),
+    }));
+  }
+
+  async function handleSaveHoliday(holidayId: number) {
+    const draft =
+      holidayDrafts[holidayId] ??
+      buildHolidayEditFormState(
+        holidays.find((holiday) => holiday.id === holidayId) ?? {
+          name: "",
+          startDate: today,
+          endDate: today,
+        },
+      );
+    const parsedDraft = holidayEditFormSchema.safeParse(draft);
+
+    if (!parsedDraft.success) {
+      setHolidayErrors((currentErrors) => ({
+        ...currentErrors,
+        [holidayId]: parsedDraft.error.issues[0]?.message ?? "Invalid holiday",
+      }));
+      return;
+    }
+
+    setSavingHolidayId(holidayId);
+    setHolidayErrors((currentErrors) => ({
+      ...currentErrors,
+      [holidayId]: "",
+    }));
+
+    try {
+      const response = await fetch(`/api/holidays/${holidayId}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: parsedDraft.data.name,
+          startDate: parsedDraft.data.startDate,
+          endDate: parsedDraft.data.endDate,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to update holiday"));
+      }
+
+      const detail = (await response.json()) as HolidayDetail;
+      setHolidayDetails((currentDetails) => ({
+        ...currentDetails,
+        [holidayId]: detail,
+      }));
+      setHolidays((currentHolidays) =>
+        currentHolidays.map((holiday) =>
+          holiday.id === holidayId ? toHolidaySummary(detail) : holiday,
+        ),
+      );
+      setHolidayDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [holidayId]: buildHolidayEditFormState(detail),
+      }));
+    } catch (error) {
+      setHolidayErrors((currentErrors) => ({
+        ...currentErrors,
+        [holidayId]: error instanceof Error ? error.message : "Failed to update holiday",
+      }));
+    } finally {
+      setSavingHolidayId(null);
+    }
   }
 
   async function handleSaveAssignment(holidayId: number) {
@@ -623,6 +768,7 @@ export default function HolidaysPage() {
               <span className="text-sm font-medium text-stone-700">Assigned month</span>
               <input
                 type="month"
+                autoComplete="off"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 {...register("assignedMonth")}
@@ -636,6 +782,7 @@ export default function HolidaysPage() {
               <span className="text-sm font-medium text-stone-700">Start date</span>
               <input
                 type="date"
+                autoComplete="off"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 {...register("startDate")}
@@ -649,6 +796,7 @@ export default function HolidaysPage() {
               <span className="text-sm font-medium text-stone-700">End date</span>
               <input
                 type="date"
+                autoComplete="off"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 {...register("endDate")}
@@ -719,6 +867,8 @@ export default function HolidaysPage() {
                     expenseDrafts[holiday.id] ?? buildDefaultExpenseFormState(holiday);
                   const assignmentDraft =
                     assignmentDrafts[holiday.id] ?? { assignedMonth: holiday.assignedMonth };
+                  const holidayDraft =
+                    holidayDrafts[holiday.id] ?? buildHolidayEditFormState(holiday);
 
                   return (
                     <article
@@ -837,6 +987,103 @@ export default function HolidaysPage() {
                           ) : detail ? (
                             <div className="flex flex-col gap-6">
                               <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                                <div className="flex flex-col gap-4">
+                                  <div>
+                                    <h4 className="text-lg font-semibold text-stone-950">
+                                      Holiday details
+                                    </h4>
+                                    <p className="mt-1 text-sm text-stone-500">
+                                      Update the trip name and travel dates without
+                                      recreating the holiday.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    <label className="flex flex-col gap-2 xl:col-span-2">
+                                      <span className="text-sm font-medium text-stone-700">
+                                        Name
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={holidayDraft.name}
+                                        onChange={(event) =>
+                                          handleHolidayDraftChange(
+                                            holiday.id,
+                                            "name",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={savingHolidayId === holiday.id}
+                                      />
+                                    </label>
+
+                                    <label className="flex flex-col gap-2">
+                                      <span className="text-sm font-medium text-stone-700">
+                                        Start date
+                                      </span>
+                                      <input
+                                        type="date"
+                                        autoComplete="off"
+                                        value={holidayDraft.startDate}
+                                        onChange={(event) =>
+                                          handleHolidayDraftChange(
+                                            holiday.id,
+                                            "startDate",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={savingHolidayId === holiday.id}
+                                      />
+                                    </label>
+
+                                    <label className="flex flex-col gap-2">
+                                      <span className="text-sm font-medium text-stone-700">
+                                        End date
+                                      </span>
+                                      <input
+                                        type="date"
+                                        autoComplete="off"
+                                        value={holidayDraft.endDate}
+                                        onChange={(event) =>
+                                          handleHolidayDraftChange(
+                                            holiday.id,
+                                            "endDate",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={savingHolidayId === holiday.id}
+                                      />
+                                    </label>
+
+                                    <div className="flex items-end xl:col-start-4">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleSaveHoliday(holiday.id)}
+                                        className="h-11 w-full rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                                        disabled={savingHolidayId === holiday.id}
+                                      >
+                                        {savingHolidayId === holiday.id
+                                          ? "Saving..."
+                                          : "Save holiday"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                                {holidayErrors[holiday.id] ? (
+                                  <p className="mt-3 text-sm text-red-600">
+                                    {holidayErrors[holiday.id]}
+                                  </p>
+                                ) : (
+                                  <p className="mt-3 text-sm text-stone-500">
+                                    Destination stays as {detail.destination}.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4">
                                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
                                   <label className="flex flex-1 flex-col gap-2">
                                     <span className="text-sm font-medium text-stone-700">
@@ -844,6 +1091,7 @@ export default function HolidaysPage() {
                                     </span>
                                     <input
                                       type="month"
+                                      autoComplete="off"
                                       value={assignmentDraft.assignedMonth}
                                       onChange={(event) =>
                                         handleAssignmentDraftChange(
@@ -1033,6 +1281,7 @@ export default function HolidaysPage() {
                                       </span>
                                       <input
                                         type="date"
+                                        autoComplete="off"
                                         value={draft.expenseDate}
                                         onChange={(event) =>
                                           handleExpenseDraftChange(

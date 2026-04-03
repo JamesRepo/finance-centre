@@ -383,6 +383,163 @@ describe("[Component] holidays page", () => {
     });
   });
 
+  it("should update the holiday name and travel dates when the inline holiday editor is saved", async () => {
+    const initialDetail = buildHolidayDetail();
+    const updatedDetail = buildHolidayDetail({
+      name: "Japan Autumn",
+      startDate: "2099-10-03T00:00:00.000Z",
+      endDate: "2099-10-15T00:00:00.000Z",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(jsonResponse(updatedDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("Japan Spring");
+
+    fireEvent.change(within(holidayCard).getByLabelText("Name"), {
+      target: { value: "Japan Autumn" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Start date"), {
+      target: { value: "2099-10-03" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("End date"), {
+      target: { value: "2099-10-15" },
+    });
+    fireEvent.click(within(holidayCard).getByRole("button", { name: "Save holiday" }));
+
+    await within(holidayCard).findByText("Japan Autumn");
+    expect(within(holidayCard).getByText("3 Oct 2099 to 15 Oct 2099")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/holidays/1", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Japan Autumn",
+        startDate: "2099-10-03",
+        endDate: "2099-10-15",
+      }),
+    });
+  });
+
+  it("should show a validation error when the inline holiday editor is submitted with an end date before the start date", async () => {
+    const initialDetail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("Japan Spring");
+
+    fireEvent.change(within(holidayCard).getByLabelText("Start date"), {
+      target: { value: "2099-03-28" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("End date"), {
+      target: { value: "2099-03-20" },
+    });
+    fireEvent.click(within(holidayCard).getByRole("button", { name: "Save holiday" }));
+
+    expect(
+      await within(holidayCard).findByText("End date must be on or after start date"),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("should show an error when updating the holiday details fails", async () => {
+    const initialDetail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(jsonResponse({ error: "Failed to update holiday" }, 500));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("Japan Spring");
+
+    fireEvent.change(within(holidayCard).getByLabelText("Name"), {
+      target: { value: "Japan Autumn" },
+    });
+    fireEvent.click(within(holidayCard).getByRole("button", { name: "Save holiday" }));
+
+    expect(
+      await within(holidayCard).findByText("Failed to update holiday"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Japan Spring")).toBeInTheDocument();
+  });
+
+  it("should save holiday details when the assigned month draft is invalid", async () => {
+    const initialDetail = buildHolidayDetail();
+    const updatedDetail = buildHolidayDetail({
+      name: "Japan Autumn",
+      startDate: "2099-10-03T00:00:00.000Z",
+      endDate: "2099-10-15T00:00:00.000Z",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(jsonResponse(updatedDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("Japan Spring");
+
+    fireEvent.change(within(holidayCard).getByLabelText("Assigned month"), {
+      target: { value: "" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Name"), {
+      target: { value: "Japan Autumn" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Start date"), {
+      target: { value: "2099-10-03" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("End date"), {
+      target: { value: "2099-10-15" },
+    });
+    fireEvent.click(within(holidayCard).getByRole("button", { name: "Save holiday" }));
+
+    await within(holidayCard).findByText("Japan Autumn");
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/holidays/1", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Japan Autumn",
+        startDate: "2099-10-03",
+        endDate: "2099-10-15",
+      }),
+    });
+    expect(within(holidayCard).queryByText("Enter a month in YYYY-MM format")).not.toBeInTheDocument();
+  });
+
   it("should update the assigned month for an existing holiday when the save succeeds", async () => {
     const initialDetail = buildHolidayDetail();
     const updatedDetail = buildHolidayDetail({
@@ -606,5 +763,50 @@ describe("[Component] holidays page", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/holidays/1", {
       cache: "no-store",
     });
+  });
+
+  it("should have autofill prevention attributes on holiday date and month inputs", async () => {
+    const detail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(detail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    expect(await screen.findByLabelText("Assigned month")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("End date")).toHaveAttribute("autocomplete", "off");
+
+    const holidayButton = screen.getByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByText("Holiday details");
+
+    const holidayDetailsSection = within(holidayCard)
+      .getByText("Holiday details")
+      .closest("div")?.parentElement as HTMLElement;
+    expect(within(holidayDetailsSection).getByLabelText("Start date")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
+    expect(within(holidayDetailsSection).getByLabelText("End date")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
+
+    expect(within(holidayCard).getByLabelText("Assigned month")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
+    expect(within(holidayCard).getByLabelText("Date")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
   });
 });
