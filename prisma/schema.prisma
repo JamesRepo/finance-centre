@@ -21,11 +21,12 @@ enum SavingsPriority {
 }
 
 model Category {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  colorCode String?  @map("color_code")
-  isSystem  Boolean  @default(false) @map("is_system")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                           String   @id @default(cuid())
+  name                         String   @unique
+  colorCode                    String?  @map("color_code")
+  isSystem                     Boolean  @default(false) @map("is_system")
+  showOnDashboardDailySpending Boolean  @default(false) @map("show_on_dashboard_daily_spending")
+  createdAt                    DateTime @default(now()) @map("created_at")
 
   transactions Transaction[]
   budgets      Budget[]

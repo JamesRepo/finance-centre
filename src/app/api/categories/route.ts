@@ -29,6 +29,7 @@ export async function GET() {
       name: category.name,
       colorCode: category.colorCode,
       isSystem: category.isSystem,
+      showOnDashboardDailySpending: category.showOnDashboardDailySpending,
       createdAt: category.createdAt,
       transactionCount: category._count.transactions,
       budgetCount: category._count.budgets,
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: body.name,
         colorCode: body.colorCode ?? null,
+        showOnDashboardDailySpending: body.showOnDashboardDailySpending ?? false,
       },
     });
 

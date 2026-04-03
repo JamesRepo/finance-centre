@@ -17,6 +17,7 @@ const categoryFormSchema = z.object({
     .string()
     .trim()
     .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a valid 6-digit hex code"),
+  showOnDashboardDailySpending: z.boolean(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>;
@@ -35,6 +36,7 @@ type CategoryData = {
   name: string;
   colorCode: string | null;
   isSystem: boolean;
+  showOnDashboardDailySpending: boolean;
   createdAt: string;
   transactionCount: number;
   budgetCount: number;
@@ -98,6 +100,7 @@ export default function SettingsPage() {
     defaultValues: {
       name: "",
       colorCode: "#78716c",
+      showOnDashboardDailySpending: false,
     },
   });
 
@@ -106,6 +109,7 @@ export default function SettingsPage() {
     defaultValues: {
       name: "",
       colorCode: "#78716c",
+      showOnDashboardDailySpending: false,
     },
   });
 
@@ -227,6 +231,7 @@ export default function SettingsPage() {
       createCategoryForm.reset({
         name: "",
         colorCode: "#78716c",
+        showOnDashboardDailySpending: false,
       });
       setCategoryNotice("Category created.");
       await loadCategories();
@@ -246,6 +251,7 @@ export default function SettingsPage() {
     editCategoryForm.reset({
       name: category.name,
       colorCode: getCategoryColorValue(category.colorCode),
+      showOnDashboardDailySpending: category.showOnDashboardDailySpending,
     });
   }
 
@@ -255,6 +261,7 @@ export default function SettingsPage() {
     editCategoryForm.reset({
       name: "",
       colorCode: "#78716c",
+      showOnDashboardDailySpending: false,
     });
   }
 
@@ -282,6 +289,7 @@ export default function SettingsPage() {
       editCategoryForm.reset({
         name: "",
         colorCode: "#78716c",
+        showOnDashboardDailySpending: false,
       });
       setCategoryNotice("Category updated.");
       await loadCategories();
@@ -436,8 +444,9 @@ export default function SettingsPage() {
               Categories
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-              Add, rename, recolor, and remove spending categories. Categories linked to
-              transactions or budgets cannot be deleted.
+              Add, rename, recolor, choose whether categories appear in dashboard daily
+              spending, and remove spending categories. Categories linked to transactions
+              or budgets cannot be deleted.
             </p>
           </div>
 
@@ -462,7 +471,7 @@ export default function SettingsPage() {
 
             <form
               onSubmit={createCategoryForm.handleSubmit(onCreateCategory)}
-              className="grid gap-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4 md:grid-cols-[minmax(0,1fr)_160px_auto]"
+              className="grid gap-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4 md:grid-cols-[minmax(0,1fr)_160px_minmax(0,1fr)_auto]"
             >
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-stone-700">Category name</span>
@@ -491,6 +500,15 @@ export default function SettingsPage() {
                     {createCategoryForm.formState.errors.colorCode.message}
                   </p>
                 ) : null}
+              </label>
+
+              <label className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-stone-700">
+                <input
+                  type="checkbox"
+                  {...createCategoryForm.register("showOnDashboardDailySpending")}
+                  className="h-4 w-4 rounded border-stone-300 text-stone-950 focus:ring-stone-400"
+                />
+                <span>Show in Dashboard daily spending</span>
               </label>
 
               <div className="flex items-end">
@@ -525,7 +543,7 @@ export default function SettingsPage() {
                       {isEditing ? (
                         <form
                           onSubmit={editCategoryForm.handleSubmit(onUpdateCategory)}
-                          className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px_auto]"
+                          className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px_minmax(0,1fr)_auto]"
                         >
                           <label className="flex flex-col gap-2">
                             <span className="text-sm font-medium text-stone-700">
@@ -555,6 +573,15 @@ export default function SettingsPage() {
                                 {editCategoryForm.formState.errors.colorCode.message}
                               </p>
                             ) : null}
+                          </label>
+
+                          <label className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-stone-700">
+                            <input
+                              type="checkbox"
+                              {...editCategoryForm.register("showOnDashboardDailySpending")}
+                              className="h-4 w-4 rounded border-stone-300 text-stone-950 focus:ring-stone-400"
+                            />
+                            <span>Show in Dashboard daily spending</span>
                           </label>
 
                           <div className="flex items-end gap-3">
@@ -595,6 +622,11 @@ export default function SettingsPage() {
                                     Seeded
                                   </span>
                                 ) : null}
+                                <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
+                                  {category.showOnDashboardDailySpending
+                                    ? "Daily spending"
+                                    : "Hidden from dashboard"}
+                                </span>
                               </div>
                               <p className="text-xs text-stone-500">
                                 {formatUsageLabel(category)}

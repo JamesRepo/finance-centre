@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
             name: category.name,
             colorCode: category.colorCode,
             isSystem: category.isSystem,
+            showOnDashboardDailySpending: category.showOnDashboardDailySpending,
             createdAt: category.createdAt,
           },
           spent:

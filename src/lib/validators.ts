@@ -107,6 +107,7 @@ export const categoryCreateSchema = z.object({
     emptyStringToUndefined,
     hexColorSchema.optional(),
   ),
+  showOnDashboardDailySpending: z.boolean().optional(),
 });
 
 export const categoryUpdateSchema = z
@@ -119,6 +120,7 @@ export const categoryUpdateSchema = z
 
       return emptyStringToUndefined(value);
     }, hexColorSchema.nullable().optional()),
+    showOnDashboardDailySpending: z.boolean().optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     message: "At least one field is required",

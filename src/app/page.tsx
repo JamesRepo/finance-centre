@@ -22,6 +22,7 @@ type BudgetCategory = {
   id: string;
   name: string;
   colorCode: string | null;
+  showOnDashboardDailySpending: boolean;
 };
 
 type BudgetEntry = {
@@ -92,23 +93,6 @@ type HolidayEntry = {
   totalCost: string;
   monthlyCost: string;
 };
-
-const dailyCategoryNames = [
-  "Groceries",
-  "Eating Out",
-  "Transport",
-  "Entertainment",
-  "Shopping",
-  "Health",
-  "Personal Care",
-  "Education",
-  "Gifts",
-  "General",
-] as const;
-
-const dailyCategoryOrder: ReadonlyMap<string, number> = new Map(
-  dailyCategoryNames.map((name, index) => [name, index]),
-);
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -403,12 +387,8 @@ export default function Home() {
   const dailyChartData = useMemo(() => {
     return buildBudgetChartEntries(
       entries
-        .filter((entry) => dailyCategoryOrder.has(entry.category.name))
-        .sort(
-          (left, right) =>
-            (dailyCategoryOrder.get(left.category.name) ?? Number.POSITIVE_INFINITY) -
-            (dailyCategoryOrder.get(right.category.name) ?? Number.POSITIVE_INFINITY),
-        ),
+        .filter((entry) => entry.category.showOnDashboardDailySpending)
+        .sort((left, right) => left.category.name.localeCompare(right.category.name)),
     );
   }, [entries]);
 
@@ -421,6 +401,14 @@ export default function Home() {
       spent,
       remaining: budget - spent,
     };
+  }, [dailyChartData]);
+
+  const dailyCategoryLabel = useMemo(() => {
+    if (dailyChartData.length === 0) {
+      return "Choose categories in Settings to include them here.";
+    }
+
+    return dailyChartData.map((entry) => entry.name).join(", ");
   }, [dailyChartData]);
 
   const totalHousing = useMemo(
@@ -725,9 +713,7 @@ export default function Home() {
 
               <article className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-5 py-5">
                 <p className="text-sm font-medium text-stone-500">Included categories</p>
-                <p className="mt-2 text-sm leading-6 text-stone-700">
-                  {dailyCategoryNames.join(", ")}
-                </p>
+                <p className="mt-2 text-sm leading-6 text-stone-700">{dailyCategoryLabel}</p>
               </article>
             </aside>
           </div>

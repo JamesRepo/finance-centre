@@ -10,15 +10,19 @@ const adapter = new PrismaPg(
 const prisma = new PrismaClient({ adapter });
 
 const categories = [
-  { name: "Groceries", colorCode: "#22c55e" },
-  { name: "Eating Out", colorCode: "#f59e0b" },
-  { name: "Transport", colorCode: "#3b82f6" },
-  { name: "Fun / Exercise", colorCode: "#a855f7" },
-  { name: "Shopping", colorCode: "#ec4899" },
-  { name: "Personal Care", colorCode: "#14b8a6" },
-  { name: "Pub / Going Out", colorCode: "#64748b" },
-  { name: "Clothes", colorCode: "#f97316" },
-  { name: "Personal Development / Tech", colorCode: "#6366f1" },
+  { name: "Groceries", colorCode: "#22c55e", showOnDashboardDailySpending: true },
+  { name: "Eating Out", colorCode: "#f59e0b", showOnDashboardDailySpending: true },
+  { name: "Transport", colorCode: "#3b82f6", showOnDashboardDailySpending: true },
+  { name: "Fun / Exercise", colorCode: "#a855f7", showOnDashboardDailySpending: false },
+  { name: "Shopping", colorCode: "#ec4899", showOnDashboardDailySpending: true },
+  { name: "Personal Care", colorCode: "#14b8a6", showOnDashboardDailySpending: true },
+  { name: "Pub / Going Out", colorCode: "#64748b", showOnDashboardDailySpending: false },
+  { name: "Clothes", colorCode: "#f97316", showOnDashboardDailySpending: false },
+  {
+    name: "Personal Development / Tech",
+    colorCode: "#6366f1",
+    showOnDashboardDailySpending: false,
+  },
 ];
 
 const monthlyBudgets = {
@@ -364,7 +368,11 @@ async function main() {
   for (const category of categories) {
     await prisma.category.upsert({
       where: { name: category.name },
-      update: {},
+      update: {
+        colorCode: category.colorCode,
+        isSystem: true,
+        showOnDashboardDailySpending: category.showOnDashboardDailySpending,
+      },
       create: {
         ...category,
         isSystem: true,

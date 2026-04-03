@@ -40,6 +40,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       data: {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.colorCode !== undefined ? { colorCode: body.colorCode } : {}),
+        ...(body.showOnDashboardDailySpending !== undefined
+          ? {
+              showOnDashboardDailySpending: body.showOnDashboardDailySpending,
+            }
+          : {}),
       },
     });
 
