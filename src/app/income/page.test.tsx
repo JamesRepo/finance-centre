@@ -539,6 +539,27 @@ describe("[Component] income page", () => {
     expect(await screen.findByText("No income entries yet.")).toBeInTheDocument();
   });
 
+  it("should disable autofill on the income date input", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/income") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IncomePage />);
+
+    expect(await screen.findByLabelText("Income date")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
+  });
+
   it("should show a load error when the income request fails", async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve(jsonResponse({ error: "Income API unavailable" }, 500)),

@@ -210,6 +210,37 @@ describe("[Component] fixed costs page", () => {
     });
   });
 
+  it("should disable autofill on fixed-cost date and month inputs", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/housing")) {
+        return Promise.resolve(jsonResponse([buildHousingExpense()]));
+      }
+
+      if (url.startsWith("/api/subscriptions")) {
+        return Promise.resolve(
+          jsonResponse(buildSubscriptionSummary("2026-03", [buildSubscription()])),
+        );
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FixedCostsPage />);
+
+    const monthInputs = await screen.findAllByLabelText("Month");
+    expect(monthInputs[0]).toHaveAttribute("autocomplete", "off");
+
+    fireEvent.click(screen.getByRole("button", { name: "Subscriptions" }));
+
+    const subscriptionMonthInput = screen.getByDisplayValue("2026-03");
+    expect(subscriptionMonthInput).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("Payment date")).toHaveAttribute("autocomplete", "off");
+  });
+
   it("should save a housing amount on blur when an amount is edited inline", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

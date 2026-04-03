@@ -330,6 +330,15 @@ describe("[Component] dashboard page", () => {
     expect(screen.getByText("Monthly Summary")).toBeInTheDocument();
   });
 
+  it("should disable autofill on the dashboard month picker", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(await screen.findByLabelText("Month")).toHaveAttribute("autocomplete", "off");
+  });
+
   it("should filter the chart to daily categories and calculate daily totals when fixed-cost categories are present", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);

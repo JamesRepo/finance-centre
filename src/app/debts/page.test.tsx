@@ -169,6 +169,28 @@ describe("[Component] debts page", () => {
     expect(screen.queryByText("Oldest hidden payment")).not.toBeInTheDocument();
   });
 
+  it("should disable autofill on debt date inputs", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    expect(await screen.findByLabelText("Start date")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("Target payoff date")).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add payment" }));
+    expect(await screen.findByLabelText("Date")).toHaveAttribute("autocomplete", "off");
+  });
+
   it("should show inactive debts when the toggle is enabled", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

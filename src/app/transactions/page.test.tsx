@@ -1451,6 +1451,15 @@ describe("[Component] transactions page — autofill prevention", () => {
     expect(editDateInput).toHaveAttribute("autocomplete", "off");
     expect(editDateInput).toHaveAttribute("data-form-type", "other");
   });
+
+  it("should disable autofill on the month and date filter inputs", async () => {
+    stubFetch(defaultCategories, [singleTransaction]);
+    render(<TransactionsPage />);
+
+    expect(await screen.findByLabelText("Month")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("From")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("To")).toHaveAttribute("autocomplete", "off");
+  });
 });
 
 describe("[Component] transactions page — month change resets date filters", () => {

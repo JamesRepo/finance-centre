@@ -63,6 +63,21 @@ describe("[Component] budgets page", () => {
     });
   });
 
+  it("should disable autofill on the budgets month picker", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(initialBudgetsResponse), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BudgetsPage />);
+
+    expect(await screen.findByLabelText("Month")).toHaveAttribute("autocomplete", "off");
+  });
+
   it("should auto-save a changed budget on blur when the value is valid", async () => {
     const fetchMock = vi
       .fn()

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 import TransactionSummaryPage from "@/app/transactions/summary/page";
 
@@ -53,6 +53,21 @@ describe("[Component] transaction summary page — static rendering", () => {
     expect(screen.getByRole("button", { name: "Monthly" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yearly" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weekly" })).toBeInTheDocument();
+  });
+
+  it("should disable autofill on the month picker for monthly summaries", () => {
+    const fetchMock = vi.fn().mockImplementation(() => {
+      return new Promise(() => {});
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<TransactionSummaryPage />);
+
+    expect(container.querySelector('input[type="month"]')).toHaveAttribute(
+      "autocomplete",
+      "off",
+    );
   });
 
   it("should render a back link to transactions page", () => {

@@ -93,6 +93,19 @@ describe("[Component] savings page", () => {
     expect(screen.getByText("Holiday")).toBeInTheDocument();
   });
 
+  it("should disable autofill on savings date inputs", async () => {
+    const goal = buildGoal();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([goal]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SavingsPage />);
+
+    expect(await screen.findByLabelText("Target date")).toHaveAttribute("autocomplete", "off");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add contribution" }));
+    expect(await screen.findByLabelText("Date")).toHaveAttribute("autocomplete", "off");
+  });
+
   it("should display the empty state when no goals exist", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
     vi.stubGlobal("fetch", fetchMock);
