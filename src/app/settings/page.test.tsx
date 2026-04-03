@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "@/app/settings/page";
@@ -26,6 +26,7 @@ const defaultCategoriesData = [
     name: "Groceries",
     colorCode: "#22c55e",
     isSystem: true,
+    showOnDashboardDailySpending: true,
     createdAt: "2026-03-01T00:00:00.000Z",
     transactionCount: 2,
     budgetCount: 1,
@@ -35,6 +36,7 @@ const defaultCategoriesData = [
     name: "Utilities",
     colorCode: "#334455",
     isSystem: false,
+    showOnDashboardDailySpending: false,
     createdAt: "2026-03-02T00:00:00.000Z",
     transactionCount: 0,
     budgetCount: 0,
@@ -131,6 +133,7 @@ function createFetchMock(options: MockOptions = {}) {
         name: String(body.name),
         colorCode: body.colorCode === null ? null : String(body.colorCode),
         isSystem: false,
+        showOnDashboardDailySpending: Boolean(body.showOnDashboardDailySpending),
         createdAt: "2026-03-15T00:00:00.000Z",
         transactionCount: 0,
         budgetCount: 0,
@@ -165,6 +168,10 @@ function createFetchMock(options: MockOptions = {}) {
                   : body.colorCode === null
                     ? null
                     : String(body.colorCode),
+              showOnDashboardDailySpending:
+                body.showOnDashboardDailySpending === undefined
+                  ? category.showOnDashboardDailySpending
+                  : Boolean(body.showOnDashboardDailySpending),
             }
           : category,
       );
@@ -225,6 +232,11 @@ describe("[Component] settings page", () => {
     expect(screen.getByText("2 transactions • 1 budget")).toBeInTheDocument();
     expect(screen.getByText("Unused")).toBeInTheDocument();
     expect(screen.getByText("Seeded")).toBeInTheDocument();
+    expect(screen.getByText("Daily spending")).toBeInTheDocument();
+    expect(screen.getByText("Hidden from dashboard")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Show in Dashboard daily spending" }),
+    ).not.toBeChecked();
   });
 
   it("should keep default settings and show a category error when category loading fails", async () => {
@@ -329,7 +341,41 @@ describe("[Component] settings page", () => {
     expect(JSON.parse(postCall![1]!.body as string)).toEqual({
       name: "Insurance",
       colorCode: "#78716c",
+      showOnDashboardDailySpending: false,
     });
+  });
+
+  it("should include the dashboard daily spending flag when creating a selected category", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock({
+      initialCategories: [],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SettingsPage />);
+
+    await waitForPageToLoad();
+    await user.type(screen.getByPlaceholderText("New category"), "Snacks");
+    await user.click(
+      screen.getByRole("checkbox", { name: "Show in Dashboard daily spending" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Add category" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Category created.")).toBeInTheDocument();
+    });
+
+    const postCall = fetchMock.mock.calls.find(
+      (call) => call[0] === "/api/categories" && call[1]?.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    expect(JSON.parse(postCall![1]!.body as string)).toEqual({
+      name: "Snacks",
+      colorCode: "#78716c",
+      showOnDashboardDailySpending: true,
+    });
+    expect(screen.getByText("Snacks")).toBeInTheDocument();
+    expect(screen.getByText("Daily spending")).toBeInTheDocument();
   });
 
   it("should show a category error when creating a category fails", async () => {
@@ -384,7 +430,42 @@ describe("[Component] settings page", () => {
     expect(JSON.parse(putCall![1]!.body as string)).toEqual({
       name: "Bills",
       colorCode: "#334455",
+      showOnDashboardDailySpending: false,
     });
+  });
+
+  it("should update the dashboard daily spending flag when an edited category is toggled on", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SettingsPage />);
+
+    await waitForPageToLoad();
+    await user.click(screen.getAllByRole("button", { name: "Edit" })[1]);
+    const editForm = screen.getByRole("button", { name: "Save" }).closest("form");
+    expect(editForm).not.toBeNull();
+    await user.click(
+      within(editForm as HTMLElement).getByRole("checkbox", {
+        name: "Show in Dashboard daily spending",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Category updated.")).toBeInTheDocument();
+    });
+
+    const putCall = fetchMock.mock.calls.find(
+      (call) => call[0] === "/api/categories/category-2" && call[1]?.method === "PUT",
+    );
+    expect(putCall).toBeDefined();
+    expect(JSON.parse(putCall![1]!.body as string)).toEqual({
+      name: "Utilities",
+      colorCode: "#334455",
+      showOnDashboardDailySpending: true,
+    });
+    expect(screen.getAllByText("Daily spending").length).toBeGreaterThan(0);
   });
 
   it("should delete an unused category when the delete action succeeds", async () => {

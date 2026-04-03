@@ -5,15 +5,19 @@ import path from "path";
 // ─── Seed data (mirrored from seed.ts since it doesn't export) ──────────────
 
 const expectedCategories = [
-  { name: "Groceries", colorCode: "#22c55e" },
-  { name: "Eating Out", colorCode: "#f59e0b" },
-  { name: "Transport", colorCode: "#3b82f6" },
-  { name: "Fun / Exercise", colorCode: "#a855f7" },
-  { name: "Shopping", colorCode: "#ec4899" },
-  { name: "Personal Care", colorCode: "#14b8a6" },
-  { name: "Pub / Going Out", colorCode: "#64748b" },
-  { name: "Clothes", colorCode: "#f97316" },
-  { name: "Personal Development / Tech", colorCode: "#6366f1" },
+  { name: "Groceries", colorCode: "#22c55e", showOnDashboardDailySpending: true },
+  { name: "Eating Out", colorCode: "#f59e0b", showOnDashboardDailySpending: true },
+  { name: "Transport", colorCode: "#3b82f6", showOnDashboardDailySpending: true },
+  { name: "Fun / Exercise", colorCode: "#a855f7", showOnDashboardDailySpending: false },
+  { name: "Shopping", colorCode: "#ec4899", showOnDashboardDailySpending: true },
+  { name: "Personal Care", colorCode: "#14b8a6", showOnDashboardDailySpending: true },
+  { name: "Pub / Going Out", colorCode: "#64748b", showOnDashboardDailySpending: false },
+  { name: "Clothes", colorCode: "#f97316", showOnDashboardDailySpending: false },
+  {
+    name: "Personal Development / Tech",
+    colorCode: "#6366f1",
+    showOnDashboardDailySpending: false,
+  },
 ];
 
 // ─── Parse seed.ts source to extract its actual data ─────────────────────────
@@ -33,11 +37,20 @@ function extractCategoriesFromSource(source: string) {
   );
   if (!match) throw new Error("Could not find categories array in seed.ts");
 
-  const entries: { name: string; colorCode: string }[] = [];
-  const entryRegex = /\{\s*name:\s*"([^"]+)",\s*colorCode:\s*"([^"]+)"\s*\}/g;
+  const entries: Array<{
+    name: string;
+    colorCode: string;
+    showOnDashboardDailySpending: boolean;
+  }> = [];
+  const entryRegex =
+    /\{\s*name:\s*"([^"]+)",\s*colorCode:\s*"([^"]+)",\s*showOnDashboardDailySpending:\s*(true|false),?\s*\}/g;
   let m: RegExpExecArray | null;
   while ((m = entryRegex.exec(match[1])) !== null) {
-    entries.push({ name: m[1], colorCode: m[2] });
+    entries.push({
+      name: m[1],
+      colorCode: m[2],
+      showOnDashboardDailySpending: m[3] === "true",
+    });
   }
   return entries;
 }
@@ -59,6 +72,13 @@ describe("Unit: Seed categories data", () => {
   it("should match the expected color codes in order", () => {
     const colors = parsedCategories.map((c) => c.colorCode);
     expect(colors).toEqual(expectedCategories.map((c) => c.colorCode));
+  });
+
+  it("should match the expected dashboard visibility flags in order", () => {
+    const visibility = parsedCategories.map((c) => c.showOnDashboardDailySpending);
+    expect(visibility).toEqual(
+      expectedCategories.map((c) => c.showOnDashboardDailySpending),
+    );
   });
 
   it("should have unique category names", () => {
@@ -108,8 +128,12 @@ describe("Unit: Seed script structure", () => {
     expect(seedSource).toContain("isSystem: true");
   });
 
-  it("should not update existing categories (empty update)", () => {
-    expect(seedSource).toContain("update: {}");
+  it("should update existing categories with the latest defaults", () => {
+    expect(seedSource).toContain("update: {");
+    expect(seedSource).toContain("colorCode: category.colorCode");
+    expect(seedSource).toContain(
+      "showOnDashboardDailySpending: category.showOnDashboardDailySpending",
+    );
   });
 
   it("should disconnect prisma and close pool in finally block", () => {

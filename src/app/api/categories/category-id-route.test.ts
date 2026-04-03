@@ -35,6 +35,7 @@ describe("[Unit] category item route PUT", () => {
       id: "category-1",
       name: "Groceries",
       colorCode: "#22c55e",
+      showOnDashboardDailySpending: false,
       _count: {
         transactions: 2,
         budgets: 1,
@@ -45,6 +46,7 @@ describe("[Unit] category item route PUT", () => {
       name: "Food",
       colorCode: "#334455",
       isSystem: false,
+      showOnDashboardDailySpending: true,
       createdAt: new Date("2026-03-01T00:00:00.000Z"),
     });
 
@@ -54,6 +56,7 @@ describe("[Unit] category item route PUT", () => {
         body: JSON.stringify({
           name: " Food ",
           colorCode: "#334455",
+          showOnDashboardDailySpending: true,
         }),
         headers: {
           "content-type": "application/json",
@@ -81,6 +84,7 @@ describe("[Unit] category item route PUT", () => {
       data: {
         name: "Food",
         colorCode: "#334455",
+        showOnDashboardDailySpending: true,
       },
     });
     expect(await response.json()).toEqual({
@@ -88,6 +92,7 @@ describe("[Unit] category item route PUT", () => {
       name: "Food",
       colorCode: "#334455",
       isSystem: false,
+      showOnDashboardDailySpending: true,
       createdAt: "2026-03-01T00:00:00.000Z",
       transactionCount: 2,
       budgetCount: 1,

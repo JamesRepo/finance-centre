@@ -36,6 +36,7 @@ describe("[Unit] categories collection route GET", () => {
         name: "Eating Out",
         colorCode: "#f59e0b",
         isSystem: false,
+        showOnDashboardDailySpending: true,
         createdAt: new Date("2026-03-01T00:00:00.000Z"),
         _count: {
           transactions: 3,
@@ -67,6 +68,7 @@ describe("[Unit] categories collection route GET", () => {
         name: "Eating Out",
         colorCode: "#f59e0b",
         isSystem: false,
+        showOnDashboardDailySpending: true,
         createdAt: "2026-03-01T00:00:00.000Z",
         transactionCount: 3,
         budgetCount: 1,
@@ -86,6 +88,7 @@ describe("[Unit] categories collection route POST", () => {
       name: "Utilities",
       colorCode: "#123456",
       isSystem: false,
+      showOnDashboardDailySpending: true,
       createdAt: new Date("2026-03-02T00:00:00.000Z"),
     });
 
@@ -95,6 +98,7 @@ describe("[Unit] categories collection route POST", () => {
         body: JSON.stringify({
           name: " Utilities ",
           colorCode: "#123456",
+          showOnDashboardDailySpending: true,
         }),
         headers: {
           "content-type": "application/json",
@@ -107,6 +111,7 @@ describe("[Unit] categories collection route POST", () => {
       data: {
         name: "Utilities",
         colorCode: "#123456",
+        showOnDashboardDailySpending: true,
       },
     });
     expect(await response.json()).toEqual({
@@ -114,6 +119,7 @@ describe("[Unit] categories collection route POST", () => {
       name: "Utilities",
       colorCode: "#123456",
       isSystem: false,
+      showOnDashboardDailySpending: true,
       createdAt: "2026-03-02T00:00:00.000Z",
       transactionCount: 0,
       budgetCount: 0,
@@ -126,6 +132,7 @@ describe("[Unit] categories collection route POST", () => {
       name: "Bills",
       colorCode: null,
       isSystem: false,
+      showOnDashboardDailySpending: false,
       createdAt: new Date("2026-03-03T00:00:00.000Z"),
     });
 
@@ -147,6 +154,7 @@ describe("[Unit] categories collection route POST", () => {
       data: {
         name: "Bills",
         colorCode: null,
+        showOnDashboardDailySpending: false,
       },
     });
   });

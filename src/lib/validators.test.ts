@@ -387,6 +387,20 @@ describe("[Unit] categoryCreateSchema", () => {
     });
   });
 
+  it("should accept the dashboard daily spending flag when it is provided", () => {
+    const result = categoryCreateSchema.parse({
+      name: "Utilities",
+      colorCode: "#123456",
+      showOnDashboardDailySpending: true,
+    });
+
+    expect(result).toEqual({
+      name: "Utilities",
+      colorCode: "#123456",
+      showOnDashboardDailySpending: true,
+    });
+  });
+
   it("should reject the payload when the color is not a valid 6-digit hex code", () => {
     expect(() =>
       categoryCreateSchema.parse({
@@ -407,6 +421,16 @@ describe("[Unit] categoryUpdateSchema", () => {
     expect(result).toEqual({
       name: "Food",
       colorCode: null,
+    });
+  });
+
+  it("should accept the dashboard daily spending flag on its own when it is the only update", () => {
+    const result = categoryUpdateSchema.parse({
+      showOnDashboardDailySpending: false,
+    });
+
+    expect(result).toEqual({
+      showOnDashboardDailySpending: false,
     });
   });
 

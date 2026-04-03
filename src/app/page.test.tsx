@@ -78,6 +78,7 @@ const budgetsResponse = [
       id: "category-1",
       name: "Groceries",
       colorCode: "#22c55e",
+      showOnDashboardDailySpending: true,
     },
   },
   {
@@ -88,6 +89,7 @@ const budgetsResponse = [
       id: "category-2",
       name: "Transport",
       colorCode: "#3b82f6",
+      showOnDashboardDailySpending: true,
     },
   },
   {
@@ -98,6 +100,7 @@ const budgetsResponse = [
       id: "category-3",
       name: "Rent",
       colorCode: "#a855f7",
+      showOnDashboardDailySpending: false,
     },
   },
 ];
@@ -307,7 +310,7 @@ describe("[Component] dashboard page", () => {
 
     render(<Home />);
 
-    expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
+    expect((await screen.findAllByText("Groceries, Transport")).length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledWith("/api/budgets?month=2026-03", {
       cache: "no-store",
     });
@@ -333,7 +336,7 @@ describe("[Component] dashboard page", () => {
 
     render(<Home />);
 
-    expect(await screen.findByText("Groceries, Transport")).toBeInTheDocument();
+    expect((await screen.findAllByText("Groceries, Transport")).length).toBeGreaterThan(0);
 
     const chartData = JSON.parse(
       screen.getByTestId("bar-chart-data").textContent ?? "[]",
@@ -347,13 +350,71 @@ describe("[Component] dashboard page", () => {
     expect(within(dailySection as HTMLElement).getByText("Remaining £336.55")).toBeInTheDocument();
   });
 
+  it("should sort configured daily categories alphabetically and reflect the selected names in the summary card", async () => {
+    const fetchMock = createFetchMock({
+      budgets: [
+        {
+          categoryId: "category-2",
+          amount: "200",
+          spent: "50",
+          category: {
+            id: "category-2",
+            name: "Transport",
+            colorCode: "#3b82f6",
+            showOnDashboardDailySpending: true,
+          },
+        },
+        {
+          categoryId: "category-1",
+          amount: "500",
+          spent: "123.45",
+          category: {
+            id: "category-1",
+            name: "Groceries",
+            colorCode: "#22c55e",
+            showOnDashboardDailySpending: true,
+          },
+        },
+        {
+          categoryId: "category-4",
+          amount: "120",
+          spent: "60",
+          category: {
+            id: "category-4",
+            name: "Eating Out",
+            colorCode: "#f59e0b",
+            showOnDashboardDailySpending: true,
+          },
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(
+      (await screen.findAllByText("Eating Out, Groceries, Transport")).length,
+    ).toBeGreaterThan(0);
+
+    const chartData = JSON.parse(
+      screen.getByTestId("bar-chart-data").textContent ?? "[]",
+    ) as Array<{ name: string }>;
+
+    expect(chartData.map((entry) => entry.name)).toEqual([
+      "Eating Out",
+      "Groceries",
+      "Transport",
+    ]);
+    expect(screen.getAllByText("Eating Out, Groceries, Transport")).toHaveLength(2);
+  });
+
   it("should use theme tokens for chart axis and tooltip colors when the daily chart renders", async () => {
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
 
-    await screen.findByText("Groceries, Transport");
+    expect((await screen.findAllByText("Groceries, Transport")).length).toBeGreaterThan(0);
 
     expect(screen.getByTestId("x-axis-tick")).toHaveTextContent(
       JSON.stringify({ fill: "var(--chart-axis-muted)", fontSize: 12 }),
@@ -471,6 +532,7 @@ describe("[Component] dashboard page", () => {
             id: "category-9",
             name: "Rent",
             colorCode: null,
+            showOnDashboardDailySpending: false,
           },
         },
       ],
@@ -481,6 +543,9 @@ describe("[Component] dashboard page", () => {
 
     expect(
       await screen.findByText("No daily spending categories found for this month."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Choose categories in Settings to include them here."),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
   });
@@ -504,7 +569,7 @@ describe("[Component] dashboard page", () => {
 
     render(<Home />);
 
-    await screen.findByText("Groceries, Transport");
+    expect((await screen.findAllByText("Groceries, Transport")).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Previous" }));
 
     await waitFor(() => {

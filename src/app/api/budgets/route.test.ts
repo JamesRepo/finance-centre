@@ -36,6 +36,7 @@ describe("[Unit] budgets route GET", () => {
         name: "Groceries",
         colorCode: "#22c55e",
         isSystem: true,
+        showOnDashboardDailySpending: true,
         createdAt: new Date("2026-03-01T12:00:00.000Z"),
         budgets: [
           {
@@ -52,6 +53,7 @@ describe("[Unit] budgets route GET", () => {
         name: "Transport",
         colorCode: "#3b82f6",
         isSystem: true,
+        showOnDashboardDailySpending: false,
         createdAt: new Date("2026-03-01T12:00:00.000Z"),
         budgets: [],
       },
@@ -107,6 +109,7 @@ describe("[Unit] budgets route GET", () => {
       category: {
         id: "category-1",
         name: "Groceries",
+        showOnDashboardDailySpending: true,
       },
     });
     expect(body[1]).toMatchObject({
@@ -114,6 +117,9 @@ describe("[Unit] budgets route GET", () => {
       categoryId: "category-2",
       amount: "0",
       spent: "0",
+      category: {
+        showOnDashboardDailySpending: false,
+      },
     });
   });
 
