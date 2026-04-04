@@ -70,7 +70,7 @@ describe("[Component] debts page", () => {
     vi.unstubAllGlobals();
   });
 
-  it("should fetch debts and render the summary using active balances when the page loads", async () => {
+  it("should fetch debts and render the summary using active balances while keeping payment history collapsed by default", async () => {
     const debts = [
       buildDebt({
         debtPayments: [
@@ -165,8 +165,79 @@ describe("[Component] debts page", () => {
     expect(screen.getByText("£300.00")).toBeInTheDocument();
     expect(screen.getByText("Active debts")).toBeInTheDocument();
     expect(screen.queryByText("Archived Student Loan")).not.toBeInTheDocument();
-    expect(screen.getByText("Latest payment")).toBeInTheDocument();
+    expect(screen.getByText("Show payments (6)")).toBeInTheDocument();
+    expect(screen.getByText("Payment history hidden.")).toBeInTheDocument();
+    expect(screen.queryByText("Latest payment")).not.toBeInTheDocument();
     expect(screen.queryByText("Oldest hidden payment")).not.toBeInTheDocument();
+  });
+
+  it("should show and hide the full payment history when the toggle is used", async () => {
+    const debts = [
+      buildDebt({
+        debtPayments: [
+          {
+            id: 15,
+            debtId: 1,
+            amount: "20",
+            interestAmount: "2",
+            paymentDate: "2026-03-11T00:00:00.000Z",
+            note: "Latest payment",
+            createdAt: "2026-03-11T00:00:00.000Z",
+          },
+          {
+            id: 10,
+            debtId: 1,
+            amount: "11",
+            interestAmount: "1",
+            paymentDate: "2026-03-06T00:00:00.000Z",
+            note: "Oldest hidden payment",
+            createdAt: "2026-03-06T00:00:00.000Z",
+          },
+        ],
+      }),
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(debts), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText("Visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show payments (2)" }));
+
+    expect(screen.getByText("Latest payment")).toBeInTheDocument();
+    expect(screen.getByText("Oldest hidden payment")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide payments" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide payments" }));
+
+    expect(screen.getByText("Payment history hidden.")).toBeInTheDocument();
+    expect(screen.queryByText("Latest payment")).not.toBeInTheDocument();
+  });
+
+  it("should not render the payment history toggle when a debt has no payments", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText("Visa");
+
+    expect(screen.queryByRole("button", { name: /Show payments/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No payments recorded yet.")).toBeInTheDocument();
   });
 
   it("should disable autofill on debt date inputs", async () => {
@@ -716,6 +787,7 @@ describe("[Component] debts page", () => {
 
     expect(await screen.findByText("March payment")).toBeInTheDocument();
     expect(screen.getByText("Interest £15.00 · Principal £60.00")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide payments" })).toBeInTheDocument();
     expect(screen.getAllByText("£725.00")).toHaveLength(2);
   });
 
@@ -783,6 +855,11 @@ describe("[Component] debts page", () => {
     const debtCard = await screen.findByText("Visa");
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Delete",
       }),
     );
@@ -830,6 +907,11 @@ describe("[Component] debts page", () => {
     const debtCard = await screen.findByText("Visa");
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Edit",
       }),
     );
@@ -867,6 +949,11 @@ describe("[Component] debts page", () => {
     render(<DebtsPage />);
 
     const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Edit",
@@ -939,6 +1026,11 @@ describe("[Component] debts page", () => {
     render(<DebtsPage />);
 
     const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Edit",
@@ -1039,6 +1131,11 @@ describe("[Component] debts page", () => {
     const debtCard = await screen.findByText("Visa");
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Edit",
       }),
     );
@@ -1102,6 +1199,11 @@ describe("[Component] debts page", () => {
     const debtCard = await screen.findByText("Visa");
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Edit",
       }),
     );
@@ -1154,6 +1256,11 @@ describe("[Component] debts page", () => {
     const debtCard = await screen.findByText("Visa");
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Edit",
       }),
     );
@@ -1199,6 +1306,11 @@ describe("[Component] debts page", () => {
     render(<DebtsPage />);
 
     const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Show payments (1)",
+      }),
+    );
     fireEvent.click(
       within(debtCard.closest("article") as HTMLElement).getByRole("button", {
         name: "Delete",
