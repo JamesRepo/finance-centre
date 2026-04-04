@@ -342,9 +342,10 @@ describe("[Unit] debt item route DELETE", () => {
     vi.clearAllMocks();
   });
 
-  it("should delete a debt when the debt exists", async () => {
+  it("should delete a debt when the debt exists and is inactive", async () => {
     mockPrisma.debt.findUnique.mockResolvedValue({
       id: 1,
+      isActive: false,
     });
 
     const response = await DELETE(new NextRequest("http://localhost/api/debts/1"), {
@@ -380,6 +381,23 @@ describe("[Unit] debt item route DELETE", () => {
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({
       error: "Debt not found",
+    });
+    expect(mockPrisma.debt.delete).not.toHaveBeenCalled();
+  });
+
+  it("should return a 400 error when the debt is active", async () => {
+    mockPrisma.debt.findUnique.mockResolvedValue({
+      id: 1,
+      isActive: true,
+    });
+
+    const response = await DELETE(new NextRequest("http://localhost/api/debts/1"), {
+      params: Promise.resolve({ id: "1" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Only inactive debts can be deleted",
     });
     expect(mockPrisma.debt.delete).not.toHaveBeenCalled();
   });

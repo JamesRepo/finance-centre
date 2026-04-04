@@ -181,14 +181,82 @@ describe("[Component] debts page", () => {
 
     render(<DebtsPage />);
 
-    expect(await screen.findByLabelText("Start date")).toHaveAttribute("autocomplete", "off");
+    expect(await screen.findByLabelText("Name")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("Name")).toHaveAttribute("data-1p-ignore", "true");
+    expect(screen.getByLabelText("Name")).toHaveAttribute("data-lpignore", "true");
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("data-1p-ignore", "true");
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("data-lpignore", "true");
     expect(screen.getByLabelText("Target payoff date")).toHaveAttribute(
       "autocomplete",
       "off",
     );
+    expect(screen.getByLabelText("Target payoff date")).toHaveAttribute(
+      "data-1p-ignore",
+      "true",
+    );
+    expect(screen.getByLabelText("Target payoff date")).toHaveAttribute(
+      "data-lpignore",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Add payment" }));
     expect(await screen.findByLabelText("Date")).toHaveAttribute("autocomplete", "off");
+  });
+
+  it("should show a pre-populated debt edit form when Edit details is clicked", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit details",
+      }),
+    );
+
+    expect(screen.getByDisplayValue("Visa")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("1000")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("19.99")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("35")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2026-01-01")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2026-12-31")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Main card")).toBeInTheDocument();
+    expect(screen.getByLabelText("Active debt")).toBeChecked();
+  });
+
+  it("should disable autofill on debt edit name and date inputs when editing details", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit details",
+      }),
+    );
+
+    expect(screen.getByDisplayValue("Visa")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByDisplayValue("Visa")).toHaveAttribute("data-1p-ignore", "true");
+    expect(screen.getByDisplayValue("Visa")).toHaveAttribute("data-lpignore", "true");
+    expect(screen.getByDisplayValue("2026-01-01")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByDisplayValue("2026-12-31")).toHaveAttribute("autocomplete", "off");
   });
 
   it("should show inactive debts when the toggle is enabled", async () => {
@@ -360,6 +428,179 @@ describe("[Component] debts page", () => {
 
     expect(await screen.findByText("Barclaycard")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("");
+  });
+
+  it("should update a debt and reload the list when the debt edit form is submitted", async () => {
+    const updatedDebt = buildDebt({
+      name: "Visa Platinum",
+      debtType: "OTHER",
+      originalBalance: "1250",
+      interestRate: "17.49",
+      minimumPayment: null,
+      startDate: null,
+      targetPayoffDate: null,
+      isActive: false,
+      notes: null,
+      totalPaid: "250",
+      totalInterestPaid: "25",
+      principalPaid: "225",
+      currentBalance: "1025",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([buildDebt()]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 1 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([updatedDebt]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    const debtArticle = debtCard.closest("article") as HTMLElement;
+    fireEvent.click(
+      within(debtArticle).getByRole("button", {
+        name: "Edit details",
+      }),
+    );
+
+    fireEvent.change(within(debtArticle).getByDisplayValue("Visa"), {
+      target: { value: " Visa Platinum " },
+    });
+    fireEvent.change(within(debtArticle).getByLabelText("Debt type"), {
+      target: { value: "OTHER" },
+    });
+    fireEvent.change(within(debtArticle).getByDisplayValue("1000"), {
+      target: { value: "1250" },
+    });
+    fireEvent.change(within(debtArticle).getByDisplayValue("19.99"), {
+      target: { value: "17.49" },
+    });
+    fireEvent.change(within(debtArticle).getByDisplayValue("35"), {
+      target: { value: "" },
+    });
+    fireEvent.change(within(debtArticle).getByDisplayValue("2026-01-01"), {
+      target: { value: "" },
+    });
+    fireEvent.change(within(debtArticle).getByDisplayValue("2026-12-31"), {
+      target: { value: "" },
+    });
+    fireEvent.change(within(debtArticle).getByDisplayValue("Main card"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(within(debtArticle).getByLabelText("Active debt"));
+
+    fireEvent.click(within(debtArticle).getByRole("button", { name: "Save debt" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/debts/1", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Visa Platinum",
+          debtType: "OTHER",
+          originalBalance: 1250,
+          interestRate: 17.49,
+          minimumPayment: null,
+          startDate: null,
+          targetPayoffDate: null,
+          isActive: false,
+          notes: null,
+        }),
+      });
+    });
+
+    expect(
+      await screen.findByText(
+        "No active debts found. Toggle inactive debts to view archived accounts.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Show inactive debts"));
+    expect(await screen.findByText("Visa Platinum")).toBeInTheDocument();
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Save debt" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("should show a validation error when the debt edit form is submitted without a name", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit details",
+      }),
+    );
+
+    fireEvent.change(screen.getByDisplayValue("Visa"), {
+      target: { value: "   " },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save debt" }));
+
+    expect(await screen.findByText("Enter a debt name")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("should show the debt edit error and keep the form open when updating a debt fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([buildDebt()]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Debt update failed" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    const debtCard = await screen.findByText("Visa");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Edit details",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save debt" }));
+
+    expect(await screen.findByText("Debt update failed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save debt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel edit" })).toBeInTheDocument();
   });
 
   it("should surface the API error when creating a debt fails", async () => {
@@ -965,6 +1206,208 @@ describe("[Component] debts page", () => {
     );
 
     expect(await screen.findByText("Delete failed")).toBeInTheDocument();
+  });
+
+  it("should only show the delete debt action for inactive debts when archived debts are visible", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          buildDebt(),
+          buildDebt({
+            id: 2,
+            name: "Archived Loan",
+            isActive: false,
+            currentBalance: "0",
+            totalPaid: "1000",
+            totalInterestPaid: "0",
+            principalPaid: "1000",
+            originalBalance: "1000",
+          }),
+        ]),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText("Visa");
+    fireEvent.click(screen.getByLabelText("Show inactive debts"));
+
+    const activeCard = screen.getByText("Visa").closest("article") as HTMLElement;
+    const inactiveCard = screen.getByText("Archived Loan").closest("article") as HTMLElement;
+
+    expect(
+      within(activeCard).queryByRole("button", { name: "Delete debt" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(inactiveCard).getByRole("button", { name: "Delete debt" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should delete an inactive debt and reload the list when the delete action succeeds", async () => {
+    const confirmMock = vi.fn().mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            buildDebt({
+              id: 2,
+              name: "Archived Loan",
+              isActive: false,
+              currentBalance: "0",
+              totalPaid: "1000",
+              totalInterestPaid: "0",
+              principalPaid: "1000",
+              originalBalance: "1000",
+            }),
+          ]),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("confirm", confirmMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText(
+      "No active debts found. Toggle inactive debts to view archived accounts.",
+    );
+    fireEvent.click(screen.getByLabelText("Show inactive debts"));
+
+    const debtCard = await screen.findByText("Archived Loan");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Delete debt",
+      }),
+    );
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      "Delete Archived Loan? This will permanently remove the debt and all of its recorded payments.",
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/debts/2", {
+        method: "DELETE",
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Archived Loan")).not.toBeInTheDocument();
+    });
+  });
+
+  it("should not delete an inactive debt when the confirmation is cancelled", async () => {
+    const confirmMock = vi.fn().mockReturnValue(false);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          buildDebt({
+            id: 2,
+            name: "Archived Loan",
+            isActive: false,
+            currentBalance: "0",
+            totalPaid: "1000",
+            totalInterestPaid: "0",
+            principalPaid: "1000",
+            originalBalance: "1000",
+          }),
+        ]),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("confirm", confirmMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText(
+      "No active debts found. Toggle inactive debts to view archived accounts.",
+    );
+    fireEvent.click(screen.getByLabelText("Show inactive debts"));
+
+    const debtCard = await screen.findByText("Archived Loan");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Delete debt",
+      }),
+    );
+
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("should show the page error when deleting an inactive debt fails", async () => {
+    const confirmMock = vi.fn().mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            buildDebt({
+              id: 2,
+              name: "Archived Loan",
+              isActive: false,
+              currentBalance: "0",
+              totalPaid: "1000",
+              totalInterestPaid: "0",
+              principalPaid: "1000",
+              originalBalance: "1000",
+            }),
+          ]),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Inactive debt delete failed" }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("confirm", confirmMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText(
+      "No active debts found. Toggle inactive debts to view archived accounts.",
+    );
+    fireEvent.click(screen.getByLabelText("Show inactive debts"));
+
+    const debtCard = await screen.findByText("Archived Loan");
+    fireEvent.click(
+      within(debtCard.closest("article") as HTMLElement).getByRole("button", {
+        name: "Delete debt",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Inactive debt delete failed"),
+    ).toBeInTheDocument();
   });
 
   it("should show an error message when the initial debts request fails", async () => {
