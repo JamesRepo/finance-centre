@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { formatMonthLabel } from "@/lib/months";
+import { formatMonthLabel, shiftMonthValue } from "@/lib/months";
 
 const holidayExpenseTypeOptions = [
   { value: "FLIGHT", label: "Flight", colorClass: "bg-sky-500" },
@@ -224,6 +224,8 @@ export default function HolidaysPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<HolidayFormValues, undefined, HolidayFormSubmitValues>({
     resolver: zodResolver(holidayFormSchema),
@@ -236,6 +238,7 @@ export default function HolidaysPage() {
       description: "",
     },
   });
+  const createAssignedMonth = watch("assignedMonth");
 
   async function loadHolidays() {
     setLoading(true);
@@ -764,19 +767,55 @@ export default function HolidaysPage() {
               ) : null}
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-stone-700">Assigned month</span>
-              <input
-                type="month"
-                autoComplete="off"
-                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                disabled={isSubmitting}
-                {...register("assignedMonth")}
-              />
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="holiday-assigned-month"
+                className="text-sm font-medium text-stone-700"
+              >
+                Assigned month
+              </label>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setValue(
+                      "assignedMonth",
+                      shiftMonthValue(createAssignedMonth, -1),
+                      { shouldDirty: true, shouldValidate: true },
+                    )
+                  }
+                  className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium transition hover:border-stone-950 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                  disabled={isSubmitting}
+                >
+                  Previous
+                </button>
+                <input
+                  id="holiday-assigned-month"
+                  type="month"
+                  autoComplete="off"
+                  className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                  disabled={isSubmitting}
+                  {...register("assignedMonth")}
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setValue(
+                      "assignedMonth",
+                      shiftMonthValue(createAssignedMonth, 1),
+                      { shouldDirty: true, shouldValidate: true },
+                    )
+                  }
+                  className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium transition hover:border-stone-950 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                  disabled={isSubmitting}
+                >
+                  Next
+                </button>
+              </div>
               {errors.assignedMonth ? (
                 <p className="text-sm text-red-600">{errors.assignedMonth.message}</p>
               ) : null}
-            </label>
+            </div>
 
             <label className="flex flex-col gap-2">
               <span className="text-sm font-medium text-stone-700">Start date</span>
@@ -1085,24 +1124,56 @@ export default function HolidaysPage() {
 
                               <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4">
                                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                                  <label className="flex flex-1 flex-col gap-2">
-                                    <span className="text-sm font-medium text-stone-700">
+                                  <div className="flex flex-1 flex-col gap-2">
+                                    <label
+                                      htmlFor={`assignment-month-${holiday.id}`}
+                                      className="text-sm font-medium text-stone-700"
+                                    >
                                       Assigned month
-                                    </span>
-                                    <input
-                                      type="month"
-                                      autoComplete="off"
-                                      value={assignmentDraft.assignedMonth}
-                                      onChange={(event) =>
-                                        handleAssignmentDraftChange(
-                                          holiday.id,
-                                          event.target.value,
-                                        )
-                                      }
-                                      className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                                      disabled={savingAssignmentId === holiday.id}
-                                    />
-                                  </label>
+                                    </label>
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleAssignmentDraftChange(
+                                            holiday.id,
+                                            shiftMonthValue(assignmentDraft.assignedMonth, -1),
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium transition hover:border-stone-950 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                                        disabled={savingAssignmentId === holiday.id}
+                                      >
+                                        Previous
+                                      </button>
+                                      <input
+                                        id={`assignment-month-${holiday.id}`}
+                                        type="month"
+                                        autoComplete="off"
+                                        value={assignmentDraft.assignedMonth}
+                                        onChange={(event) =>
+                                          handleAssignmentDraftChange(
+                                            holiday.id,
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={savingAssignmentId === holiday.id}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleAssignmentDraftChange(
+                                            holiday.id,
+                                            shiftMonthValue(assignmentDraft.assignedMonth, 1),
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium transition hover:border-stone-950 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                                        disabled={savingAssignmentId === holiday.id}
+                                      >
+                                        Next
+                                      </button>
+                                    </div>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => void handleSaveAssignment(holiday.id)}

@@ -1,8 +1,24 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import HolidaysPage from "@/app/holidays/page";
+
+vi.mock("@/lib/months", () => ({
+  formatMonthLabel: (month: string) => {
+    const [year, monthNumber] = month.split("-").map(Number);
+    return new Intl.DateTimeFormat("en-GB", {
+      month: "long",
+      year: "numeric",
+    }).format(new Date(year, monthNumber - 1, 1));
+  },
+  shiftMonthValue: (month: string, delta: number) => {
+    const [year, monthNumber] = month.split("-").map(Number);
+    const shiftedDate = new Date(year, monthNumber - 1 + delta, 1);
+
+    return `${shiftedDate.getFullYear()}-${String(shiftedDate.getMonth() + 1).padStart(2, "0")}`;
+  },
+}));
 
 type HolidayExpenseType =
   | "FLIGHT"
@@ -362,6 +378,27 @@ describe("[Component] holidays page", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("should move the create form assigned month to the next month when Next is clicked", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const assignedMonthInput = await screen.findByLabelText("Assigned month");
+    const originalMonth = assignedMonthInput.getAttribute("value") ?? assignedMonthInput.value;
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    });
+
+    const [year, monthNumber] = originalMonth.split("-").map(Number);
+    const nextDate = new Date(year, monthNumber, 1);
+    const expectedMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+
+    expect(screen.getByLabelText("Assigned month")).toHaveValue(expectedMonth);
+  });
+
   it("should load holiday details when a holiday card is expanded", async () => {
     const detail = buildHolidayDetail();
     const fetchMock = vi
@@ -578,6 +615,28 @@ describe("[Component] holidays page", () => {
         assignedMonth: "2099-04",
       }),
     });
+  });
+
+  it("should move an expanded holiday assignment draft to the previous month when Previous is clicked", async () => {
+    const initialDetail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByDisplayValue("2099-03");
+
+    fireEvent.click(within(holidayCard).getByRole("button", { name: "Previous" }));
+
+    expect(within(holidayCard).getByLabelText("Assigned month")).toHaveValue("2099-02");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("should show an error when updating the assigned month for an existing holiday fails", async () => {

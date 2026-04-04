@@ -10,6 +10,7 @@ import {
   getCurrentMonthValue,
   shiftMonthValue,
 } from "@/lib/months";
+import { MonthSelector } from "../month-selector";
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -135,6 +136,18 @@ async function readApiError(response: Response, fallback: string) {
   } catch {
     return fallback;
   }
+}
+
+function shouldClearHousingAmount(value: string) {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  const amount = Number(normalizedValue);
+
+  return Number.isFinite(amount) && amount === 0;
 }
 
 async function fetchSubscriptionSummary(month: string) {
@@ -472,11 +485,86 @@ export default function FixedCostsPage() {
     amount: string,
     frequency: Frequency,
   ) {
-    const normalizedAmount = formatInputAmount(amount);
     const existingExpense =
       housingExpenses.find((expense) => expense.expenseType === expenseType) ?? null;
     const originalValue = existingExpense ? formatInputAmount(existingExpense.amount) : "";
     const originalFrequency = existingExpense?.frequency ?? "MONTHLY";
+    const normalizedAmount = formatInputAmount(amount);
+
+    if (shouldClearHousingAmount(amount)) {
+      if (!existingExpense) {
+        setHousingDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [expenseType]: "",
+        }));
+        setHousingSaveStates((currentStates) => ({
+          ...currentStates,
+          [expenseType]: "idle",
+        }));
+        setHousingMessages((currentMessages) => ({
+          ...currentMessages,
+          [expenseType]: "",
+        }));
+        return;
+      }
+
+      setHousingSaveStates((currentStates) => ({
+        ...currentStates,
+        [expenseType]: "saving",
+      }));
+      setHousingMessages((currentMessages) => ({
+        ...currentMessages,
+        [expenseType]: "Clearing...",
+      }));
+
+      try {
+        const response = await fetch(`/api/housing/${existingExpense.id}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            await readApiError(response, "Failed to clear housing expense"),
+          );
+        }
+
+        setHousingExpenses((currentExpenses) =>
+          currentExpenses.filter((expense) => expense.id !== existingExpense.id),
+        );
+        setHousingDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [expenseType]: "",
+        }));
+        setHousingSaveStates((currentStates) => ({
+          ...currentStates,
+          [expenseType]: "saved",
+        }));
+        setHousingMessages((currentMessages) => ({
+          ...currentMessages,
+          [expenseType]: "Cleared",
+        }));
+      } catch (error) {
+        setHousingFrequencyDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [expenseType]: originalFrequency,
+        }));
+        setHousingDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [expenseType]: originalValue,
+        }));
+        setHousingSaveStates((currentStates) => ({
+          ...currentStates,
+          [expenseType]: "error",
+        }));
+        setHousingMessages((currentMessages) => ({
+          ...currentMessages,
+          [expenseType]:
+            error instanceof Error ? error.message : "Failed to clear housing expense",
+        }));
+      }
+
+      return;
+    }
 
     if (!normalizedAmount) {
       setHousingDrafts((currentDrafts) => ({
@@ -489,7 +577,7 @@ export default function FixedCostsPage() {
       }));
       setHousingMessages((currentMessages) => ({
         ...currentMessages,
-        [expenseType]: "Enter an amount greater than 0",
+        [expenseType]: "Enter a valid amount",
       }));
       return;
     }
@@ -913,16 +1001,11 @@ export default function FixedCostsPage() {
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <label className="flex w-full flex-col gap-2 sm:w-52">
-                      <span className="text-sm font-medium text-stone-700">Month</span>
-                      <input
-                        type="month"
-                        autoComplete="off"
-                        value={selectedMonth}
-                        onChange={(event) => setSelectedMonth(event.target.value)}
-                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                      />
-                    </label>
+                    <MonthSelector
+                      value={selectedMonth}
+                      onChange={setSelectedMonth}
+                      className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                    />
                     <button
                       type="button"
                       onClick={() => void handleCopyPreviousMonth()}
@@ -983,7 +1066,7 @@ export default function FixedCostsPage() {
                               {isEditing ? (
                                 <input
                                   type="number"
-                                  min="0.01"
+                                  min="0"
                                   step="0.01"
                                   inputMode="decimal"
                                   value={draftValue}
@@ -1107,16 +1190,11 @@ export default function FixedCostsPage() {
                     </div>
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                      <label className="flex w-full flex-col gap-2 sm:w-52">
-                        <span className="text-sm font-medium text-stone-700">Month</span>
-                        <input
-                          type="month"
-                          autoComplete="off"
-                          value={selectedMonth}
-                          onChange={(event) => setSelectedMonth(event.target.value)}
-                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                        />
-                      </label>
+                      <MonthSelector
+                        value={selectedMonth}
+                        onChange={setSelectedMonth}
+                        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                      />
                       <button
                         type="button"
                         onClick={() =>

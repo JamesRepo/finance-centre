@@ -305,6 +305,149 @@ describe("[Component] fixed costs page", () => {
     expect(screen.getByRole("button", { name: "£1,300.00" })).toBeInTheDocument();
   });
 
+  it("should clear a stored housing expense when the amount is changed to zero", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/housing?month=2026-03") {
+        return Promise.resolve(jsonResponse([buildHousingExpense()]));
+      }
+
+      if (url === "/api/housing?month=2026-02") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
+      }
+
+      if (url === "/api/housing/1" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FixedCostsPage />);
+
+    const amountButton = await screen.findByRole("button", { name: "£1,200.00" });
+
+    fireEvent.click(amountButton);
+
+    const amountInput = screen.getByDisplayValue("1200.00");
+    fireEvent.change(amountInput, { target: { value: "0" } });
+    fireEvent.blur(amountInput);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/housing/1", {
+        method: "DELETE",
+      });
+    });
+
+    expect(await screen.findByText("Cleared")).toBeInTheDocument();
+    const rentRow = screen.getByText("Rent").closest("div")?.parentElement;
+    expect(rentRow).not.toBeNull();
+    expect(
+      within(rentRow as HTMLElement).getByRole("button", { name: "Click to add amount" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should restore the original housing amount and avoid deleting when the field is cleared", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/housing?month=2026-03") {
+        return Promise.resolve(jsonResponse([buildHousingExpense()]));
+      }
+
+      if (url === "/api/housing?month=2026-02") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/subscriptions?month=2026-03") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FixedCostsPage />);
+
+    const amountButton = await screen.findByRole("button", { name: "£1,200.00" });
+
+    fireEvent.click(amountButton);
+
+    const amountInput = screen.getByDisplayValue("1200.00");
+    fireEvent.change(amountInput, { target: { value: "" } });
+    fireEvent.blur(amountInput);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "£1,200.00" })).toBeInTheDocument();
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url) === "/api/housing/1" &&
+          (init as RequestInit | undefined)?.method === "DELETE",
+      ),
+    ).toBe(false);
+  });
+
+  it("should load the next month in housing when Next is clicked", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-04") {
+        return Promise.resolve(jsonResponse([buildHousingExpense()]));
+      }
+
+      if (url === "/api/housing?month=2026-02") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/subscriptions?month=2026-03" || url === "/api/subscriptions?month=2026-04") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
+      }
+
+      if (url === "/api/subscriptions?month=2026-02") {
+        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FixedCostsPage />);
+
+    await screen.findByText("Housing expenses");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-04", {
+        cache: "no-store",
+      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions?month=2026-04", {
+        cache: "no-store",
+      });
+    });
+
+    expect(screen.getAllByText("April 2026").length).toBeGreaterThan(0);
+  });
+
   it("should copy only missing housing values from the previous month", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
