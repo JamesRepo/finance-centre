@@ -261,6 +261,7 @@ function DebtCard({
   const [editDebtSubmitError, setEditDebtSubmitError] = useState<string | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
+  const [showPayments, setShowPayments] = useState(false);
   const {
     register: registerDebtEdit,
     handleSubmit: handleDebtEditSubmit,
@@ -306,7 +307,7 @@ function DebtCard({
   const progressRatio =
     originalBalance > 0 ? Math.min(principalPaid / originalBalance, 1) : 0;
   const recentPayments = useMemo(
-    () => sortPayments(debt.debtPayments).slice(0, 5),
+    () => sortPayments(debt.debtPayments),
     [debt.debtPayments],
   );
 
@@ -320,6 +321,7 @@ function DebtCard({
       return;
     }
 
+    setShowPayments(true);
     reset({
       amount: undefined,
       interestAmount: undefined,
@@ -379,6 +381,7 @@ function DebtCard({
 
   function startEditingPayment(payment: DebtPayment) {
     setEditSubmitError(null);
+    setShowPayments(true);
     setEditingPaymentId(payment.id);
     resetEdit({
       amount: Number(payment.amount),
@@ -827,21 +830,36 @@ function DebtCard({
 
         <div>
           <div className="flex items-center justify-between gap-3">
-            <h3
-              className={
-                debt.isActive
-                  ? "text-lg font-semibold text-stone-950"
-                  : "text-lg font-semibold text-stone-700"
-              }
-            >
-              Recent payments
-            </h3>
-            <p className="text-sm text-stone-500">Last 5</p>
+            <div>
+              <h3
+                className={
+                  debt.isActive
+                    ? "text-lg font-semibold text-stone-950"
+                    : "text-lg font-semibold text-stone-700"
+                }
+              >
+                Payment history
+              </h3>
+              <p className="text-sm text-stone-500">Full history</p>
+            </div>
+            {recentPayments.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowPayments((current) => !current)}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100"
+              >
+                {showPayments ? "Hide payments" : `Show payments (${recentPayments.length})`}
+              </button>
+            ) : null}
           </div>
 
           {recentPayments.length === 0 ? (
             <p className="mt-4 rounded-2xl border border-dashed border-stone-300 px-4 py-4 text-sm">
               No payments recorded yet.
+            </p>
+          ) : !showPayments ? (
+            <p className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-500">
+              Payment history hidden.
             </p>
           ) : (
             <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-white">
