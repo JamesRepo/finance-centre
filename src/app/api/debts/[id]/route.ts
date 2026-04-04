@@ -138,6 +138,10 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return jsonError("Debt not found", 404);
   }
 
+  if (existingDebt.isActive) {
+    return jsonError("Only inactive debts can be deleted", 400);
+  }
+
   await prisma.debt.delete({
     where: { id: debtId },
   });

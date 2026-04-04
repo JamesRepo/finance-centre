@@ -8,6 +8,11 @@ import { z } from "zod";
 
 const today = new Date();
 const defaultDate = format(today, "yyyy-MM-dd");
+const autofillGuardProps = {
+  autoComplete: "off",
+  "data-1p-ignore": "true",
+  "data-lpignore": "true",
+} as const;
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -65,6 +70,10 @@ const debtFormSchema = z.object({
   startDate: optionalTrimmedString,
   targetPayoffDate: optionalTrimmedString,
   notes: optionalTrimmedString,
+});
+
+const debtEditFormSchema = debtFormSchema.extend({
+  isActive: z.boolean(),
 });
 
 const paymentFormSchema = z.object({
@@ -129,6 +138,8 @@ type Debt = {
 
 type DebtFormValues = z.input<typeof debtFormSchema>;
 type DebtFormSubmitValues = z.output<typeof debtFormSchema>;
+type DebtEditFormValues = z.input<typeof debtEditFormSchema>;
+type DebtEditFormSubmitValues = z.output<typeof debtEditFormSchema>;
 type PaymentFormValues = z.input<typeof paymentFormSchema>;
 type PaymentFormSubmitValues = z.output<typeof paymentFormSchema>;
 type PaymentEditFormValues = z.input<typeof paymentEditFormSchema>;
@@ -204,16 +215,25 @@ function SummaryCard({
 function DebtCard({
   debt,
   expanded,
+  deletingDebtId,
   deletingPaymentId,
   onTogglePaymentForm,
+  onUpdateDebt,
+  onDeleteDebt,
   onAddPayment,
   onUpdatePayment,
   onDeletePayment,
 }: {
   debt: Debt;
   expanded: boolean;
+  deletingDebtId: number | null;
   deletingPaymentId: number | null;
   onTogglePaymentForm: (debtId: number) => void;
+  onUpdateDebt: (
+    debtId: number,
+    values: DebtEditFormSubmitValues,
+  ) => Promise<string | null>;
+  onDeleteDebt: (debtId: number) => Promise<string | null>;
   onAddPayment: (debtId: number, values: PaymentFormSubmitValues) => Promise<string | null>;
   onUpdatePayment: (
     debtId: number,
@@ -237,8 +257,35 @@ function DebtCard({
     },
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [editingDebt, setEditingDebt] = useState(false);
+  const [editDebtSubmitError, setEditDebtSubmitError] = useState<string | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
+  const {
+    register: registerDebtEdit,
+    handleSubmit: handleDebtEditSubmit,
+    reset: resetDebtEdit,
+    formState: {
+      errors: debtEditErrors,
+      isSubmitting: isDebtEditSubmitting,
+    },
+  } = useForm<DebtEditFormValues, undefined, DebtEditFormSubmitValues>({
+    resolver: zodResolver(debtEditFormSchema),
+    defaultValues: {
+      name: debt.name,
+      debtType: debt.debtType,
+      originalBalance: Number(debt.originalBalance),
+      interestRate: Number(debt.interestRate),
+      minimumPayment:
+        debt.minimumPayment !== null ? Number(debt.minimumPayment) : undefined,
+      startDate: debt.startDate ? formatInputDate(debt.startDate) : "",
+      targetPayoffDate: debt.targetPayoffDate
+        ? formatInputDate(debt.targetPayoffDate)
+        : "",
+      isActive: debt.isActive,
+      notes: debt.notes ?? "",
+    },
+  });
   const {
     register: registerEdit,
     handleSubmit: handleEditSubmit,
@@ -279,6 +326,55 @@ function DebtCard({
       paymentDate: defaultDate,
       note: "",
     });
+  }
+
+  function startEditingDebt() {
+    setEditDebtSubmitError(null);
+    setEditingDebt(true);
+    resetDebtEdit({
+      name: debt.name,
+      debtType: debt.debtType,
+      originalBalance: Number(debt.originalBalance),
+      interestRate: Number(debt.interestRate),
+      minimumPayment:
+        debt.minimumPayment !== null ? Number(debt.minimumPayment) : undefined,
+      startDate: debt.startDate ? formatInputDate(debt.startDate) : "",
+      targetPayoffDate: debt.targetPayoffDate
+        ? formatInputDate(debt.targetPayoffDate)
+        : "",
+      isActive: debt.isActive,
+      notes: debt.notes ?? "",
+    });
+  }
+
+  function cancelEditingDebt() {
+    setEditDebtSubmitError(null);
+    setEditingDebt(false);
+  }
+
+  async function submitEditedDebt(values: DebtEditFormSubmitValues) {
+    setEditDebtSubmitError(null);
+
+    const error = await onUpdateDebt(debt.id, values);
+
+    if (error) {
+      setEditDebtSubmitError(error);
+      return;
+    }
+
+    cancelEditingDebt();
+  }
+
+  async function deleteDebt() {
+    const confirmed = window.confirm(
+      `Delete ${debt.name}? This will permanently remove the debt and all of its recorded payments.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await onDeleteDebt(debt.id);
   }
 
   function startEditingPayment(payment: DebtPayment) {
@@ -337,7 +433,7 @@ function DebtCard({
     >
       <div className="flex flex-col gap-6 px-6 py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+          <div className="flex-1">
             <div className="flex flex-wrap items-center gap-3">
               <h2
                 className={
@@ -369,7 +465,7 @@ function DebtCard({
                 <span className="font-medium">Interest rate:</span>{" "}
                 {formatPercent(Number(debt.interestRate))}
               </p>
-              {debt.minimumPayment ? (
+              {debt.minimumPayment !== null ? (
                 <p>
                   <span className="font-medium">Minimum payment:</span>{" "}
                   {formatCurrency(Number(debt.minimumPayment))}
@@ -390,19 +486,221 @@ function DebtCard({
             </div>
           </div>
 
-          <div
-            className={
-              debt.isActive
-                ? "rounded-[1.5rem] bg-stone-950 px-5 py-4 text-right text-white"
-                : "rounded-[1.5rem] border border-stone-300 bg-white px-5 py-4 text-right text-stone-700"
-            }
-          >
-            <p className="text-sm font-medium">Current balance</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight">
-              {formatCurrency(currentBalance)}
-            </p>
+          <div className="flex flex-col gap-3 lg:items-end">
+            <div
+              className={
+                debt.isActive
+                  ? "rounded-[1.5rem] bg-stone-950 px-5 py-4 text-right text-white"
+                  : "rounded-[1.5rem] border border-stone-300 bg-white px-5 py-4 text-right text-stone-700"
+              }
+            >
+              <p className="text-sm font-medium">Current balance</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight">
+                {formatCurrency(currentBalance)}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <button
+                type="button"
+                onClick={editingDebt ? cancelEditingDebt : startEditingDebt}
+                disabled={deletingDebtId === debt.id}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-300"
+              >
+                {editingDebt ? "Cancel edit" : "Edit details"}
+              </button>
+              {!debt.isActive ? (
+                <button
+                  type="button"
+                  onClick={() => void deleteDebt()}
+                  disabled={deletingDebtId === debt.id}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                >
+                  {deletingDebtId === debt.id ? "Deleting..." : "Delete debt"}
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
+
+        {editingDebt ? (
+          <form
+            className="grid gap-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-4 md:grid-cols-2 xl:grid-cols-4"
+            onSubmit={handleDebtEditSubmit(submitEditedDebt)}
+            autoComplete="off"
+          >
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Name</span>
+              <input
+                type="text"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                placeholder="e.g. Barclaycard"
+                {...autofillGuardProps}
+                {...registerDebtEdit("name")}
+              />
+              {debtEditErrors.name ? (
+                <p className="text-sm text-red-600">{debtEditErrors.name.message}</p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Debt type</span>
+              <select
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                {...registerDebtEdit("debtType")}
+              >
+                {debtTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {debtEditErrors.debtType ? (
+                <p className="text-sm text-red-600">
+                  {debtEditErrors.debtType.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">
+                Original balance
+              </span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                inputMode="decimal"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                placeholder="0.00"
+                {...registerDebtEdit("originalBalance")}
+              />
+              {debtEditErrors.originalBalance ? (
+                <p className="text-sm text-red-600">
+                  {debtEditErrors.originalBalance.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">
+                Interest rate (%)
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                placeholder="0.00"
+                {...registerDebtEdit("interestRate")}
+              />
+              {debtEditErrors.interestRate ? (
+                <p className="text-sm text-red-600">
+                  {debtEditErrors.interestRate.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">
+                Minimum payment
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                placeholder="Optional"
+                {...registerDebtEdit("minimumPayment")}
+              />
+              {debtEditErrors.minimumPayment ? (
+                <p className="text-sm text-red-600">
+                  {debtEditErrors.minimumPayment.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">Start date</span>
+              <input
+                type="date"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                {...autofillGuardProps}
+                {...registerDebtEdit("startDate")}
+              />
+              {debtEditErrors.startDate ? (
+                <p className="text-sm text-red-600">
+                  {debtEditErrors.startDate.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-stone-700">
+                Target payoff date
+              </span>
+              <input
+                type="date"
+                className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                {...autofillGuardProps}
+                {...registerDebtEdit("targetPayoffDate")}
+              />
+              {debtEditErrors.targetPayoffDate ? (
+                <p className="text-sm text-red-600">
+                  {debtEditErrors.targetPayoffDate.message}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm font-medium text-stone-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-stone-300 text-stone-950 focus:ring-stone-950"
+                disabled={isDebtEditSubmitting}
+                {...registerDebtEdit("isActive")}
+              />
+              Active debt
+            </label>
+
+            <label className="flex flex-col gap-2 md:col-span-2 xl:col-span-3">
+              <span className="text-sm font-medium text-stone-700">Notes</span>
+              <textarea
+                className="min-h-28 rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                disabled={isDebtEditSubmitting}
+                placeholder="Optional"
+                {...registerDebtEdit("notes")}
+              />
+              {debtEditErrors.notes ? (
+                <p className="text-sm text-red-600">{debtEditErrors.notes.message}</p>
+              ) : null}
+            </label>
+
+            <div className="flex items-end md:col-span-2 xl:col-span-1">
+              <button
+                type="submit"
+                className="h-11 w-full rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                disabled={isDebtEditSubmitting}
+              >
+                {isDebtEditSubmitting ? "Saving..." : "Save debt"}
+              </button>
+            </div>
+
+            {editDebtSubmitError ? (
+              <p className="text-sm text-red-600 md:col-span-2 xl:col-span-4">
+                {editDebtSubmitError}
+              </p>
+            ) : null}
+          </form>
+        ) : null}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
           <div>
@@ -696,6 +994,7 @@ export default function DebtsPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [expandedDebtId, setExpandedDebtId] = useState<number | null>(null);
+  const [deletingDebtId, setDeletingDebtId] = useState<number | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
   const [showInactiveDebts, setShowInactiveDebts] = useState(false);
 
@@ -832,6 +1131,68 @@ export default function DebtsPage() {
     }
   }
 
+  async function handleUpdateDebt(
+    debtId: number,
+    values: DebtEditFormSubmitValues,
+  ) {
+    try {
+      const response = await fetch(`/api/debts/${debtId}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: values.name.trim(),
+          debtType: values.debtType,
+          originalBalance: values.originalBalance,
+          interestRate: values.interestRate,
+          minimumPayment: values.minimumPayment ?? null,
+          startDate: values.startDate || null,
+          targetPayoffDate: values.targetPayoffDate || null,
+          isActive: values.isActive,
+          notes: values.notes?.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to update debt"));
+      }
+
+      await loadDebts();
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : "Failed to update debt";
+    }
+  }
+
+  async function handleDeleteDebt(debtId: number) {
+    setDeletingDebtId(debtId);
+    setPageError(null);
+
+    try {
+      const response = await fetch(`/api/debts/${debtId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to delete debt"));
+      }
+
+      if (expandedDebtId === debtId) {
+        setExpandedDebtId(null);
+      }
+
+      await loadDebts();
+      return null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete debt";
+      setPageError(message);
+      return message;
+    } finally {
+      setDeletingDebtId(null);
+    }
+  }
+
   async function handleDeletePayment(debtId: number, paymentId: number) {
     setDeletingPaymentId(paymentId);
     setPageError(null);
@@ -929,6 +1290,7 @@ export default function DebtsPage() {
           <form
             className="grid gap-4 px-6 py-6 md:grid-cols-2 xl:grid-cols-4"
             onSubmit={handleSubmit(onSubmit)}
+            autoComplete="off"
           >
             <label className="flex flex-col gap-2">
               <span className="text-sm font-medium text-stone-700">Name</span>
@@ -937,6 +1299,7 @@ export default function DebtsPage() {
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
                 placeholder="e.g. Barclaycard"
+                {...autofillGuardProps}
                 {...register("name")}
               />
               {errors.name ? (
@@ -1027,9 +1390,9 @@ export default function DebtsPage() {
               <span className="text-sm font-medium text-stone-700">Start date</span>
               <input
                 type="date"
-                autoComplete="off"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
+                {...autofillGuardProps}
                 {...register("startDate")}
               />
               {errors.startDate ? (
@@ -1043,9 +1406,9 @@ export default function DebtsPage() {
               </span>
               <input
                 type="date"
-                autoComplete="off"
                 className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
                 disabled={isSubmitting}
+                {...autofillGuardProps}
                 {...register("targetPayoffDate")}
               />
               {errors.targetPayoffDate ? (
@@ -1134,12 +1497,15 @@ export default function DebtsPage() {
                     key={debt.id}
                     debt={debt}
                     expanded={expandedDebtId === debt.id}
+                    deletingDebtId={deletingDebtId}
                     deletingPaymentId={deletingPaymentId}
                     onTogglePaymentForm={(debtId) =>
                       setExpandedDebtId((currentId) =>
                         currentId === debtId ? null : debtId,
                       )
                     }
+                    onUpdateDebt={handleUpdateDebt}
+                    onDeleteDebt={handleDeleteDebt}
                     onAddPayment={handleAddPayment}
                     onUpdatePayment={handleUpdatePayment}
                     onDeletePayment={handleDeletePayment}
