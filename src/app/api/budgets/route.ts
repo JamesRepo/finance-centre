@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
         where: {
           transactionDate: monthRange,
         },
+        _count: {
+          _all: true,
+        },
         _sum: {
           amount: true,
         },
@@ -56,6 +59,9 @@ export async function GET(request: NextRequest) {
 
     const spendingByCategoryId = new Map(
       spending.map((entry) => [entry.categoryId, entry._sum.amount]),
+    );
+    const transactionCountByCategoryId = new Map(
+      spending.map((entry) => [entry.categoryId, entry._count._all]),
     );
 
     return NextResponse.json(
@@ -76,6 +82,7 @@ export async function GET(request: NextRequest) {
             showOnDashboardDailySpending: category.showOnDashboardDailySpending,
             createdAt: category.createdAt,
           },
+          transactionCount: transactionCountByCategoryId.get(category.id) ?? 0,
           spent:
             spendingByCategoryId.get(category.id) ?? new Prisma.Decimal(0),
         };

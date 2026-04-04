@@ -8,6 +8,8 @@ vi.mock("@/lib/months", () => ({
   getCurrentMonthValue: () => "2026-03",
   formatMonthLabel: (month: string) =>
     month === "2026-04" ? "April 2026" : "March 2026",
+  shiftMonthValue: (month: string, delta: number) =>
+    month === "2026-03" && delta === 1 ? "2026-04" : "2026-02",
 }));
 
 const initialBudgetsResponse = [
@@ -76,6 +78,33 @@ describe("[Component] budgets page", () => {
     render(<BudgetsPage />);
 
     expect(await screen.findByLabelText("Month")).toHaveAttribute("autocomplete", "off");
+  });
+
+  it("should load the next month when Next is clicked", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(initialBudgetsResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BudgetsPage />);
+
+    await screen.findByText("Groceries");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/budgets?month=2026-04", {
+        cache: "no-store",
+      });
+    });
+
+    expect(screen.getByText("April 2026")).toBeInTheDocument();
   });
 
   it("should auto-save a changed budget on blur when the value is valid", async () => {

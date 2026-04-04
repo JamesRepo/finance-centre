@@ -61,6 +61,9 @@ describe("[Unit] budgets route GET", () => {
     mockPrisma.transaction.groupBy.mockResolvedValue([
       {
         categoryId: "category-1",
+        _count: {
+          _all: 3,
+        },
         _sum: {
           amount: new Prisma.Decimal("123.45"),
         },
@@ -96,6 +99,9 @@ describe("[Unit] budgets route GET", () => {
           lt: new Date("2026-04-01T00:00:00.000Z"),
         },
       },
+      _count: {
+        _all: true,
+      },
       _sum: {
         amount: true,
       },
@@ -111,12 +117,14 @@ describe("[Unit] budgets route GET", () => {
         name: "Groceries",
         showOnDashboardDailySpending: true,
       },
+      transactionCount: 3,
     });
     expect(body[1]).toMatchObject({
       budgetId: null,
       categoryId: "category-2",
       amount: "0",
       spent: "0",
+      transactionCount: 0,
       category: {
         showOnDashboardDailySpending: false,
       },

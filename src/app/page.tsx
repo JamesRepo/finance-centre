@@ -14,9 +14,9 @@ import {
 import {
   formatMonthLabel,
   getCurrentMonthValue,
-  shiftMonthValue,
 } from "@/lib/months";
 import { buildBudgetChartEntries, type BudgetChartEntry } from "./budget-chart-helpers";
+import { MonthSelector } from "./month-selector";
 
 type BudgetCategory = {
   id: string;
@@ -29,6 +29,7 @@ type BudgetEntry = {
   categoryId: string;
   amount: string;
   spent: string;
+  transactionCount: number;
   category: BudgetCategory;
 };
 
@@ -387,7 +388,10 @@ export default function Home() {
   const dailyChartData = useMemo(() => {
     return buildBudgetChartEntries(
       entries
-        .filter((entry) => entry.category.showOnDashboardDailySpending)
+        .filter(
+          (entry) =>
+            entry.category.showOnDashboardDailySpending && entry.transactionCount > 0,
+        )
         .sort((left, right) => left.category.name.localeCompare(right.category.name)),
     );
   }, [entries]);
@@ -403,13 +407,20 @@ export default function Home() {
     };
   }, [dailyChartData]);
 
+  const hasIncludedDailyCategories = useMemo(
+    () => entries.some((entry) => entry.category.showOnDashboardDailySpending),
+    [entries],
+  );
+
   const dailyCategoryLabel = useMemo(() => {
     if (dailyChartData.length === 0) {
-      return "Choose categories in Settings to include them here.";
+      return hasIncludedDailyCategories
+        ? "No category activity recorded for this month."
+        : "Choose categories in Settings to include them here.";
     }
 
     return dailyChartData.map((entry) => entry.name).join(", ");
-  }, [dailyChartData]);
+  }, [dailyChartData, hasIncludedDailyCategories]);
 
   const totalHousing = useMemo(
     () => housing.reduce((sum, entry) => sum + readAmount(entry.amount), 0),
@@ -494,43 +505,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedMonth((currentMonth) =>
-                        shiftMonthValue(currentMonth, -1),
-                      )
-                    }
-                    className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium transition hover:border-stone-950"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedMonth((currentMonth) =>
-                        shiftMonthValue(currentMonth, 1),
-                      )
-                    }
-                    className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium transition hover:border-stone-950"
-                  >
-                    Next
-                  </button>
-                </div>
-
-                <label className="flex min-w-44 flex-col gap-2">
-                  <span className="text-sm font-medium text-stone-700">Month</span>
-                  <input
-                    type="month"
-                    autoComplete="off"
-                    value={selectedMonth}
-                    onChange={(event) => setSelectedMonth(event.target.value)}
-                    className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                  />
-                </label>
-              </div>
+              <MonthSelector value={selectedMonth} onChange={setSelectedMonth} />
             </div>
 
             <div className="mt-8 flex flex-col gap-4 rounded-[1.5rem] border border-stone-200 bg-white/80 px-5 py-5 md:flex-row md:items-end md:justify-between">
@@ -620,7 +595,13 @@ export default function Home() {
                   {budgetLoading ? (
                     <LoadingPanel message="Loading daily spending..." />
                   ) : dailyChartData.length === 0 ? (
-                    <LoadingPanel message="No daily spending categories found for this month." />
+                    <LoadingPanel
+                      message={
+                        hasIncludedDailyCategories
+                          ? "No daily spending transactions found for this month."
+                          : "No daily spending categories selected for the dashboard."
+                      }
+                    />
                   ) : (
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart

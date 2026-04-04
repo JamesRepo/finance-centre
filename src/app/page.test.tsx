@@ -74,6 +74,7 @@ const budgetsResponse = [
     categoryId: "category-1",
     amount: "500",
     spent: "123.45",
+    transactionCount: 2,
     category: {
       id: "category-1",
       name: "Groceries",
@@ -85,6 +86,7 @@ const budgetsResponse = [
     categoryId: "category-2",
     amount: "200",
     spent: "240",
+    transactionCount: 4,
     category: {
       id: "category-2",
       name: "Transport",
@@ -96,6 +98,7 @@ const budgetsResponse = [
     categoryId: "category-3",
     amount: "950",
     spent: "950",
+    transactionCount: 5,
     category: {
       id: "category-3",
       name: "Rent",
@@ -366,6 +369,7 @@ describe("[Component] dashboard page", () => {
           categoryId: "category-2",
           amount: "200",
           spent: "50",
+          transactionCount: 1,
           category: {
             id: "category-2",
             name: "Transport",
@@ -377,6 +381,7 @@ describe("[Component] dashboard page", () => {
           categoryId: "category-1",
           amount: "500",
           spent: "123.45",
+          transactionCount: 2,
           category: {
             id: "category-1",
             name: "Groceries",
@@ -388,6 +393,7 @@ describe("[Component] dashboard page", () => {
           categoryId: "category-4",
           amount: "120",
           spent: "60",
+          transactionCount: 3,
           category: {
             id: "category-4",
             name: "Eating Out",
@@ -537,6 +543,7 @@ describe("[Component] dashboard page", () => {
           categoryId: "category-9",
           amount: "1000",
           spent: "950",
+          transactionCount: 2,
           category: {
             id: "category-9",
             name: "Rent",
@@ -551,11 +558,84 @@ describe("[Component] dashboard page", () => {
     render(<Home />);
 
     expect(
-      await screen.findByText("No daily spending categories found for this month."),
+      await screen.findByText("No daily spending categories selected for the dashboard."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Choose categories in Settings to include them here."),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
+  });
+
+  it("should hide included daily categories when they have no transactions for the selected month", async () => {
+    const fetchMock = createFetchMock({
+      budgets: [
+        {
+          categoryId: "category-1",
+          amount: "500",
+          spent: "0",
+          transactionCount: 0,
+          category: {
+            id: "category-1",
+            name: "Groceries",
+            colorCode: "#22c55e",
+            showOnDashboardDailySpending: true,
+          },
+        },
+        {
+          categoryId: "category-2",
+          amount: "200",
+          spent: "75",
+          transactionCount: 1,
+          category: {
+            id: "category-2",
+            name: "Transport",
+            colorCode: "#3b82f6",
+            showOnDashboardDailySpending: true,
+          },
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect((await screen.findAllByText("Transport")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Transport")).toHaveLength(2);
+    expect(screen.queryByText("Groceries, Transport")).not.toBeInTheDocument();
+    expect(screen.queryByText("Groceries")).not.toBeInTheDocument();
+
+    const chartData = JSON.parse(
+      screen.getByTestId("bar-chart-data").textContent ?? "[]",
+    ) as Array<{ name: string }>;
+
+    expect(chartData.map((entry) => entry.name)).toEqual(["Transport"]);
+  });
+
+  it("should show the no-activity message when included daily categories have zero transactions", async () => {
+    const fetchMock = createFetchMock({
+      budgets: [
+        {
+          categoryId: "category-1",
+          amount: "500",
+          spent: "0",
+          transactionCount: 0,
+          category: {
+            id: "category-1",
+            name: "Groceries",
+            colorCode: "#22c55e",
+            showOnDashboardDailySpending: true,
+          },
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(
+      await screen.findByText("No daily spending transactions found for this month."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No category activity recorded for this month.")).toBeInTheDocument();
     expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatMonthLabel, getCurrentMonthValue } from "@/lib/months";
+import { MonthSelector } from "../month-selector";
 
 type BudgetCategory = {
   id: string;
@@ -205,16 +206,11 @@ export default function BudgetsPage() {
                 </p>
               </div>
 
-              <label className="flex w-full max-w-xs flex-col gap-2">
-                <span className="text-sm font-medium text-stone-700">Month</span>
-                <input
-                  type="month"
-                  autoComplete="off"
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                />
-              </label>
+              <MonthSelector
+                value={selectedMonth}
+                onChange={setSelectedMonth}
+                className="flex flex-col gap-3 lg:flex-row lg:items-end"
+              />
             </div>
           </div>
 

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
+import { formatMonthLabel } from "@/lib/months";
+import { MonthSelector } from "../month-selector";
 import {
   createTransactionRequest,
   fetchVendorSuggestions,
@@ -393,11 +395,7 @@ export default function TransactionsPage() {
     };
   }, [vendorSuggestionsOpen, vendorValue]);
 
-  const monthLabel = useMemo(() => {
-    const [year, month] = selectedMonth.split("-").map(Number);
-
-    return format(new Date(year, month - 1, 1), "MMMM yyyy");
-  }, [selectedMonth]);
+  const monthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth]);
 
   const filteredTransactions = useMemo(() => {
     let result = transactions;
@@ -926,24 +924,15 @@ export default function TransactionsPage() {
               </h2>
             </div>
 
-            <div className="flex items-center gap-3">
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-stone-700">Month</span>
-                <input
-                  type="month"
-                  autoComplete="off"
-                  value={selectedMonth}
-                  onChange={(event) => {
-                    if (event.target.value) {
-                      setSelectedMonth(event.target.value);
-                      setFilterDateFrom("");
-                      setFilterDateTo("");
-                    }
-                  }}
-                  className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-950"
-                />
-              </label>
-            </div>
+            <MonthSelector
+              value={selectedMonth}
+              onChange={(month) => {
+                setSelectedMonth(month);
+                setFilterDateFrom("");
+                setFilterDateTo("");
+              }}
+              className="flex flex-col gap-3 sm:flex-row sm:items-end"
+            />
           </div>
 
           <div className="flex flex-wrap items-end gap-4 border-b border-stone-200 px-6 py-4">

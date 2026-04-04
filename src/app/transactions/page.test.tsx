@@ -93,6 +93,13 @@ function stubFetch(
   return fetchMock;
 }
 
+function getNextMonthValue(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const nextDate = new Date(year, monthNumber, 1);
+
+  return `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+}
+
 async function findBadge(table: HTMLElement, name: string) {
   return within(table).findByText(name);
 }
@@ -1510,6 +1517,25 @@ describe("[Component] transactions page — month change resets date filters", (
     });
 
     expect(categoryFilter.value).toBe("cat-1");
+  });
+
+  it("should load the next month when Next is clicked", async () => {
+    const fetchMock = stubFetch(defaultCategories, multiTransactions);
+
+    render(<TransactionsPage />);
+
+    await screen.findByRole("table");
+
+    const monthInput = screen.getByLabelText("Month") as HTMLInputElement;
+    const nextMonthValue = getNextMonthValue(monthInput.value);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(`/api/transactions?month=${nextMonthValue}`, {
+        cache: "no-store",
+      });
+    });
   });
 });
 
