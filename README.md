@@ -1,4 +1,4 @@
-# Finance App
+# Finance Centre
 
 A self-hosted personal finance tracker built with Next.js, TypeScript, Prisma, and PostgreSQL, designed to run on a Raspberry Pi.
 
