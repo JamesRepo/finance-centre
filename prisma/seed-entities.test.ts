@@ -163,7 +163,7 @@ describe("[Unit] seed transaction fixtures", () => {
 
 describe("[Unit] seed debt fixtures", () => {
   it("should define active debt records with valid payment metadata when debt data is seeded", () => {
-    expect(sampleDebts).toHaveLength(2);
+    expect(sampleDebts).toHaveLength(3);
 
     for (const debt of sampleDebts) {
       expect(debt.name.startsWith("[Seed]")).toBe(true);
@@ -197,7 +197,7 @@ describe("[Unit] seed debt fixtures", () => {
 
 describe("[Unit] seed savings fixtures", () => {
   it("should define savings goals with positive targets and contributions when savings data is seeded", () => {
-    expect(sampleSavingsGoals).toHaveLength(2);
+    expect(sampleSavingsGoals).toHaveLength(3);
 
     for (const goal of sampleSavingsGoals) {
       expect(goal.name.startsWith("[Seed]")).toBe(true);

@@ -111,7 +111,7 @@ describe("Unit: Seed categories data", () => {
 describe("Unit: Seed script structure", () => {
   it("should import PrismaClient from the generated client path", () => {
     expect(seedSource).toContain(
-      'from "../src/generated/prisma/client"'
+      'from "@/generated/prisma/client"'
     );
   });
 
