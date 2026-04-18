@@ -457,6 +457,15 @@ describe("[Component] dashboard page", () => {
     expect(screen.getByText("£45.99")).toBeInTheDocument();
     expect(screen.getByText("Netflix (Monthly)")).toBeInTheDocument();
     expect(screen.getByText("Gym (Yearly)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage housing" })).toHaveAttribute(
+      "href",
+      "/housing",
+    );
+    expect(screen.getAllByRole("link", { name: "Open" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Open" }).map((link) => link.getAttribute("href"))).toEqual([
+      "/housing",
+      "/subscriptions",
+    ]);
 
     expect(screen.getByText("Tokyo")).toBeInTheDocument();
     expect(screen.getByText("£1,200.00")).toBeInTheDocument();

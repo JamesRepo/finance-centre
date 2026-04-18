@@ -9,6 +9,15 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import FixedCostsPage from "@/app/fixed-costs/page";
+import { FixedCostsView } from "@/app/fixed-costs/fixed-costs-view";
+
+const { mockRedirect } = vi.hoisted(() => ({
+  mockRedirect: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
+}));
 
 vi.mock("@/lib/months", () => ({
   getCurrentMonthValue: () => "2026-03",
@@ -129,13 +138,33 @@ function buildSubscriptionSummary(
   };
 }
 
-describe("[Component] fixed costs page", () => {
+function renderHousingView() {
+  return render(<FixedCostsView section="housing" />);
+}
+
+function renderSubscriptionsView() {
+  return render(<FixedCostsView section="subscriptions" />);
+}
+
+describe("[Component] fixed costs redirect page", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should redirect to /housing when the legacy fixed-costs route is rendered", () => {
+    render(<FixedCostsPage />);
+
+    expect(mockRedirect).toHaveBeenCalledWith("/housing");
+  });
+});
+
+describe("[Component] fixed costs view", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
 
-  it("should render combined fixed-cost summaries when housing and subscriptions load", async () => {
+  it("should render housing summaries when the housing section loads", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -157,6 +186,31 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderHousingView();
+
+    expect(await screen.findByText("Housing Expenses")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Housing costs" })).toBeInTheDocument();
+    expect(
+      within(screen.getByText("Housing Monthly").parentElement as HTMLElement).getByText(
+        "£1,210.00",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Subscriptions Monthly")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total Fixed Costs")).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/subscriptions")),
+    ).toBe(false);
+  });
+
+  it("should render subscription summaries when the subscriptions section loads", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(
           jsonResponse(
@@ -164,10 +218,10 @@ describe("[Component] fixed costs page", () => {
               buildSubscription(),
               buildSubscription({
                 id: 2,
-                name: "Prime",
+                name: "Netflix",
                 amount: "120",
                 frequency: "YEARLY",
-                paymentDate: "2026-03-10T00:00:00.000Z",
+                paymentDate: "2026-03-15T00:00:00.000Z",
                 monthlyEquivalent: "10",
               }),
             ]),
@@ -184,14 +238,11 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    expect(await screen.findByText("Housing expenses")).toBeInTheDocument();
-    expect(
-      within(screen.getByText("Housing Monthly").parentElement as HTMLElement).getByText(
-        "£1,210.00",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Subscriptions" })).toBeInTheDocument();
+    expect(screen.getByText("Spotify")).toBeInTheDocument();
+    expect(screen.getByText("Netflix")).toBeInTheDocument();
     expect(
       within(
         screen.getByText("Subscriptions Monthly").parentElement as HTMLElement,
@@ -199,24 +250,35 @@ describe("[Component] fixed costs page", () => {
     ).toBeInTheDocument();
     expect(
       within(
-        screen.getByText("Total Fixed Costs").parentElement as HTMLElement,
-      ).getByText("£1,250.00"),
+        screen.getByText("Total Subscription Cost").parentElement as HTMLElement,
+      ).getByText("£150.00"),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions?month=2026-03", {
-      cache: "no-store",
-    });
-    expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions?month=2026-02", {
-      cache: "no-store",
-    });
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/housing")),
+    ).toBe(false);
   });
 
-  it("should disable autofill on fixed-cost date and month inputs", async () => {
+  it("should disable autofill on the housing month input when the housing section renders", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.startsWith("/api/housing")) {
         return Promise.resolve(jsonResponse([buildHousingExpense()]));
       }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderHousingView();
+
+    expect(await screen.findByLabelText("Month")).toHaveAttribute("autocomplete", "off");
+  });
+
+  it("should disable autofill on the subscriptions date and month inputs when the subscriptions section renders", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
 
       if (url.startsWith("/api/subscriptions")) {
         return Promise.resolve(
@@ -229,15 +291,9 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    const monthInputs = await screen.findAllByLabelText("Month");
-    expect(monthInputs[0]).toHaveAttribute("autocomplete", "off");
-
-    fireEvent.click(screen.getByRole("button", { name: "Subscriptions" }));
-
-    const subscriptionMonthInput = screen.getByDisplayValue("2026-03");
-    expect(subscriptionMonthInput).toHaveAttribute("autocomplete", "off");
+    expect(await screen.findByDisplayValue("2026-03")).toHaveAttribute("autocomplete", "off");
     expect(screen.getByLabelText("Payment date")).toHaveAttribute("autocomplete", "off");
   });
 
@@ -251,14 +307,6 @@ describe("[Component] fixed costs page", () => {
 
       if (url === "/api/housing?month=2026-02") {
         return Promise.resolve(jsonResponse([]));
-      }
-
-      if (url === "/api/subscriptions?month=2026-03") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
-      }
-
-      if (url === "/api/subscriptions?month=2026-02") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
       }
 
       if (url === "/api/housing" && init?.method === "POST") {
@@ -276,7 +324,7 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderHousingView();
 
     const amountButton = await screen.findByRole("button", { name: "£1,200.00" });
 
@@ -317,14 +365,6 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions?month=2026-03") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
-      }
-
-      if (url === "/api/subscriptions?month=2026-02") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
-      }
-
       if (url === "/api/housing/1" && init?.method === "DELETE") {
         return Promise.resolve(new Response(null, { status: 204 }));
       }
@@ -334,7 +374,7 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderHousingView();
 
     const amountButton = await screen.findByRole("button", { name: "£1,200.00" });
 
@@ -370,20 +410,12 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions?month=2026-03") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
-      }
-
-      if (url === "/api/subscriptions?month=2026-02") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
-      }
-
       throw new Error(`Unexpected fetch: ${url}`);
     });
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderHousingView();
 
     const amountButton = await screen.findByRole("button", { name: "£1,200.00" });
 
@@ -405,7 +437,7 @@ describe("[Component] fixed costs page", () => {
     ).toBe(false);
   });
 
-  it("should load the next month in housing when Next is clicked", async () => {
+  it("should load the next month when the housing month picker advances", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -417,22 +449,14 @@ describe("[Component] fixed costs page", () => {
         return Promise.resolve(jsonResponse([]));
       }
 
-      if (url === "/api/subscriptions?month=2026-03" || url === "/api/subscriptions?month=2026-04") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
-      }
-
-      if (url === "/api/subscriptions?month=2026-02") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
-      }
-
       throw new Error(`Unexpected fetch: ${url}`);
     });
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderHousingView();
 
-    await screen.findByText("Housing expenses");
+    await screen.findByText("Housing Expenses");
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -440,12 +464,12 @@ describe("[Component] fixed costs page", () => {
       expect(fetchMock).toHaveBeenCalledWith("/api/housing?month=2026-04", {
         cache: "no-store",
       });
-      expect(fetchMock).toHaveBeenCalledWith("/api/subscriptions?month=2026-04", {
-        cache: "no-store",
-      });
     });
 
     expect(screen.getAllByText("April 2026").length).toBeGreaterThan(0);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/subscriptions")),
+    ).toBe(false);
   });
 
   it("should copy only missing housing values from the previous month", async () => {
@@ -469,14 +493,6 @@ describe("[Component] fixed costs page", () => {
         );
       }
 
-      if (url === "/api/subscriptions?month=2026-03") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
-      }
-
-      if (url === "/api/subscriptions?month=2026-02") {
-        return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-02", [])));
-      }
-
       if (url === "/api/housing" && init?.method === "POST") {
         return Promise.resolve(
           jsonResponse(
@@ -494,7 +510,7 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderHousingView();
 
     const copyButton = await screen.findByRole("button", {
       name: "Copy 1 unchanged from February 2026",
@@ -520,7 +536,7 @@ describe("[Component] fixed costs page", () => {
     expect(await screen.findByRole("button", { name: "£45.00" })).toBeInTheDocument();
   });
 
-  it("should render month-scoped subscriptions with monthly totals when the subscriptions tab is opened", async () => {
+  it("should render month-scoped subscriptions with totals when the subscriptions section loads", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -555,9 +571,7 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
+    renderSubscriptionsView();
 
     expect(await screen.findByText("Spotify")).toBeInTheDocument();
     expect(screen.getByText("Netflix")).toBeInTheDocument();
@@ -578,10 +592,6 @@ describe("[Component] fixed costs page", () => {
   it("should add a subscription for the selected month when the form is submitted", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-
-      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
 
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
@@ -612,11 +622,9 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
-
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(await screen.findByLabelText("Name"), {
       target: { value: "Gym" },
     });
     fireEvent.change(screen.getByLabelText("Amount"), {
@@ -655,10 +663,6 @@ describe("[Component] fixed costs page", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(
           jsonResponse(
@@ -694,9 +698,8 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -738,10 +741,6 @@ describe("[Component] fixed costs page", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(
           jsonResponse(
@@ -763,9 +762,8 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
@@ -781,14 +779,6 @@ describe("[Component] fixed costs page", () => {
     let aprilSummaryRequestCount = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-
-      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
-      if (url === "/api/housing?month=2026-04") {
-        return Promise.resolve(jsonResponse([]));
-      }
 
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(
@@ -855,10 +845,9 @@ describe("[Component] fixed costs page", () => {
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("confirm", vi.fn(() => true));
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy to Next Month" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy to Next Month" }));
 
     await waitFor(() => {
       expect(globalThis.confirm).toHaveBeenCalledWith(
@@ -884,10 +873,6 @@ describe("[Component] fixed costs page", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
 
-      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
-
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
       }
@@ -905,9 +890,7 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
+    renderSubscriptionsView();
 
     expect(await screen.findByText("No subscriptions in March 2026")).toBeInTheDocument();
     expect(
@@ -918,10 +901,6 @@ describe("[Component] fixed costs page", () => {
   it("should show validation errors when the subscription form is submitted empty", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
-
-      if (url === "/api/housing?month=2026-03" || url === "/api/housing?month=2026-02") {
-        return Promise.resolve(jsonResponse([]));
-      }
 
       if (url === "/api/subscriptions?month=2026-03") {
         return Promise.resolve(jsonResponse(buildSubscriptionSummary("2026-03", [])));
@@ -936,10 +915,9 @@ describe("[Component] fixed costs page", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<FixedCostsPage />);
+    renderSubscriptionsView();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Subscriptions" }));
-    fireEvent.change(screen.getByLabelText("Payment date"), {
+    fireEvent.change(await screen.findByLabelText("Payment date"), {
       target: { value: "" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add subscription" }));

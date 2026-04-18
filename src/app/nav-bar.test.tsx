@@ -37,7 +37,7 @@ describe("[Component] NavBar", () => {
     vi.clearAllMocks();
   });
 
-  it("should render all ten navigation links", () => {
+  it("should render all eleven navigation links", () => {
     render(<NavBar />);
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
@@ -46,7 +46,8 @@ describe("[Component] NavBar", () => {
     expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
     expect(screen.getByRole("link", { name: "Debts" })).toHaveAttribute("href", "/debts");
     expect(screen.getByRole("link", { name: "Savings" })).toHaveAttribute("href", "/savings");
-    expect(screen.getByRole("link", { name: "Fixed Costs" })).toHaveAttribute("href", "/fixed-costs");
+    expect(screen.getByRole("link", { name: "Housing" })).toHaveAttribute("href", "/housing");
+    expect(screen.getByRole("link", { name: "Subscriptions" })).toHaveAttribute("href", "/subscriptions");
     expect(screen.getByRole("link", { name: "Income" })).toHaveAttribute("href", "/income");
     expect(screen.getByRole("link", { name: "Holidays" })).toHaveAttribute("href", "/holidays");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
@@ -137,12 +138,20 @@ describe("[Component] NavBar", () => {
     expect(debtsLink.className).toContain("border-sky-400");
   });
 
-  it("should highlight the Fixed Costs link when on /fixed-costs", () => {
-    mockPathname = "/fixed-costs";
+  it("should highlight the Housing link when on /housing", () => {
+    mockPathname = "/housing";
     render(<NavBar />);
 
-    const fixedCostsLink = screen.getByRole("link", { name: "Fixed Costs" });
-    expect(fixedCostsLink.className).toContain("border-sky-400");
+    const housingLink = screen.getByRole("link", { name: "Housing" });
+    expect(housingLink.className).toContain("border-sky-400");
+  });
+
+  it("should highlight the Subscriptions link when on /subscriptions", () => {
+    mockPathname = "/subscriptions";
+    render(<NavBar />);
+
+    const subscriptionsLink = screen.getByRole("link", { name: "Subscriptions" });
+    expect(subscriptionsLink.className).toContain("border-sky-400");
   });
 
   it("should highlight the Holidays link when on /holidays", () => {
