@@ -712,10 +712,10 @@ export default function Home() {
               </h2>
             </div>
             <Link
-              href="/fixed-costs"
+              href="/housing"
               className="text-sm font-medium text-stone-500 transition hover:text-stone-950"
             >
-              Manage fixed costs
+              Manage housing
             </Link>
           </div>
 
@@ -733,6 +733,12 @@ export default function Home() {
                       {formatCurrency(totalHousing)}
                     </p>
                   </div>
+                  <Link
+                    href="/housing"
+                    className="text-sm font-medium text-stone-500 transition hover:text-stone-950"
+                  >
+                    Open
+                  </Link>
                 </div>
                 <div className="mt-4 border-t border-stone-200 pt-4">
                   <CompactSpendList
@@ -754,6 +760,12 @@ export default function Home() {
                       {formatCurrency(totalSubscriptions)}
                     </p>
                   </div>
+                  <Link
+                    href="/subscriptions"
+                    className="text-sm font-medium text-stone-500 transition hover:text-stone-950"
+                  >
+                    Open
+                  </Link>
                 </div>
                 <div className="mt-4 border-t border-stone-200 pt-4">
                   <CompactSpendList

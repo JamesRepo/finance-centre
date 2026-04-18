@@ -28,7 +28,8 @@ const navGroups = [
   {
     label: "Fixed",
     links: [
-      { href: "/fixed-costs", label: "Fixed Costs" },
+      { href: "/housing", label: "Housing" },
+      { href: "/subscriptions", label: "Subscriptions" },
       { href: "/income", label: "Income" },
     ],
   },
