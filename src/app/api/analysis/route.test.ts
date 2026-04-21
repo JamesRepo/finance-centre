@@ -393,7 +393,7 @@ describe("[Unit] analysis route GET", () => {
   describe("income section", () => {
     function mockAllZeroOutgoings() {
       mockPrisma.incomeSource.aggregate.mockResolvedValue(
-        zeroAggregate({ netAmount: true }),
+        zeroAggregate({ grossAmount: true, netAmount: true }),
       );
       mockPrisma.transaction.aggregate.mockResolvedValue(
         zeroAggregate({ amount: true }),
@@ -415,7 +415,10 @@ describe("[Unit] analysis route GET", () => {
 
     it("should return income vs outgoings for each month", async () => {
       mockPrisma.incomeSource.aggregate.mockResolvedValue({
-        _sum: { netAmount: new Prisma.Decimal("3000.00") },
+        _sum: {
+          grossAmount: new Prisma.Decimal("3700.00"),
+          netAmount: new Prisma.Decimal("3000.00"),
+        },
       });
       mockPrisma.transaction.aggregate.mockResolvedValue({
         _sum: { amount: new Prisma.Decimal("500.00") },
@@ -442,6 +445,7 @@ describe("[Unit] analysis route GET", () => {
       const body = await response.json();
       expect(body.incomeVsOutgoings).toHaveLength(3);
       for (const entry of body.incomeVsOutgoings) {
+        expect(entry.grossIncome).toBe(3700);
         expect(entry.income).toBe(3000);
         expect(entry.outgoings).toBe(1650); // 500 + 800 + 50 + 200 + 100
         expect(entry.netPosition).toBe(1350); // 3000 - 1650
@@ -458,6 +462,7 @@ describe("[Unit] analysis route GET", () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       for (const entry of body.incomeVsOutgoings) {
+        expect(entry.grossIncome).toBe(0);
         expect(entry.income).toBe(0);
         expect(entry.outgoings).toBe(0);
         expect(entry.netPosition).toBe(0);
@@ -466,7 +471,10 @@ describe("[Unit] analysis route GET", () => {
 
     it("should return a negative net position when outgoings exceed income", async () => {
       mockPrisma.incomeSource.aggregate.mockResolvedValue({
-        _sum: { netAmount: new Prisma.Decimal("500.00") },
+        _sum: {
+          grossAmount: new Prisma.Decimal("900.00"),
+          netAmount: new Prisma.Decimal("500.00"),
+        },
       });
       mockPrisma.transaction.aggregate.mockResolvedValue({
         _sum: { amount: new Prisma.Decimal("600.00") },
@@ -498,7 +506,10 @@ describe("[Unit] analysis route GET", () => {
 
     it("should aggregate all five outgoing sources", async () => {
       mockPrisma.incomeSource.aggregate.mockResolvedValue({
-        _sum: { netAmount: new Prisma.Decimal("5000.00") },
+        _sum: {
+          grossAmount: new Prisma.Decimal("6500.00"),
+          netAmount: new Prisma.Decimal("5000.00"),
+        },
       });
       mockPrisma.transaction.aggregate.mockResolvedValue({
         _sum: { amount: new Prisma.Decimal("100.00") },

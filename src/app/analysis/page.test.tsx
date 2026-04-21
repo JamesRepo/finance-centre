@@ -638,6 +638,7 @@ describe("[Component] IncomeTab", () => {
           incomeVsOutgoings: [
             {
               month: "2026-04",
+              grossIncome: 3000,
               income: 3000,
               outgoings: 2000,
               netPosition: 1000,
@@ -671,6 +672,7 @@ describe("[Component] IncomeTab", () => {
           incomeVsOutgoings: [
             {
               month: "2026-04",
+              grossIncome: 3000,
               income: 3000,
               outgoings: 2000,
               netPosition: 1000,
@@ -692,6 +694,7 @@ describe("[Component] IncomeTab", () => {
           incomeVsOutgoings: [
             {
               month: "2026-04",
+              grossIncome: 1000,
               income: 1000,
               outgoings: 1500,
               netPosition: -500,
@@ -712,7 +715,7 @@ describe("[Component] IncomeTab", () => {
       <IncomeTab
         data={{
           incomeVsOutgoings: [
-            { month: "2026-04", income: 3000, outgoings: 2000, netPosition: 1000 },
+            { month: "2026-04", grossIncome: 3700, income: 3000, outgoings: 2000, netPosition: 1000 },
           ],
           deductionBreakdown: [
             { deductionType: "INCOME_TAX", total: 500 },
@@ -735,7 +738,7 @@ describe("[Component] IncomeTab", () => {
       <IncomeTab
         data={{
           incomeVsOutgoings: [
-            { month: "2026-04", income: 3000, outgoings: 2000, netPosition: 1000 },
+            { month: "2026-04", grossIncome: 3000, income: 3000, outgoings: 2000, netPosition: 1000 },
           ],
           deductionBreakdown: [],
         }}
@@ -752,7 +755,7 @@ describe("[Component] IncomeTab", () => {
       <IncomeTab
         data={{
           incomeVsOutgoings: [
-            { month: "2026-04", income: 3000, outgoings: 2000, netPosition: 1000 },
+            { month: "2026-04", grossIncome: 3700, income: 3000, outgoings: 2000, netPosition: 1000 },
           ],
           deductionBreakdown: [
             { deductionType: "INCOME_TAX", total: 500 },
@@ -770,7 +773,7 @@ describe("[Component] IncomeTab", () => {
       <IncomeTab
         data={{
           incomeVsOutgoings: [
-            { month: "2026-04", income: 3000, outgoings: 2000, netPosition: 1000 },
+            { month: "2026-04", grossIncome: 3700, income: 3000, outgoings: 2000, netPosition: 1000 },
           ],
           deductionBreakdown: [
             { deductionType: "INCOME_TAX", total: 500 },
@@ -781,9 +784,10 @@ describe("[Component] IncomeTab", () => {
       />,
     );
 
-    expect(screen.getByText("Income Tax")).toBeInTheDocument();
-    expect(screen.getByText("National Insurance")).toBeInTheDocument();
-    expect(screen.getByText("Pension")).toBeInTheDocument();
+    // Each deduction type appears in both donut legends (deduction types + gross split)
+    expect(screen.getAllByText("Income Tax")).toHaveLength(2);
+    expect(screen.getAllByText("National Insurance")).toHaveLength(2);
+    expect(screen.getAllByText("Pension")).toHaveLength(2);
   });
 
   it("should filter out zero-amount deduction entries", () => {
@@ -791,7 +795,7 @@ describe("[Component] IncomeTab", () => {
       <IncomeTab
         data={{
           incomeVsOutgoings: [
-            { month: "2026-04", income: 3000, outgoings: 2000, netPosition: 1000 },
+            { month: "2026-04", grossIncome: 3500, income: 3000, outgoings: 2000, netPosition: 1000 },
           ],
           deductionBreakdown: [
             { deductionType: "INCOME_TAX", total: 500 },
@@ -801,8 +805,85 @@ describe("[Component] IncomeTab", () => {
       />,
     );
 
-    expect(screen.getByText("Income Tax")).toBeInTheDocument();
+    // Income Tax appears in both donut legends (deduction types + gross split)
+    expect(screen.getAllByText("Income Tax")).toHaveLength(2);
     expect(screen.queryByText("National Insurance")).not.toBeInTheDocument();
+  });
+
+  it("should render the gross income split donut when deduction data exists", () => {
+    render(
+      <IncomeTab
+        data={{
+          incomeVsOutgoings: [
+            { month: "2026-04", grossIncome: 3700, income: 3000, outgoings: 2000, netPosition: 1000 },
+          ],
+          deductionBreakdown: [
+            { deductionType: "INCOME_TAX", total: 500 },
+            { deductionType: "NI", total: 200 },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Gross Income Split")).toBeInTheDocument();
+    expect(screen.getByText("Take-home")).toBeInTheDocument();
+    // Individual deduction types appear in both donut legends
+    expect(screen.getAllByText("Income Tax")).toHaveLength(2);
+    expect(screen.getAllByText("National Insurance")).toHaveLength(2);
+  });
+
+  it("should display the gross income total in the gross donut center", () => {
+    render(
+      <IncomeTab
+        data={{
+          incomeVsOutgoings: [
+            { month: "2026-04", grossIncome: 3500, income: 3000, outgoings: 2000, netPosition: 1000 },
+            { month: "2026-03", grossIncome: 3000, income: 2800, outgoings: 1800, netPosition: 1000 },
+          ],
+          deductionBreakdown: [
+            { deductionType: "INCOME_TAX", total: 500 },
+            { deductionType: "NI", total: 200 },
+          ],
+        }}
+      />,
+    );
+
+    // Gross uses stored gross totals (3500 + 3000) = 6500
+    expect(screen.getByTestId("gross-total")).toHaveTextContent("£6,500.00");
+  });
+
+  it("should derive the gross split from stored gross income instead of net plus deductions", () => {
+    render(
+      <IncomeTab
+        data={{
+          incomeVsOutgoings: [
+            { month: "2026-04", grossIncome: 4000, income: 3000, outgoings: 2000, netPosition: 1000 },
+          ],
+          deductionBreakdown: [
+            { deductionType: "INCOME_TAX", total: 500 },
+            { deductionType: "NI", total: 200 },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("gross-total")).toHaveTextContent("£4,000.00");
+    expect(screen.getAllByText("£3,300.00")).toHaveLength(1);
+  });
+
+  it("should not render the gross income split donut when there are no deductions", () => {
+    render(
+      <IncomeTab
+        data={{
+          incomeVsOutgoings: [
+            { month: "2026-04", grossIncome: 3000, income: 3000, outgoings: 2000, netPosition: 1000 },
+          ],
+          deductionBreakdown: [],
+        }}
+      />,
+    );
+
+    expect(screen.queryByText("Gross Income Split")).not.toBeInTheDocument();
   });
 });
 

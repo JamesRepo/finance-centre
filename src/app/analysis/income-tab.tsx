@@ -17,6 +17,7 @@ import { format } from "date-fns";
 type IncomeData = {
   incomeVsOutgoings: Array<{
     month: string;
+    grossIncome: number;
     income: number;
     outgoings: number;
     netPosition: number;
@@ -93,6 +94,23 @@ export function IncomeTab({ data }: { data: IncomeData }) {
     () => deductionData.reduce((sum, d) => sum + d.value, 0),
     [deductionData],
   );
+
+  const grossIncome = useMemo(
+    () => data.incomeVsOutgoings.reduce((sum, e) => sum + e.grossIncome, 0),
+    [data.incomeVsOutgoings],
+  );
+
+  const grossBreakdownData = useMemo(() => {
+    if (deductionData.length === 0) return [];
+
+    const takeHome = grossIncome - totalDeductions;
+    if (takeHome < 0) return [];
+
+    return [
+      { name: "Take-home", value: takeHome, color: "#10b981" },
+      ...deductionData,
+    ];
+  }, [grossIncome, totalDeductions, deductionData]);
 
   if (data.incomeVsOutgoings.length === 0) {
     return (
@@ -236,62 +254,132 @@ export function IncomeTab({ data }: { data: IncomeData }) {
             </p>
           </div>
           <div className="px-6 py-6">
-            <div className="flex flex-col items-center">
-              <div className="relative">
-                <ResponsiveContainer width={300} height={300}>
-                  <PieChart>
-                    <Pie
-                      data={deductionData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={80}
-                      outerRadius={130}
-                      paddingAngle={2}
-                      isAnimationActive={false}
-                    >
-                      {deductionData.map((entry, index) => (
-                        <Cell key={index} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value) => [
-                        formatChartCurrency(Number(value)),
-                      ]}
-                      contentStyle={{
-                        borderRadius: "16px",
-                        borderColor: "var(--tooltip-border)",
-                        boxShadow: "var(--tooltip-shadow)",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <p className="text-sm text-stone-500">Total</p>
-                    <p className="text-lg font-semibold text-stone-950" data-testid="deduction-total">
-                      {formatChartCurrency(totalDeductions)}
-                    </p>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+              {/* Deductions breakdown donut */}
+              <div className="flex flex-col items-center">
+                <p className="mb-2 text-sm font-medium text-stone-700">
+                  Deduction Types
+                </p>
+                <div className="relative">
+                  <ResponsiveContainer width={300} height={300}>
+                    <PieChart>
+                      <Pie
+                        data={deductionData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={80}
+                        outerRadius={130}
+                        paddingAngle={2}
+                        isAnimationActive={false}
+                      >
+                        {deductionData.map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value) => [
+                          formatChartCurrency(Number(value)),
+                        ]}
+                        contentStyle={{
+                          borderRadius: "16px",
+                          borderColor: "var(--tooltip-border)",
+                          boxShadow: "var(--tooltip-shadow)",
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-sm text-stone-500">Total</p>
+                      <p className="text-lg font-semibold text-stone-950" data-testid="deduction-total">
+                        {formatChartCurrency(totalDeductions)}
+                      </p>
+                    </div>
                   </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
+                  {deductionData.map((entry) => (
+                    <div
+                      key={entry.name}
+                      className="flex items-center gap-2 text-sm text-stone-700"
+                    >
+                      <span
+                        className="inline-block h-3 w-3 rounded-full"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      <span>{entry.name}</span>
+                      <span className="text-stone-400">
+                        {formatChartCurrency(entry.value)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
-                {deductionData.map((entry) => (
-                  <div
-                    key={entry.name}
-                    className="flex items-center gap-2 text-sm text-stone-700"
-                  >
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{ backgroundColor: entry.color }}
-                    />
-                    <span>{entry.name}</span>
-                    <span className="text-stone-400">
-                      {formatChartCurrency(entry.value)}
-                    </span>
+              {/* Gross income split donut */}
+              {grossBreakdownData.length > 0 && (
+                <div className="flex flex-col items-center">
+                  <p className="mb-2 text-sm font-medium text-stone-700">
+                    Gross Income Split
+                  </p>
+                  <div className="relative">
+                    <ResponsiveContainer width={300} height={300}>
+                      <PieChart>
+                        <Pie
+                          data={grossBreakdownData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={80}
+                          outerRadius={130}
+                          paddingAngle={2}
+                          isAnimationActive={false}
+                        >
+                          {grossBreakdownData.map((entry, index) => (
+                            <Cell key={index} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value) => [
+                            formatChartCurrency(Number(value)),
+                          ]}
+                          contentStyle={{
+                            borderRadius: "16px",
+                            borderColor: "var(--tooltip-border)",
+                            boxShadow: "var(--tooltip-shadow)",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="text-sm text-stone-500">Gross</p>
+                        <p className="text-lg font-semibold text-stone-950" data-testid="gross-total">
+                          {formatChartCurrency(grossIncome)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
+                    {grossBreakdownData.map((entry) => (
+                      <div
+                        key={entry.name}
+                        className="flex items-center gap-2 text-sm text-stone-700"
+                      >
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{ backgroundColor: entry.color }}
+                        />
+                        <span>{entry.name}</span>
+                        <span className="text-stone-400">
+                          {formatChartCurrency(entry.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>

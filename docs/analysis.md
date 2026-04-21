@@ -71,11 +71,12 @@ Data sources:
 
 Returned shape:
 
-- `incomeVsOutgoings`: monthly income, outgoings, and net position
+- `incomeVsOutgoings`: monthly gross income, net income, outgoings, and net position
 - `deductionBreakdown`: grouped totals by `deductionType` across the selected date range
 
 Notes:
 
+- Gross income uses `IncomeSource.grossAmount`
 - Income uses `IncomeSource.netAmount`
 - Outgoings include transaction spend, housing, subscriptions, debt payments, and holiday expenses
 

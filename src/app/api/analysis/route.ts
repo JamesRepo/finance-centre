@@ -261,7 +261,7 @@ async function getIncomeData(months: number) {
       ] = await Promise.all([
         prisma.incomeSource.aggregate({
           where: { incomeDate: range },
-          _sum: { netAmount: true },
+          _sum: { grossAmount: true, netAmount: true },
         }),
         prisma.transaction.aggregate({
           where: { transactionDate: range },
@@ -285,6 +285,7 @@ async function getIncomeData(months: number) {
         }),
       ]);
 
+      const grossIncome = Number(incomeResult._sum.grossAmount ?? 0);
       const income = Number(incomeResult._sum.netAmount ?? 0);
       const transactions = Number(transactionResult._sum.amount ?? 0);
       const housing = Number(housingResult._sum.amount ?? 0);
@@ -297,6 +298,7 @@ async function getIncomeData(months: number) {
 
       return {
         month,
+        grossIncome,
         income,
         outgoings: totalOutgoings,
         netPosition: income - totalOutgoings,
