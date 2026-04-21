@@ -39,6 +39,12 @@ const navGroups = [
       { href: "/holidays", label: "Holidays" },
     ],
   },
+  {
+    label: "Insights",
+    links: [
+      { href: "/analysis", label: "Analysis" },
+    ],
+  },
 ] as const;
 
 type NavLink = {

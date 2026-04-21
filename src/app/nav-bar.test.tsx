@@ -37,7 +37,7 @@ describe("[Component] NavBar", () => {
     vi.clearAllMocks();
   });
 
-  it("should render all eleven navigation links", () => {
+  it("should render all twelve navigation links", () => {
     render(<NavBar />);
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
@@ -50,6 +50,7 @@ describe("[Component] NavBar", () => {
     expect(screen.getByRole("link", { name: "Subscriptions" })).toHaveAttribute("href", "/subscriptions");
     expect(screen.getByRole("link", { name: "Income" })).toHaveAttribute("href", "/income");
     expect(screen.getByRole("link", { name: "Holidays" })).toHaveAttribute("href", "/holidays");
+    expect(screen.getByRole("link", { name: "Analysis" })).toHaveAttribute("href", "/analysis");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 
@@ -57,13 +58,12 @@ describe("[Component] NavBar", () => {
     const { container } = render(<NavBar />);
 
     // There should be separator spans between Dashboard, each group, and Settings
-    // Dashboard | Spending group | Tracking group | Fixed group | Travel group | Settings
-    // = 5 separators (after Dashboard, between 4 groups = 3, before Settings)
-    // However, the first group separator is after Dashboard (1), then between groups (3), then before Settings (1) = 5
-    // But the group separators between groups are only rendered when groupIndex > 0 (3 of them)
-    // Plus the fixed separator after Dashboard (1) and before Settings (1) = 5 total
+    // Dashboard | Spending group | Tracking group | Fixed group | Travel group | Insights group | Settings
+    // = 6 separators (after Dashboard, between 5 groups = 4, before Settings)
+    // The group separators between groups are only rendered when groupIndex > 0 (4 of them)
+    // Plus the fixed separator after Dashboard (1) and before Settings (1) = 6 total
     const separators = container.querySelectorAll("span.bg-sky-900\\/70");
-    expect(separators.length).toBe(5);
+    expect(separators.length).toBe(6);
   });
 
   it("should highlight the Dashboard link when on the root path", () => {

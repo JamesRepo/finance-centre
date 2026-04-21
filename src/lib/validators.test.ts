@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  analysisQuerySchema,
   budgetListQuerySchema,
   budgetUpsertSchema,
   categoryCreateSchema,
@@ -2028,5 +2029,78 @@ describe("[Unit] settingsUpdateSchema", () => {
     });
 
     expect(result.monthlyBudgetTotal).toBe(0);
+  });
+});
+
+describe("[Unit] analysisQuerySchema", () => {
+  it("should accept a valid spending section with 3 months", () => {
+    const result = analysisQuerySchema.parse({ section: "spending", months: "3" });
+
+    expect(result.section).toBe("spending");
+    expect(result.months).toBe(3);
+  });
+
+  it("should accept a valid budgets section with 6 months", () => {
+    const result = analysisQuerySchema.parse({ section: "budgets", months: "6" });
+
+    expect(result.section).toBe("budgets");
+    expect(result.months).toBe(6);
+  });
+
+  it("should accept a valid income section with 12 months", () => {
+    const result = analysisQuerySchema.parse({ section: "income", months: "12" });
+
+    expect(result.section).toBe("income");
+    expect(result.months).toBe(12);
+  });
+
+  it("should accept the networth section", () => {
+    const result = analysisQuerySchema.parse({ section: "networth", months: 6 });
+
+    expect(result.section).toBe("networth");
+  });
+
+  it("should default months to 6 when not provided", () => {
+    const result = analysisQuerySchema.parse({ section: "spending" });
+
+    expect(result.months).toBe(6);
+  });
+
+  it("should coerce months from a string to a number", () => {
+    const result = analysisQuerySchema.parse({ section: "spending", months: "12" });
+
+    expect(result.months).toBe(12);
+  });
+
+  it("should reject an invalid section value", () => {
+    expect(() => analysisQuerySchema.parse({ section: "invalid" })).toThrow();
+  });
+
+  it("should reject when section is missing", () => {
+    expect(() => analysisQuerySchema.parse({ months: 3 })).toThrow();
+  });
+
+  it("should reject months value that is not 3, 6, or 12", () => {
+    expect(() =>
+      analysisQuerySchema.parse({ section: "spending", months: 4 }),
+    ).toThrow("months must be 3, 6, or 12");
+  });
+
+  it("should reject months value of 0", () => {
+    expect(() =>
+      analysisQuerySchema.parse({ section: "spending", months: 0 }),
+    ).toThrow("months must be 3, 6, or 12");
+  });
+
+  it("should reject negative months value", () => {
+    expect(() =>
+      analysisQuerySchema.parse({ section: "spending", months: -3 }),
+    ).toThrow("months must be 3, 6, or 12");
+  });
+
+  it("should reject a non-integer months value", () => {
+    expect(() =>
+      analysisQuerySchema.parse({ section: "spending", months: 3.5 }),
+    ).toThrow();
   });
 });

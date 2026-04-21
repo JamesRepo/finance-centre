@@ -514,6 +514,15 @@ export const holidayExpenseUpdateSchema = z
     message: "At least one field is required",
   });
 
+// --- Analysis ---
+
+export const analysisQuerySchema = z.object({
+  section: z.enum(["spending", "budgets", "income", "networth"]),
+  months: z.coerce.number().int().refine((v) => [3, 6, 12].includes(v), {
+    message: "months must be 3, 6, or 12",
+  }).default(6),
+});
+
 // --- Settings ---
 
 export const settingsUpdateSchema = z
@@ -566,3 +575,4 @@ export type HolidayUpdateInput = z.infer<typeof holidayUpdateSchema>;
 export type HolidayExpenseCreateInput = z.infer<typeof holidayExpenseCreateSchema>;
 export type HolidayExpenseUpdateInput = z.infer<typeof holidayExpenseUpdateSchema>;
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
+export type AnalysisQuery = z.infer<typeof analysisQuerySchema>;
