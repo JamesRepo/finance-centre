@@ -1,142 +1,195 @@
 # Finance Centre
 
-Personal finance tracking application for managing transactions, budgets, spending categories, debts, savings, income, holidays, and fixed costs.
+Project guide for AI coding assistants working in this repository.
 
-## Tech Stack
+## What This App Is
 
-- **Framework:** Next.js 16 (App Router)
-- **Language:** TypeScript 5 (strict mode)
-- **React:** 19
-- **Database:** PostgreSQL 17 via Prisma 7 with `@prisma/adapter-pg`
-- **Auth:** NextAuth.js 4 (Credentials provider, JWT sessions, bcrypt)
-- **Styling:** Tailwind CSS 4 (PostCSS plugin, no separate config file)
-- **Validation:** Zod 4 with `@hookform/resolvers`
-- **Forms:** React Hook Form 7
-- **Charts:** Recharts 3
-- **Dates:** date-fns 4
-- **Testing:** Vitest 4 with Testing Library (React, jest-dom, user-event) and jsdom
-- **Rate Limiting:** rate-limiter-flexible (login attempts)
+Finance Centre is a single-user personal finance application built with Next.js, Prisma, and PostgreSQL. It tracks:
+
+- transactions and categories
+- monthly budgets
+- debts and payments
+- savings goals and contributions
+- housing costs and subscriptions
+- income and deductions
+- holidays and holiday expenses
+- dashboard and analysis views over the data
+
+Read [README.md](README.md) first for product and setup context. Use [docs/development.md](docs/development.md) for environment and bootstrap details. Use [docs/analysis.md](docs/analysis.md) when changing analysis calculations or the `/analysis` UI.
+
+## Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript 5 strict mode
+- Tailwind CSS 4
+- Prisma 7 with `@prisma/adapter-pg`
+- PostgreSQL 17
+- NextAuth.js credentials provider with JWT sessions
+- Zod 4
+- react-hook-form 7
+- Recharts 3
+- Vitest 4 and Testing Library
 
 ## Project Structure
 
-```
+```text
 src/
-  app/              # Next.js App Router pages, layouts, and API routes
-    api/            # REST API route handlers (budgets, categories, debts, etc.)
-  lib/              # Shared utilities (auth, prisma client, validators, month helpers)
-  middleware.ts     # Auth middleware (protects all routes except /login, /api/auth)
-  generated/prisma/ # Prisma-generated client (do NOT edit, gitignored)
+  app/
+    api/                Route handlers for all app domains
+    analysis/           Multi-month analytics UI
+    budgets/
+    debts/
+    fixed-costs/
+    holidays/
+    housing/
+    income/
+    login/
+    savings/
+    settings/
+    subscriptions/
+    transactions/
+    layout.tsx
+    nav-bar.tsx
+    page.tsx            Dashboard
+  lib/
+    auth.ts
+    auth-rate-limit.ts
+    months.ts
+    prisma.ts
+    validators.ts
+  generated/prisma/     Generated Prisma client, do not edit
+  middleware.ts
 prisma/
-  schema.prisma     # Database schema
-  seed.ts           # Seed script (default categories)
-  migrations/       # Prisma migrations
+  schema.prisma
+  migrations/
+  seed.ts
 scripts/
-  set-password.ts   # Initial password setup script
-agents/             # Agent workflow prompts (implement, test, review, fix)
+  set-password.ts
+agents/
+  implement.md
+  test.md
+  review.md
+  fix.md
+docs/
+  development.md
+  analysis.md
 ```
 
-## Key Commands
+## Commands
 
-- `npm run dev` — Start development server
-- `npm run build` — Production build
-- `npm run test` — Run tests (Vitest)
-- `npm run lint` — ESLint (flat config, next/core-web-vitals + next/typescript)
-- `npx prisma migrate dev --name <name>` — Create a migration
-- `npx prisma db seed` — Seed the database
-- `npx prisma generate` — Regenerate Prisma client (also runs on `npm install` via postinstall)
+- `npm run dev`
+- `npm run build`
+- `npm start`
+- `npm test`
+- `npm run lint`
+- `npx prisma migrate dev --name <name>`
+- `npx prisma migrate deploy`
+- `npx prisma db seed`
+- `npx prisma generate`
+- `npx tsx scripts/set-password.ts <email> <password>`
 
-## Pages
+## Environment
 
-- `/` — Dashboard
-- `/transactions` — Transaction list and entry
-- `/transactions/summary` — Transaction summary/analytics
-- `/budgets` — Monthly budget allocation
-- `/fixed-costs` — Combined housing & subscriptions view
-- `/housing` — Housing expenses
-- `/subscriptions` — Subscription tracking
-- `/debts` — Debt tracking
-- `/savings` — Savings goals
-- `/income` — Income sources & deductions
-- `/holidays` — Holiday cost tracking
-- `/settings` — App settings (currency, locale, budget total, password)
-- `/login` — Authentication (unauthenticated route)
+Required environment variables:
 
-## Database
+- `DATABASE_URL`
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
 
-- PostgreSQL 17, run via `docker-compose.yml`
-- Connection: `postgresql://finance_centre:finance_centre@localhost:5432/finance_centre?schema=public`
-- Prisma client is generated to `src/generated/prisma/` — this directory is gitignored
-- Prisma uses `@prisma/adapter-pg` (node-pg driver adapter), not the default binary engine
-- Schema uses `@@map` for snake_case table/column names with camelCase model fields
+Optional:
 
-### Models
+- `AUTH_TRUST_PROXY_HEADERS=true` when the app sits behind a trusted reverse proxy and auth rate limiting should respect forwarded IP headers
 
-- **Category** — spending categories (name, colorCode, isSystem, showOnDashboardDailySpending)
-- **Transaction** — individual transactions (amount, transactionDate, description, vendor, categoryId)
-- **TransactionLineItem** — line items within a transaction (amount, sortOrder; cascade delete)
-- **Budget** — monthly budget per category (amount, month, categoryId; unique on [categoryId, month])
-- **Debt** — debt accounts (name, debtType, originalBalance, interestRate, minimumPayment, isActive)
-- **DebtPayment** — payments against debts (amount, interestAmount, paymentDate; cascade delete)
-- **SavingsGoal** — savings targets (name, targetAmount, targetDate, priority)
-- **SavingsContribution** — contributions to savings goals (amount, contributionDate; cascade delete)
-- **HousingExpense** — housing costs (expenseType, amount, expenseMonth, frequency; unique on [expenseType, expenseMonth])
-- **Subscription** — recurring subscriptions (name, amount, frequency, paymentDate, paymentMonth; unique on [name, paymentMonth])
-- **IncomeSource** — income entries (incomeType, grossAmount, netAmount, incomeDate, isRecurring, isActive)
-- **IncomeDeduction** — deductions from income (deductionType, name, amount, isPercentage; cascade delete)
-- **Holiday** — holiday trips (name, destination, assignedMonth, startDate, endDate, isActive)
-- **HolidayExpense** — expenses within a holiday (expenseType, description, amount, expenseDate; cascade delete)
-- **Settings** — app configuration (currency, locale, monthlyBudgetTotal, email, passwordHash; single row)
+## Product Surface
 
-### Enums
+Primary routes:
 
-- **DebtType** — CREDIT_CARD, STUDENT_LOAN, PERSONAL_LOAN, OTHER
-- **SavingsPriority** — LOW, MEDIUM, HIGH
+- `/` dashboard
+- `/transactions`
+- `/transactions/summary`
+- `/budgets`
+- `/debts`
+- `/savings`
+- `/housing`
+- `/subscriptions`
+- `/income`
+- `/holidays`
+- `/analysis`
+- `/settings`
+- `/login`
 
-## Authentication
+`/settings` manages app settings and categories. Authentication is single-user and backed by the `Settings` row in the database.
 
-- Single-user model: credentials stored in the Settings table (email + bcrypt passwordHash)
-- NextAuth.js 4 with Credentials provider and JWT strategy (7-day session max age)
-- Auth config in `src/lib/auth.ts`, rate limiting in `src/lib/auth-rate-limit.ts` (5 attempts/60s per IP)
-- Middleware (`src/middleware.ts`) protects all routes except `/login`, `/api/auth`, static files
-- Environment variables: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `DATABASE_URL`
+## Data Model
 
-## Testing
+Core models:
 
-- Vitest 4 with jsdom environment
-- Config: `vitest.config.ts` (path alias `@` → `./src`, globals enabled)
-- Setup: `vitest.setup.ts` (imports `@testing-library/jest-dom/vitest`, auto-cleanup)
-- Tests co-located with source files as `*.test.ts` / `*.test.tsx`
-- Libraries: `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`
+- `Category`
+- `Transaction`
+- `TransactionLineItem`
+- `Budget`
+- `Debt`
+- `DebtPayment`
+- `SavingsGoal`
+- `SavingsContribution`
+- `HousingExpense`
+- `Subscription`
+- `IncomeSource`
+- `IncomeDeduction`
+- `Holiday`
+- `HolidayExpense`
+- `Settings`
 
-## Security
+Important design choices:
 
-- Next.js security headers configured in `next.config.ts`:
-  - X-Content-Type-Options, X-Frame-Options (DENY), X-XSS-Protection
-  - Strict Referrer-Policy, Content-Security-Policy, Permissions-Policy
-- Login rate limiting (5 attempts per 60 seconds per IP)
-- bcrypt password hashing
+- The database uses snake_case via Prisma mapping.
+- App code uses camelCase field names.
+- Debt and savings totals are derived from history rather than stored as mutable balances.
+- The app is single-user. There is no account or multi-tenant layer.
 
 ## Conventions
 
-- **Path alias:** `@/*` maps to `./src/*`
-- **Fonts:** Geist Sans and Geist Mono via `next/font/google`
-- **Styling:** Tailwind utility classes directly in JSX; no CSS modules, styled-components, or UI component library
-- **Validation:** Zod schemas in `src/lib/validators.ts`; co-locate additional schemas near usage
-- **Types:** Use Prisma-generated types. Only create additional types when Prisma types don't cover the need
-- **Server logic:** Keep business logic in server-side code (Server Actions / Route Handlers)
-- **Components:** Small, focused components co-located with pages. No formal `components/` directory
-- **No over-engineering:** Only build what is required. No unnecessary configurability or premature abstraction
-- **ESLint custom rules:** consistent-type-imports (inline), no-unused-vars (allow `_` prefix), no-explicit-any (warn), no-console (warn, allow warn/error), eqeqeq (error), curly (multi-line), no-throw-literal, prefer-const
+- Read the existing code before making changes. Follow established patterns.
+- Prefer Zod validation at API boundaries using schemas in `src/lib/validators.ts`.
+- Use Prisma-generated types where they already exist.
+- Keep tests next to the implementation as `*.test.ts` or `*.test.tsx`.
+- Do not edit `src/generated/prisma/` directly.
+- Keep business logic on the server side when it touches persistence or sensitive rules.
+- Use small focused components and avoid unnecessary abstraction.
 
-## Agent Workflows
+## Auth and Security
 
-The `agents/` directory contains prompts for a multi-stage workflow:
+- Auth lives in `src/lib/auth.ts`.
+- Rate limiting and client IP extraction live in `src/lib/auth-rate-limit.ts`.
+- Middleware protects all routes except `/login`, `/api/auth`, and static assets.
+- Credentials are stored in the `Settings` table as bcrypt hashes.
 
-1. **`agents/implement.md`** — Feature implementation (no tests)
-2. **`agents/test.md`** — QA test writing (Vitest preferred)
-3. **`agents/review.md`** — Code review (approve/reject)
-4. **`agents/fix.md`** — Fix rejected review (apply fixes, update tests, resubmit)
+## Testing
 
-If a review is **rejected**, run `agents/fix.md` in the same conversation. The fix agent reads the review output from context, addresses all issues, updates tests, and produces a summary for re-review.
+- Test runner: Vitest with jsdom
+- React tests: Testing Library and `@testing-library/user-event`
+- Path alias: `@/*` maps to `src/*`
+- Run the full suite with `npm test`
 
-When implementing features, follow the implement agent's instructions: explore existing code first, match existing patterns, validate with Zod at boundaries, and provide a summary checklist when done.
+## Documentation Discipline
+
+Update docs in the same change when you modify:
+
+- required environment variables
+- setup steps or bootstrap scripts
+- route names or major UI labels
+- seed data expectations
+- analysis calculations or API contracts
+- agent workflow expectations in `agents/`, `AGENTS.md`, or this file
+
+## Agent Workflow Files
+
+The `agents/` directory defines a four-step implementation workflow:
+
+1. `agents/implement.md`
+2. `agents/test.md`
+3. `agents/review.md`
+4. `agents/fix.md`
+
+Use them as handoff prompts, but keep this file and the human-facing docs in sync with the real codebase.

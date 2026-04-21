@@ -1,186 +1,172 @@
 # Finance Centre
 
-A self-hosted personal finance tracker built with Next.js, TypeScript, Prisma, and PostgreSQL, designed to run on a Raspberry Pi.
+Self-hosted personal finance tracking for a single household. The app covers day-to-day spending, monthly budgeting, debts, savings, holidays, fixed costs, income, and higher-level analysis.
 
 ## Screenshots
 
 | Dashboard | Transactions |
-|:---------:|:------------:|
+| :-------: | :----------: |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Transactions](docs/screenshots/transactions.png) |
 
 | Debts | Holidays |
-|:-----:|:--------:|
+| :---: | :------: |
 | ![Debts](docs/screenshots/debts.png) | ![Holidays](docs/screenshots/holidays.png) |
 
-## Features
+## What It Covers
 
-**Spending**
-- Log expenses with categories, vendors, and line-item breakdowns
-- Monthly budgets per category with progress tracking
-- Spending summaries by month, year, and week with category breakdowns
+- Spending transactions with optional line-item breakdowns
+- Monthly budgets by category
+- Transaction summaries by month, year, and week
+- Debt tracking with payment and interest history
+- Savings goals with contribution history
+- Housing expenses and recurring subscriptions
+- Income sources with deduction breakdowns
+- Holiday planning and holiday-specific expenses
+- Dashboard views for daily spend, fixed costs, debt, savings, and holidays
+- Analysis views for spending trends, budget health, income vs outgoings, and net worth
+- Settings for locale, currency, monthly budget total, and category maintenance
 
-**Debts**
-- Track credit cards, student loans, personal loans, and other debt products
-- Record payments with interest breakdowns
-- Balance computed from payment history — never stored
+## Stack
 
-**Savings**
-- Goal-based saving with target amounts and dates
-- Contribution tracking with notes
-- Priority levels (low, medium, high)
+- Next.js 16 App Router
+- React 19
+- TypeScript 5 in strict mode
+- Prisma 7 with `@prisma/adapter-pg`
+- PostgreSQL 17
+- NextAuth.js credentials auth
+- Zod 4 and react-hook-form 7
+- Tailwind CSS 4
+- Recharts 3
+- Vitest 4 and Testing Library
 
-**Fixed Costs**
-- Housing expenses: rent, council tax, energy, and more — tracked month by month
-- Subscriptions with copy-forward to the next month
-
-**Income**
-- Gross and net tracking per pay period
-- Full deduction breakdown: tax, NI, pension, student loan, and custom deductions
-
-**Holidays**
-- Trip-based cost grouping with customisable expense categories
-- Per-holiday cost breakdown with date tracking
-
-**Dashboard**
-- Separated views: daily spending vs fixed costs vs holidays vs debt & savings
-- Monthly net position summary across all areas
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript 5 (strict mode) |
-| Styling | Tailwind CSS 4 |
-| ORM | Prisma 7 with `@prisma/adapter-pg` |
-| Database | PostgreSQL 17 |
-| Auth | NextAuth.js 4 (credentials provider) |
-| Charts | Recharts 3 |
-| Forms | react-hook-form 7 + Zod 4 |
-| Dates | date-fns 4 |
-| Process Manager | PM2 |
-
-## Domain Model
-
-The database has 15 entities across 7 areas:
-
-| Area | Entities |
-|------|----------|
-| Spending | Category, Transaction, TransactionLineItem, Budget |
-| Debt | Debt, DebtPayment |
-| Savings | SavingsGoal, SavingsContribution |
-| Travel | Holiday, HolidayExpense |
-| Fixed Costs | HousingExpense, Subscription |
-| Income | IncomeSource, IncomeDeduction |
-| Config | Settings |
-
-Key design decisions:
-
-- **Single-user app** — no user or account entities; authentication protects a single instance
-- **Balances computed via aggregation** — debt balances and savings totals are never stored, always derived from payment/contribution history
-- **Snake-case in the database** — all table and column names use `snake_case` via Prisma `@@map`/`@map`, while model fields remain `camelCase`
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
-- PostgreSQL 17 (or use the included Docker Compose file)
+- Node.js 20 or newer
+- PostgreSQL 17
+- Docker Desktop or another Docker runtime if you want to use the bundled database container
 
 ### Setup
 
 ```sh
-# Clone the repo
-git clone https://github.com/your-username/finance-centre.git
-cd finance-centre
-
-# Install dependencies
 npm ci
-
-# Start PostgreSQL (if using Docker)
-docker compose up -d
-
-# Configure environment
 cp .env.example .env
-# Edit .env and set:
-#   DATABASE_URL=postgresql://finance_centre:finance_centre@localhost:5432/finance_centre?schema=public
-#   NEXTAUTH_URL=http://localhost:3000
-#   NEXTAUTH_SECRET=<generate with: openssl rand -base64 32>
+docker compose up -d
+```
 
-# Run migrations and seed
+Set the auth values in `.env` before starting the app:
+
+```env
+DATABASE_URL="postgresql://finance_centre:finance_centre@localhost:5432/finance_centre?schema=public"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="replace-with-a-random-secret"
+# Optional: trust x-forwarded-for / x-real-ip headers in front of a reverse proxy
+# AUTH_TRUST_PROXY_HEADERS="true"
+```
+
+Then initialise the database and login credentials:
+
+```sh
 npx prisma migrate deploy
 npx prisma db seed
-
-# Set your login password
-npx tsx scripts/set-password.ts <your-password>
-
-# Start the dev server
+npx tsx scripts/set-password.ts you@example.com your-password
 npm run dev
 ```
 
-For production:
+Open `http://localhost:3000/login` and sign in with the email and password you set above.
 
-```sh
-npm run build
-npm start
-```
+## Common Commands
 
-## Deployment
+- `npm run dev` starts the development server
+- `npm run build` creates a production build
+- `npm start` runs the production server
+- `npm test` runs the Vitest suite
+- `npm run lint` runs ESLint
+- `npx prisma migrate dev --name <name>` creates a new migration during development
+- `npx prisma db seed` reloads the sample data
 
-This app is designed to run on a Raspberry Pi behind a Cloudflare Tunnel.
+## Routes
 
-- **Runtime:** Node.js 20 on ARM64
-- **Process manager:** PM2 to keep the app running across reboots
-- **HTTPS:** Cloudflare Tunnel — no ports exposed to the internet. Use `127.0.0.1` (not `localhost`) when configuring the tunnel origin
-- **Backups:** Daily `pg_dump` to S3
+- `/` dashboard
+- `/transactions` transaction entry and list
+- `/transactions/summary` spending summaries
+- `/budgets` monthly budgets
+- `/debts` debt tracking
+- `/savings` savings goals
+- `/housing` housing expenses
+- `/subscriptions` recurring subscriptions
+- `/income` income and deductions
+- `/holidays` holiday planning and expenses
+- `/analysis` trend and net worth analysis
+- `/settings` app settings and category management
+- `/login` sign-in page
 
-## Security
+## Environment Variables
 
-- **Authentication:** NextAuth credentials provider with bcrypt-hashed passwords
-- **Rate limiting:** Login endpoint limited to 5 attempts per 60 seconds per IP via `rate-limiter-flexible`
-- **Security headers:** `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Content-Security-Policy`, `Permissions-Policy` — configured in `next.config.ts`
-- **No open ports:** Cloudflare Tunnel handles ingress; the server never listens on a public interface
-- **CSRF protection:** Provided by NextAuth's built-in CSRF token handling
-- **Auth middleware:** All routes require authentication except `/login`
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | PostgreSQL connection string used by Prisma, seeding, and the password setup script |
+| `NEXTAUTH_URL` | Yes | Base URL for NextAuth callbacks and local sign-in flows |
+| `NEXTAUTH_SECRET` | Yes | Secret used to sign NextAuth JWT sessions |
+| `AUTH_TRUST_PROXY_HEADERS` | No | Enables `x-forwarded-for` and `x-real-ip` handling for auth rate limiting when the app sits behind a trusted proxy |
 
-## Project Structure
+## Data Model
 
-```
+The schema currently covers these core models:
+
+- Spending: `Category`, `Transaction`, `TransactionLineItem`, `Budget`
+- Debt: `Debt`, `DebtPayment`
+- Savings: `SavingsGoal`, `SavingsContribution`
+- Fixed costs: `HousingExpense`, `Subscription`
+- Income: `IncomeSource`, `IncomeDeduction`
+- Holidays: `Holiday`, `HolidayExpense`
+- App config: `Settings`
+
+Design constraints worth knowing:
+
+- Single-user app with credentials stored in the `Settings` row
+- Balances are derived where possible instead of being persisted redundantly
+- Database tables and columns use snake_case via Prisma mapping
+
+## Project Layout
+
+```text
 src/
-├── app/
-│   ├── api/                # REST API routes (CRUD for all entities)
-│   │   ├── auth/           #   NextAuth endpoints
-│   │   ├── budgets/        #   Budget management
-│   │   ├── categories/     #   Category management
-│   │   ├── debts/          #   Debts and payments
-│   │   ├── holidays/       #   Holidays and expenses
-│   │   ├── housing/        #   Housing expenses
-│   │   ├── income/         #   Income and deductions
-│   │   ├── savings/        #   Savings goals and contributions
-│   │   ├── settings/       #   App settings
-│   │   ├── subscriptions/  #   Subscriptions with copy-forward
-│   │   └── transactions/   #   Transactions, summaries, vendor lookup
-│   ├── budgets/            # Budget allocation page
-│   ├── debts/              # Debt tracking page
-│   ├── fixed-costs/        # Housing & subscriptions page
-│   ├── holidays/           # Holiday cost tracking page
-│   ├── income/             # Income & deductions page
-│   ├── login/              # Login page
-│   ├── savings/            # Savings goals page
-│   ├── settings/           # Settings page
-│   ├── transactions/       # Transaction list & summary pages
-│   ├── layout.tsx          # Root layout with nav bar
-│   └── page.tsx            # Dashboard
-├── lib/
-│   ├── auth.ts             # NextAuth configuration
-│   ├── auth-rate-limit.ts  # Login rate limiting
-│   ├── prisma.ts           # Prisma client singleton
-│   ├── validators.ts       # Shared Zod schemas
-│   └── months.ts           # Month/date utilities
-├── generated/prisma/       # Generated Prisma client (gitignored)
-└── middleware.ts            # Auth middleware (protects all routes)
+  app/
+    api/              Route handlers for the app data model
+    analysis/         Analysis UI tabs and page
+    login/            Sign-in page
+    page.tsx          Dashboard
+  lib/
+    auth.ts           NextAuth configuration
+    auth-rate-limit.ts Login throttling and client IP extraction
+    months.ts         Month helpers used across dashboard and analysis
+    prisma.ts         Prisma client singleton
+    validators.ts     Shared Zod schemas
+prisma/
+  schema.prisma       Database schema
+  migrations/         Prisma migrations
+  seed.ts             Seed data for categories and sample finance records
+scripts/
+  set-password.ts     Writes email and password hash into Settings
+agents/
+  implement.md
+  test.md
+  review.md
+  fix.md
+docs/
+  development.md      Setup, environment, and operational notes
+  analysis.md         Analysis feature and API contract
 ```
 
-## License
+## Self-Hosting Notes
 
-MIT
+The repository is built for self-hosting and works well on small home-server hardware, including a Raspberry Pi. Deployment infrastructure is intentionally not hard-coded in the app, so you need to choose your own process manager, TLS/ingress setup, backups, and secret management.
+
+## More Docs
+
+- [Development guide](docs/development.md)
+- [Analysis guide](docs/analysis.md)
+- [AI workflow guide](CLAUDE.md)
+- [Generic agent entrypoint](AGENTS.md)

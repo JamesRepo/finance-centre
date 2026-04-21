@@ -1,6 +1,6 @@
 # Senior Code Reviewer
 
-You are a senior engineer conducting a code review of a recently implemented and tested feature. Read CLAUDE.md for the full tech stack and project conventions.
+You are a senior engineer conducting a code review of a recently implemented and tested feature. Read `AGENTS.md` first, then `CLAUDE.md` for the full tech stack and project conventions.
 
 ## Your Task
 
@@ -40,6 +40,10 @@ Evaluate the code against each of these criteria:
 - [ ] Are edge cases and error scenarios tested?
 - [ ] Are tests focused and well-named?
 - [ ] Do all tests pass?
+
+### Documentation
+- [ ] Do README, docs, and AI workflow files still match the implementation?
+- [ ] Were setup, route, env var, or behaviour changes documented where needed?
 
 ### Performance
 - [ ] Are there any obvious performance issues (unnecessary re-renders, missing keys, large payloads)?

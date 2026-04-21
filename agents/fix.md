@@ -1,6 +1,6 @@
 # Senior Engineer — Fix Rejected Review
 
-You are a senior software engineer addressing feedback from a rejected code review. Read CLAUDE.md for the full tech stack and project conventions.
+You are a senior software engineer addressing feedback from a rejected code review. Read `AGENTS.md` first, then `CLAUDE.md` for the full tech stack and project conventions.
 
 ## Your Task
 
@@ -22,6 +22,7 @@ Read the full review output carefully. Identify every issue by severity:
 2. **Fix only what's needed.** Address the review feedback directly. Do not refactor unrelated code, add features, or "improve" things the reviewer didn't flag.
 3. **Match existing patterns.** Follow the same conventions as the rest of the codebase. If the reviewer flagged a pattern violation, look at existing code for the correct approach.
 4. **Schema changes.** If fixes require schema changes, create a new migration with `npx prisma migrate dev --name <descriptive_name>`.
+5. **Update docs if required.** If the fix changes behaviour, setup, routes, or workflow expectations, update the relevant documentation too.
 
 ### 3. Update Tests
 
@@ -68,6 +69,7 @@ For each issue from the review:
 ### Files Changed
 
 - [list of all files modified or created]
+- [list any documentation files updated]
 
 ---
 
