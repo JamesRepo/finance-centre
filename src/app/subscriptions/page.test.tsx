@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import SubscriptionsPage from "@/app/subscriptions/page";
 
 const { mockFixedCostsView } = vi.hoisted(() => ({
-  mockFixedCostsView: vi.fn(({ section }: { section: string }) => (
-    <div data-testid="fixed-costs-view">{section}</div>
+  mockFixedCostsView: vi.fn(() => (
+    <div data-testid="fixed-costs-view">subscriptions</div>
   )),
 }));
 
@@ -15,13 +15,10 @@ vi.mock("@/app/fixed-costs/fixed-costs-view", () => ({
 }));
 
 describe("[Component] subscriptions page", () => {
-  it("should render the fixed costs view with the subscriptions section when the page loads", () => {
+  it("should render the fixed costs view when the page loads", () => {
     render(<SubscriptionsPage />);
 
-    expect(mockFixedCostsView).toHaveBeenCalledWith(
-      { section: "subscriptions" },
-      undefined,
-    );
+    expect(mockFixedCostsView).toHaveBeenCalledWith({}, undefined);
     expect(screen.getByTestId("fixed-costs-view")).toHaveTextContent("subscriptions");
   });
 });

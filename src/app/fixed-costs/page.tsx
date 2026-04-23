@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function FixedCostsPage() {
-  redirect("/housing");
+  return redirect("/housing");
 }

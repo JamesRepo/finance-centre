@@ -19,17 +19,6 @@ const currencyFormatter = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 2,
 });
 
-const housingExpenseTypeOptions = [
-  { value: "RENT", label: "Rent" },
-  { value: "COUNCIL_TAX", label: "Council tax" },
-  { value: "ENERGY", label: "Energy" },
-  { value: "WATER", label: "Water" },
-  { value: "INTERNET", label: "Internet" },
-  { value: "INSURANCE", label: "Insurance" },
-  { value: "MAINTENANCE", label: "Maintenance" },
-  { value: "OTHER", label: "Other" },
-] as const;
-
 const frequencyOptions = [
   { value: "MONTHLY", label: "Monthly" },
   { value: "YEARLY", label: "Yearly" },
@@ -48,31 +37,9 @@ const subscriptionFormSchema = z.object({
   description: z.string().trim().optional(),
 });
 
-type HousingExpenseType = (typeof housingExpenseTypeOptions)[number]["value"];
 type Frequency = (typeof frequencyOptions)[number]["value"];
-type SaveState = "idle" | "saving" | "saved" | "error";
-type FixedCostsSection = "housing" | "subscriptions";
 type SubscriptionFormValues = z.input<typeof subscriptionFormSchema>;
 type SubscriptionFormSubmitValues = z.output<typeof subscriptionFormSchema>;
-
-type HousingExpense = {
-  id: number;
-  expenseType: HousingExpenseType;
-  amount: string;
-  expenseMonth: string;
-  frequency: Frequency;
-  createdAt: string;
-};
-
-type HousingRow = {
-  expenseType: HousingExpenseType;
-  label: string;
-  amount: string;
-  frequency: Frequency;
-  hasStoredValue: boolean;
-  previousMonthAmount: string | null;
-  previousMonthFrequency: Frequency | null;
-};
 
 type Subscription = {
   id: number;
@@ -97,26 +64,6 @@ function formatCurrency(value: number) {
   return currencyFormatter.format(value);
 }
 
-function formatInputAmount(value: string) {
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return "";
-  }
-
-  return amount.toFixed(2);
-}
-
-function calculateMonthlyEquivalent(amount: string, frequency: Frequency) {
-  const value = Number(amount);
-
-  if (!Number.isFinite(value) || value <= 0) {
-    return 0;
-  }
-
-  return frequency === "YEARLY" ? value / 12 : value;
-}
-
 function formatDisplayDate(value: string) {
   return format(new Date(value), "d MMM yyyy");
 }
@@ -136,18 +83,6 @@ async function readApiError(response: Response, fallback: string) {
   } catch {
     return fallback;
   }
-}
-
-function shouldClearHousingAmount(value: string) {
-  const normalizedValue = value.trim();
-
-  if (!normalizedValue) {
-    return false;
-  }
-
-  const amount = Number(normalizedValue);
-
-  return Number.isFinite(amount) && amount === 0;
 }
 
 async function fetchSubscriptionSummary(month: string) {
@@ -193,35 +128,8 @@ function SummaryCard({
   );
 }
 
-export function FixedCostsView({
-  section,
-}: {
-  section: FixedCostsSection;
-}) {
-  const isHousingPage = section === "housing";
+export function FixedCostsView() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue);
-  const [housingExpenses, setHousingExpenses] = useState<HousingExpense[]>([]);
-  const [previousHousingExpenses, setPreviousHousingExpenses] = useState<
-    HousingExpense[]
-  >([]);
-  const [housingDrafts, setHousingDrafts] = useState<
-    Record<HousingExpenseType, string>
-  >({} as Record<HousingExpenseType, string>);
-  const [housingFrequencyDrafts, setHousingFrequencyDrafts] = useState<
-    Record<HousingExpenseType, Frequency>
-  >({} as Record<HousingExpenseType, Frequency>);
-  const [editingExpenseType, setEditingExpenseType] =
-    useState<HousingExpenseType | null>(null);
-  const [housingSaveStates, setHousingSaveStates] = useState<
-    Record<HousingExpenseType, SaveState>
-  >({} as Record<HousingExpenseType, SaveState>);
-  const [housingMessages, setHousingMessages] = useState<
-    Record<HousingExpenseType, string>
-  >({} as Record<HousingExpenseType, string>);
-  const [housingLoading, setHousingLoading] = useState(true);
-  const [housingError, setHousingError] = useState<string | null>(null);
-  const [copyingPreviousMonth, setCopyingPreviousMonth] = useState(false);
-
   const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary>({
     month: getCurrentMonthValue(),
     subscriptions: [],
@@ -273,114 +181,17 @@ export function FixedCostsView({
     () => formatMonthLabel(previousMonth),
     [previousMonth],
   );
-
-  async function loadHousingData(month: string) {
-    setHousingLoading(true);
-    setHousingError(null);
-
-    try {
-      const currentResponse = await fetch(`/api/housing?month=${month}`, {
-        cache: "no-store",
-      });
-
-      if (!currentResponse.ok) {
-        throw new Error(
-          await readApiError(currentResponse, "Failed to load housing expenses"),
-        );
-      }
-
-      const previousResponse = await fetch(
-        `/api/housing?month=${shiftMonthValue(month, -1)}`,
-        {
-          cache: "no-store",
-        },
-      );
-
-      if (!previousResponse.ok) {
-        throw new Error(
-          await readApiError(
-            previousResponse,
-            "Failed to load previous housing expenses",
-          ),
-        );
-      }
-
-      const currentData = (await currentResponse.json()) as HousingExpense[];
-      const previousData = (await previousResponse.json()) as HousingExpense[];
-
-      setHousingExpenses(currentData);
-      setPreviousHousingExpenses(previousData);
-      setHousingDrafts(
-        Object.fromEntries(
-          housingExpenseTypeOptions.map(({ value }) => {
-            const currentExpense = currentData.find(
-              (expense) => expense.expenseType === value,
-            );
-
-            return [value, currentExpense ? formatInputAmount(currentExpense.amount) : ""];
-          }),
-        ) as Record<HousingExpenseType, string>,
-      );
-      setHousingFrequencyDrafts(
-        Object.fromEntries(
-          housingExpenseTypeOptions.map(({ value }) => {
-            const currentExpense = currentData.find(
-              (expense) => expense.expenseType === value,
-            );
-            const previousExpense = previousData.find(
-              (expense) => expense.expenseType === value,
-            );
-
-            return [value, currentExpense?.frequency ?? previousExpense?.frequency ?? "MONTHLY"];
-          }),
-        ) as Record<HousingExpenseType, Frequency>,
-      );
-      setHousingSaveStates({} as Record<HousingExpenseType, SaveState>);
-      setHousingMessages({} as Record<HousingExpenseType, string>);
-      setEditingExpenseType(null);
-    } catch (error) {
-      setHousingError(
-        error instanceof Error ? error.message : "Failed to load housing expenses",
-      );
-    } finally {
-      setHousingLoading(false);
-    }
-  }
-
-  async function loadSubscriptions(month: string) {
-    setSubscriptionsLoading(true);
-    setSubscriptionsError(null);
-
-    try {
-      const [currentSummary, previousSummary] = await Promise.all([
-        fetchSubscriptionSummary(month),
-        fetchSubscriptionSummary(shiftMonthValue(month, -1)),
-      ]);
-
-      setSubscriptionSummary(currentSummary);
-      setPreviousMonthSubscriptionCount(previousSummary.subscriptions.length);
-    } catch (error) {
-      setSubscriptionsError(
-        error instanceof Error ? error.message : "Failed to load subscriptions",
-      );
-    } finally {
-      setSubscriptionsLoading(false);
-    }
-  }
+  const subscriptions = subscriptionSummary.subscriptions;
+  const subscriptionsTotal = useMemo(
+    () => Number(subscriptionSummary.total),
+    [subscriptionSummary.total],
+  );
+  const subscriptionsTotalMonthly = useMemo(
+    () => Number(subscriptionSummary.monthlyEquivalentTotal),
+    [subscriptionSummary.monthlyEquivalentTotal],
+  );
 
   useEffect(() => {
-    if (!isHousingPage) {
-      return;
-    }
-
-    void loadHousingData(selectedMonth);
-  }, [isHousingPage, selectedMonth]);
-
-  useEffect(() => {
-    if (isHousingPage) {
-      return;
-    }
-
     let isCancelled = false;
 
     async function loadCurrentMonthSubscriptions() {
@@ -390,7 +201,7 @@ export function FixedCostsView({
       try {
         const [currentSummary, previousSummary] = await Promise.all([
           fetchSubscriptionSummary(selectedMonth),
-          fetchSubscriptionSummary(shiftMonthValue(selectedMonth, -1)),
+          fetchSubscriptionSummary(previousMonth),
         ]);
 
         if (isCancelled) {
@@ -419,7 +230,7 @@ export function FixedCostsView({
     return () => {
       isCancelled = true;
     };
-  }, [isHousingPage, selectedMonth]);
+  }, [previousMonth, selectedMonth]);
 
   useEffect(() => {
     if (editingSubscriptionId !== null) {
@@ -435,273 +246,24 @@ export function FixedCostsView({
     });
   }, [editingSubscriptionId, reset, selectedMonth]);
 
-  const housingRows = useMemo<HousingRow[]>(
-    () =>
-      housingExpenseTypeOptions.map(({ value, label }) => {
-        const currentExpense =
-          housingExpenses.find((expense) => expense.expenseType === value) ?? null;
-        const previousExpense =
-          previousHousingExpenses.find((expense) => expense.expenseType === value) ??
-          null;
-
-        return {
-          expenseType: value,
-          label,
-          amount: currentExpense?.amount ?? "",
-          frequency:
-            housingFrequencyDrafts[value] ??
-            currentExpense?.frequency ??
-            previousExpense?.frequency ??
-            "MONTHLY",
-          hasStoredValue: currentExpense !== null,
-          previousMonthAmount: previousExpense?.amount ?? null,
-          previousMonthFrequency: previousExpense?.frequency ?? null,
-        };
-      }),
-    [housingExpenses, housingFrequencyDrafts, previousHousingExpenses],
-  );
-
-  const housingTotalMonthly = useMemo(
-    () =>
-      housingRows.reduce(
-        (sum, row) => sum + calculateMonthlyEquivalent(row.amount, row.frequency),
-        0,
-      ),
-    [housingRows],
-  );
-
-  const subscriptions = subscriptionSummary.subscriptions;
-  const subscriptionsTotal = useMemo(
-    () => Number(subscriptionSummary.total),
-    [subscriptionSummary.total],
-  );
-  const subscriptionsTotalMonthly = useMemo(
-    () => Number(subscriptionSummary.monthlyEquivalentTotal),
-    [subscriptionSummary.monthlyEquivalentTotal],
-  );
-  const copyableRows = useMemo(
-    () =>
-      housingRows.filter(
-        (row) =>
-          !row.hasStoredValue &&
-          row.previousMonthAmount !== null &&
-          row.previousMonthFrequency !== null,
-      ),
-    [housingRows],
-  );
-
-  async function saveHousingExpense(
-    expenseType: HousingExpenseType,
-    amount: string,
-    frequency: Frequency,
-  ) {
-    const existingExpense =
-      housingExpenses.find((expense) => expense.expenseType === expenseType) ?? null;
-    const originalValue = existingExpense ? formatInputAmount(existingExpense.amount) : "";
-    const originalFrequency = existingExpense?.frequency ?? "MONTHLY";
-    const normalizedAmount = formatInputAmount(amount);
-
-    if (shouldClearHousingAmount(amount)) {
-      if (!existingExpense) {
-        setHousingDrafts((currentDrafts) => ({
-          ...currentDrafts,
-          [expenseType]: "",
-        }));
-        setHousingSaveStates((currentStates) => ({
-          ...currentStates,
-          [expenseType]: "idle",
-        }));
-        setHousingMessages((currentMessages) => ({
-          ...currentMessages,
-          [expenseType]: "",
-        }));
-        return;
-      }
-
-      setHousingSaveStates((currentStates) => ({
-        ...currentStates,
-        [expenseType]: "saving",
-      }));
-      setHousingMessages((currentMessages) => ({
-        ...currentMessages,
-        [expenseType]: "Clearing...",
-      }));
-
-      try {
-        const response = await fetch(`/api/housing/${existingExpense.id}`, {
-          method: "DELETE",
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            await readApiError(response, "Failed to clear housing expense"),
-          );
-        }
-
-        setHousingExpenses((currentExpenses) =>
-          currentExpenses.filter((expense) => expense.id !== existingExpense.id),
-        );
-        setHousingDrafts((currentDrafts) => ({
-          ...currentDrafts,
-          [expenseType]: "",
-        }));
-        setHousingSaveStates((currentStates) => ({
-          ...currentStates,
-          [expenseType]: "saved",
-        }));
-        setHousingMessages((currentMessages) => ({
-          ...currentMessages,
-          [expenseType]: "Cleared",
-        }));
-      } catch (error) {
-        setHousingFrequencyDrafts((currentDrafts) => ({
-          ...currentDrafts,
-          [expenseType]: originalFrequency,
-        }));
-        setHousingDrafts((currentDrafts) => ({
-          ...currentDrafts,
-          [expenseType]: originalValue,
-        }));
-        setHousingSaveStates((currentStates) => ({
-          ...currentStates,
-          [expenseType]: "error",
-        }));
-        setHousingMessages((currentMessages) => ({
-          ...currentMessages,
-          [expenseType]:
-            error instanceof Error ? error.message : "Failed to clear housing expense",
-        }));
-      }
-
-      return;
-    }
-
-    if (!normalizedAmount) {
-      setHousingDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [expenseType]: originalValue,
-      }));
-      setHousingSaveStates((currentStates) => ({
-        ...currentStates,
-        [expenseType]: "error",
-      }));
-      setHousingMessages((currentMessages) => ({
-        ...currentMessages,
-        [expenseType]: "Enter a valid amount",
-      }));
-      return;
-    }
-
-    if (normalizedAmount === originalValue && frequency === originalFrequency) {
-      setHousingDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [expenseType]: normalizedAmount,
-      }));
-      setHousingSaveStates((currentStates) => ({
-        ...currentStates,
-        [expenseType]: "idle",
-      }));
-      setHousingMessages((currentMessages) => ({
-        ...currentMessages,
-        [expenseType]: "",
-      }));
-      return;
-    }
-
-    setHousingSaveStates((currentStates) => ({
-      ...currentStates,
-      [expenseType]: "saving",
-    }));
-    setHousingMessages((currentMessages) => ({
-      ...currentMessages,
-      [expenseType]: "Saving...",
-    }));
+  async function loadSubscriptions(month: string) {
+    setSubscriptionsLoading(true);
+    setSubscriptionsError(null);
 
     try {
-      const response = await fetch("/api/housing", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          expenseType,
-          month: selectedMonth,
-          amount: normalizedAmount,
-          frequency,
-        }),
-      });
+      const [currentSummary, previousSummary] = await Promise.all([
+        fetchSubscriptionSummary(month),
+        fetchSubscriptionSummary(shiftMonthValue(month, -1)),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(
-          await readApiError(response, "Failed to save housing expense"),
-        );
-      }
-
-      const savedExpense = (await response.json()) as HousingExpense;
-
-      setHousingExpenses((currentExpenses) => {
-        const otherExpenses = currentExpenses.filter(
-          (expense) => expense.expenseType !== expenseType,
-        );
-
-        return [...otherExpenses, savedExpense];
-      });
-      setHousingFrequencyDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [expenseType]: savedExpense.frequency,
-      }));
-      setHousingDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [expenseType]: formatInputAmount(savedExpense.amount),
-      }));
-      setHousingSaveStates((currentStates) => ({
-        ...currentStates,
-        [expenseType]: "saved",
-      }));
-      setHousingMessages((currentMessages) => ({
-        ...currentMessages,
-        [expenseType]: "Saved",
-      }));
+      setSubscriptionSummary(currentSummary);
+      setPreviousMonthSubscriptionCount(previousSummary.subscriptions.length);
     } catch (error) {
-      setHousingFrequencyDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [expenseType]: originalFrequency,
-      }));
-      setHousingDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [expenseType]: originalValue,
-      }));
-      setHousingSaveStates((currentStates) => ({
-        ...currentStates,
-        [expenseType]: "error",
-      }));
-      setHousingMessages((currentMessages) => ({
-        ...currentMessages,
-        [expenseType]:
-          error instanceof Error ? error.message : "Failed to save housing expense",
-      }));
-    }
-  }
-
-  async function handleCopyPreviousMonth() {
-    if (copyableRows.length === 0) {
-      return;
-    }
-
-    setCopyingPreviousMonth(true);
-
-    try {
-      await Promise.all(
-        copyableRows.map((row) =>
-          saveHousingExpense(
-            row.expenseType,
-            row.previousMonthAmount ?? "",
-            row.previousMonthFrequency ?? "MONTHLY",
-          ),
-        ),
+      setSubscriptionsError(
+        error instanceof Error ? error.message : "Failed to load subscriptions",
       );
     } finally {
-      setCopyingPreviousMonth(false);
+      setSubscriptionsLoading(false);
     }
   }
 
@@ -929,12 +491,6 @@ export function FixedCostsView({
     }
   }
 
-  const pageEyebrow = isHousingPage ? "Housing" : "Subscriptions";
-  const pageTitle = isHousingPage ? "Housing costs" : "Subscriptions";
-  const pageDescription = isHousingPage
-    ? "Track rent, bills, and other home costs month by month, with inline saving and quick copy-forward from the previous month."
-    : "Manage recurring subscriptions month by month, including yearly payments and copy-forward into future months.";
-
   return (
     <main className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -943,55 +499,46 @@ export function FixedCostsView({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-                  {pageEyebrow}
+                  Subscriptions
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-                  {pageTitle}
+                  Subscriptions
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-                  {pageDescription}
+                  Manage recurring subscriptions month by month, including yearly
+                  payments and copy-forward into future months.
                 </p>
               </div>
 
-              {isHousingPage ? (
-                <div className="w-full max-w-sm">
-                  <SummaryCard
-                    label="Housing Monthly"
-                    value={formatCurrency(housingTotalMonthly)}
-                    tone="dark"
-                  />
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <SummaryCard
-                    label="Total Subscription Cost"
-                    value={formatCurrency(subscriptionsTotal)}
-                    tone="dark"
-                  />
-                  <SummaryCard
-                    label="Subscriptions Monthly"
-                    value={formatCurrency(subscriptionsTotalMonthly)}
-                    tone="light"
-                  />
-                </div>
-              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryCard
+                  label="Total Subscription Cost"
+                  value={formatCurrency(subscriptionsTotal)}
+                  tone="dark"
+                />
+                <SummaryCard
+                  label="Subscriptions Monthly"
+                  value={formatCurrency(subscriptionsTotalMonthly)}
+                  tone="light"
+                />
+              </div>
             </div>
           </div>
 
           <div className="px-6 py-6">
-            {isHousingPage ? (
-              <section className="flex flex-col gap-6">
-                <div className="flex flex-col gap-4 rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5 lg:flex-row lg:items-end lg:justify-between">
+            <section className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4 rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Housing Expenses
+                      Subscriptions
                     </p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-tight">
                       {monthLabel}
                     </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
-                      Click an amount to edit it. Changes save when the field loses
-                      focus, and yearly items are converted to monthly for totals.
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      Manage subscriptions month by month, including yearly
+                      payments and carry-forward into the next month.
                     </p>
                   </div>
 
@@ -1003,500 +550,301 @@ export function FixedCostsView({
                     />
                     <button
                       type="button"
-                      onClick={() => void handleCopyPreviousMonth()}
-                      disabled={copyingPreviousMonth || copyableRows.length === 0}
+                      onClick={() =>
+                        void handleCopySubscriptions(
+                          selectedMonth,
+                          shiftMonthValue(selectedMonth, 1),
+                        )
+                      }
+                      disabled={copyingSubscriptions || subscriptions.length === 0}
                       className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
                     >
-                      {copyingPreviousMonth
-                        ? "Copying..."
-                        : copyableRows.length === 0
-                          ? `Nothing to copy from ${previousMonthLabel}`
-                          : `Copy ${copyableRows.length} unchanged from ${previousMonthLabel}`}
+                      {copyingSubscriptions ? "Copying..." : "Copy to Next Month"}
                     </button>
                   </div>
                 </div>
 
-                {housingError ? (
-                  <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {housingError}
-                  </p>
-                ) : null}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SummaryCard
+                    label="Total Cost This Month"
+                    value={formatCurrency(subscriptionsTotal)}
+                    tone="dark"
+                  />
+                  <SummaryCard
+                    label="Monthly Equivalent"
+                    value={formatCurrency(subscriptionsTotalMonthly)}
+                    tone="light"
+                  />
+                </div>
+              </div>
 
-                {housingLoading ? (
-                  <div className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-12 text-center text-sm text-stone-500">
-                    Loading housing expenses...
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white">
-                    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_160px_120px] gap-3 bg-stone-50 px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      <p>Expense type</p>
-                      <p>Amount</p>
-                      <p>Frequency</p>
-                      <p>Status</p>
+              {subscriptionsError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {subscriptionsError}
+                </p>
+              ) : null}
+
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_360px]">
+                <div className="flex flex-col gap-4">
+                  {subscriptionsLoading ? (
+                    <div className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-12 text-center text-sm text-stone-500">
+                      Loading subscriptions...
                     </div>
+                  ) : subscriptions.length === 0 ? (
+                    <div className="rounded-[1.75rem] border border-dashed border-stone-300 bg-white px-5 py-12 text-center">
+                      <h3 className="text-xl font-semibold tracking-tight text-stone-950">
+                        No subscriptions in {monthLabel}
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-stone-500">
+                        Add a subscription manually with the form, or copy forward
+                        from {previousMonthLabel} if you want to reuse last
+                        month&apos;s list.
+                      </p>
+                      <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopySubscriptions(previousMonth, selectedMonth)
+                          }
+                          disabled={
+                            copyingSubscriptions || previousMonthSubscriptionCount === 0
+                          }
+                          className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                        >
+                          {copyingSubscriptions
+                            ? "Copying..."
+                            : previousMonthSubscriptionCount === 0
+                              ? `Nothing to copy from ${previousMonthLabel}`
+                              : `Copy from ${previousMonthLabel}`}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {subscriptions.map((subscription) => (
+                        <article
+                          key={subscription.id}
+                          className="rounded-[1.75rem] border border-stone-200 bg-white shadow-sm"
+                        >
+                          <div className="flex flex-col gap-5 px-5 py-5">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <h3 className="text-xl font-semibold tracking-tight text-stone-950">
+                                    {subscription.name}
+                                  </h3>
+                                  <span className="rounded-full bg-stone-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white">
+                                    {subscription.frequency.toLowerCase()}
+                                  </span>
+                                </div>
+                                {subscription.description ? (
+                                  <p className="mt-2 text-sm leading-6 text-stone-500">
+                                    {subscription.description}
+                                  </p>
+                                ) : null}
+                              </div>
 
-                    <div>
-                      {housingRows.map((row) => {
-                        const isEditing = editingExpenseType === row.expenseType;
-                        const draftValue = housingDrafts[row.expenseType] ?? "";
-                        const status = housingMessages[row.expenseType] ?? "";
-
-                        return (
-                          <div
-                            key={row.expenseType}
-                            className="grid grid-cols-1 gap-4 px-5 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_160px_120px] md:items-center"
-                          >
-                            <div>
-                              <p className="font-medium text-stone-950">{row.label}</p>
-                              {!row.hasStoredValue && row.previousMonthAmount ? (
-                                <p className="mt-1 text-xs text-stone-500">
-                                  Last month:{" "}
-                                  {formatCurrency(Number(row.previousMonthAmount))} /{" "}
-                                  {row.previousMonthFrequency?.toLowerCase()}
-                                </p>
-                              ) : null}
-                            </div>
-
-                            <div>
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  value={draftValue}
-                                  onChange={(event) =>
-                                    setHousingDrafts((currentDrafts) => ({
-                                      ...currentDrafts,
-                                      [row.expenseType]: event.target.value,
-                                    }))
-                                  }
-                                  onBlur={() => {
-                                    setEditingExpenseType(null);
-                                    void saveHousingExpense(
-                                      row.expenseType,
-                                      draftValue,
-                                      row.frequency,
-                                    );
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      event.currentTarget.blur();
-                                    }
-
-                                    if (event.key === "Escape") {
-                                      setHousingDrafts((currentDrafts) => ({
-                                        ...currentDrafts,
-                                        [row.expenseType]: formatInputAmount(row.amount),
-                                      }));
-                                      setEditingExpenseType(null);
-                                    }
-                                  }}
-                                  autoFocus
-                                  className="h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                                />
-                              ) : (
+                              <div className="flex gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => setEditingExpenseType(row.expenseType)}
-                                  className="flex h-11 w-full items-center rounded-xl border border-stone-300 bg-white px-3 text-left text-sm text-stone-950 transition hover:border-stone-400"
+                                  onClick={() => handleSubscriptionEdit(subscription)}
+                                  className="h-10 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
                                 >
-                                  {row.amount
-                                    ? formatCurrency(Number(row.amount))
-                                    : "Click to add amount"}
+                                  Edit
                                 </button>
-                              )}
-                            </div>
-
-                            <div>
-                              <select
-                                value={row.frequency}
-                                onChange={(event) => {
-                                  const nextFrequency = event.target.value as Frequency;
-
-                                  setHousingFrequencyDrafts((currentDrafts) => ({
-                                    ...currentDrafts,
-                                    [row.expenseType]: nextFrequency,
-                                  }));
-
-                                  if (housingDrafts[row.expenseType] || row.amount) {
-                                    void saveHousingExpense(
-                                      row.expenseType,
-                                      housingDrafts[row.expenseType] || row.amount,
-                                      nextFrequency,
-                                    );
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleSubscriptionDelete(subscription.id)
                                   }
-                                }}
-                                className="h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                              >
-                                {frequencyOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
+                                  disabled={subscriptionDeleteId === subscription.id}
+                                  className="h-10 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {subscriptionDeleteId === subscription.id
+                                    ? "Deleting..."
+                                    : "Delete"}
+                                </button>
+                              </div>
                             </div>
 
-                            <div>
-                              <p
-                                className={`text-sm ${
-                                  housingSaveStates[row.expenseType] === "error"
-                                    ? "text-red-600"
-                                    : housingSaveStates[row.expenseType] === "saved"
-                                      ? "text-emerald-600"
-                                      : "text-stone-500"
-                                }`}
-                              >
-                                {status || "Ready"}
-                              </p>
+                            <div className="grid gap-4 text-sm text-stone-600 sm:grid-cols-3">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                  Amount
+                                </p>
+                                <p className="mt-1 text-lg font-semibold text-stone-950">
+                                  {formatCurrency(Number(subscription.amount))}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                  Payment day
+                                </p>
+                                <p className="mt-1 text-lg font-semibold text-stone-950">
+                                  Day {formatPaymentDay(subscription.paymentDate)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                  Monthly equivalent
+                                </p>
+                                <p className="mt-1 text-lg font-semibold text-stone-950">
+                                  {formatCurrency(
+                                    Number(subscription.monthlyEquivalent),
+                                  )}
+                                </p>
+                              </div>
                             </div>
+
+                            <p className="text-sm text-stone-500">
+                              Paid on {formatDisplayDate(subscription.paymentDate)}
+                            </p>
                           </div>
-                        );
-                      })}
+                        </article>
+                      ))}
                     </div>
-
-                    <div className="flex flex-col gap-2 bg-stone-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm font-medium text-stone-600">
-                        Total monthly housing cost
-                      </p>
-                      <p className="text-2xl font-semibold tracking-tight text-stone-950">
-                        {formatCurrency(housingTotalMonthly)}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </section>
-            ) : (
-              <section className="flex flex-col gap-6">
-                <div className="flex flex-col gap-4 rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Subscriptions
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                        {monthLabel}
-                      </h2>
-                      <p className="mt-2 text-sm leading-6 text-stone-600">
-                        Manage subscriptions month by month, including yearly
-                        payments and carry-forward into the next month.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                      <MonthSelector
-                        value={selectedMonth}
-                        onChange={setSelectedMonth}
-                        className="flex flex-col gap-3 sm:flex-row sm:items-end"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleCopySubscriptions(
-                            selectedMonth,
-                            shiftMonthValue(selectedMonth, 1),
-                          )
-                        }
-                        disabled={copyingSubscriptions || subscriptions.length === 0}
-                        className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
-                      >
-                        {copyingSubscriptions
-                          ? "Copying..."
-                          : "Copy to Next Month"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <SummaryCard
-                      label="Total Cost This Month"
-                      value={formatCurrency(subscriptionsTotal)}
-                      tone="dark"
-                    />
-                    <SummaryCard
-                      label="Monthly Equivalent"
-                      value={formatCurrency(subscriptionsTotalMonthly)}
-                      tone="light"
-                    />
-                  </div>
+                  )}
                 </div>
 
-                {subscriptionsError ? (
-                  <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {subscriptionsError}
+                <form
+                  className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm"
+                  onSubmit={handleSubmit(handleSubscriptionSubmit)}
+                >
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
+                    {editingSubscriptionId === null
+                      ? "Add Subscription"
+                      : "Edit Subscription"}
                   </p>
-                ) : null}
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                    {editingSubscriptionId === null
+                      ? "New monthly entry"
+                      : "Update monthly entry"}
+                  </h2>
 
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_360px]">
-                  <div className="flex flex-col gap-4">
-                    {subscriptionsLoading ? (
-                      <div className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-12 text-center text-sm text-stone-500">
-                        Loading subscriptions...
-                      </div>
-                    ) : subscriptions.length === 0 ? (
-                      <div className="rounded-[1.75rem] border border-dashed border-stone-300 bg-white px-5 py-12 text-center">
-                        <h3 className="text-xl font-semibold tracking-tight text-stone-950">
-                          No subscriptions in {monthLabel}
-                        </h3>
-                        <p className="mt-3 text-sm leading-6 text-stone-500">
-                          Add a subscription manually with the form, or copy forward
-                          from {previousMonthLabel} if you want to reuse last
-                          month&apos;s list.
-                        </p>
-                        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleCopySubscriptions(previousMonth, selectedMonth)
-                            }
-                            disabled={
-                              copyingSubscriptions ||
-                              previousMonthSubscriptionCount === 0
-                            }
-                            className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
-                          >
-                            {copyingSubscriptions
-                              ? "Copying..."
-                              : previousMonthSubscriptionCount === 0
-                                ? `Nothing to copy from ${previousMonthLabel}`
-                                : `Copy from ${previousMonthLabel}`}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid gap-4">
-                        {subscriptions.map((subscription) => (
-                          <article
-                            key={subscription.id}
-                            className="rounded-[1.75rem] border border-stone-200 bg-white shadow-sm"
-                          >
-                            <div className="flex flex-col gap-5 px-5 py-5">
-                              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                <div>
-                                  <div className="flex flex-wrap items-center gap-3">
-                                    <h3 className="text-xl font-semibold tracking-tight text-stone-950">
-                                      {subscription.name}
-                                    </h3>
-                                    <span className="rounded-full bg-stone-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white">
-                                      {subscription.frequency.toLowerCase()}
-                                    </span>
-                                  </div>
-                                  {subscription.description ? (
-                                    <p className="mt-2 text-sm leading-6 text-stone-500">
-                                      {subscription.description}
-                                    </p>
-                                  ) : null}
-                                </div>
+                  <div className="mt-6 grid gap-4">
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-stone-700">Name</span>
+                      <input
+                        type="text"
+                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                        disabled={isSubmitting}
+                        placeholder="Spotify, Gym, iCloud..."
+                        {...register("name")}
+                      />
+                      {errors.name ? (
+                        <p className="text-sm text-red-600">{errors.name.message}</p>
+                      ) : null}
+                    </label>
 
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSubscriptionEdit(subscription)}
-                                    className="h-10 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void handleSubscriptionDelete(subscription.id)
-                                    }
-                                    disabled={subscriptionDeleteId === subscription.id}
-                                    className="h-10 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {subscriptionDeleteId === subscription.id
-                                      ? "Deleting..."
-                                      : "Delete"}
-                                  </button>
-                                </div>
-                              </div>
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-stone-700">Amount</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        inputMode="decimal"
+                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                        disabled={isSubmitting}
+                        placeholder="0.00"
+                        {...register("amount")}
+                      />
+                      {errors.amount ? (
+                        <p className="text-sm text-red-600">{errors.amount.message}</p>
+                      ) : null}
+                    </label>
 
-                              <div className="grid gap-4 text-sm text-stone-600 sm:grid-cols-3">
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                    Amount
-                                  </p>
-                                  <p className="mt-1 text-lg font-semibold text-stone-950">
-                                    {formatCurrency(Number(subscription.amount))}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                    Payment day
-                                  </p>
-                                  <p className="mt-1 text-lg font-semibold text-stone-950">
-                                    Day {formatPaymentDay(subscription.paymentDate)}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                                    Monthly equivalent
-                                  </p>
-                                  <p className="mt-1 text-lg font-semibold text-stone-950">
-                                    {formatCurrency(
-                                      Number(subscription.monthlyEquivalent),
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <p className="text-sm text-stone-500">
-                                Paid on {formatDisplayDate(subscription.paymentDate)}
-                              </p>
-                            </div>
-                          </article>
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-stone-700">
+                        Frequency
+                      </span>
+                      <select
+                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                        disabled={isSubmitting}
+                        {...register("frequency")}
+                      >
+                        {frequencyOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
                         ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <form
-                    className="rounded-[1.75rem] border border-stone-200 bg-white px-5 py-5 shadow-sm"
-                    onSubmit={handleSubmit(handleSubscriptionSubmit)}
-                  >
-                    <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      {editingSubscriptionId === null
-                        ? "Add Subscription"
-                        : "Edit Subscription"}
-                    </p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                      {editingSubscriptionId === null
-                        ? "New monthly entry"
-                        : "Update monthly entry"}
-                    </h2>
-
-                    <div className="mt-6 grid gap-4">
-                      <label className="flex flex-col gap-2">
-                        <span className="text-sm font-medium text-stone-700">
-                          Name
-                        </span>
-                        <input
-                          type="text"
-                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                          disabled={isSubmitting}
-                          placeholder="Spotify, Gym, iCloud..."
-                          {...register("name")}
-                        />
-                        {errors.name ? (
-                          <p className="text-sm text-red-600">{errors.name.message}</p>
-                        ) : null}
-                      </label>
-
-                      <label className="flex flex-col gap-2">
-                        <span className="text-sm font-medium text-stone-700">
-                          Amount
-                        </span>
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          inputMode="decimal"
-                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                          disabled={isSubmitting}
-                          placeholder="0.00"
-                          {...register("amount")}
-                        />
-                        {errors.amount ? (
-                          <p className="text-sm text-red-600">
-                            {errors.amount.message}
-                          </p>
-                        ) : null}
-                      </label>
-
-                      <label className="flex flex-col gap-2">
-                        <span className="text-sm font-medium text-stone-700">
-                          Frequency
-                        </span>
-                        <select
-                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                          disabled={isSubmitting}
-                          {...register("frequency")}
-                        >
-                          {frequencyOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.frequency ? (
-                          <p className="text-sm text-red-600">
-                            {errors.frequency.message}
-                          </p>
-                        ) : null}
-                      </label>
-
-                      <label className="flex flex-col gap-2">
-                        <span className="text-sm font-medium text-stone-700">
-                          Payment date
-                        </span>
-                        <input
-                          type="date"
-                          autoComplete="off"
-                          className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                          disabled={isSubmitting}
-                          {...register("paymentDate")}
-                        />
-                        {errors.paymentDate ? (
-                          <p className="text-sm text-red-600">
-                            {errors.paymentDate.message}
-                          </p>
-                        ) : null}
-                      </label>
-
-                      <label className="flex flex-col gap-2">
-                        <span className="text-sm font-medium text-stone-700">
-                          Description
-                        </span>
-                        <textarea
-                          rows={4}
-                          className="rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-stone-950"
-                          disabled={isSubmitting}
-                          placeholder="Optional details"
-                          {...register("description")}
-                        />
-                        {errors.description ? (
-                          <p className="text-sm text-red-600">
-                            {errors.description.message}
-                          </p>
-                        ) : null}
-                      </label>
-
-                      <div className="mt-2 flex gap-3">
-                        <button
-                          type="submit"
-                          className="h-11 flex-1 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-                          disabled={isSubmitting}
-                        >
-                          {isSubmitting
-                            ? "Saving..."
-                            : editingSubscriptionId === null
-                              ? "Add subscription"
-                              : "Save changes"}
-                        </button>
-
-                        {editingSubscriptionId !== null ? (
-                          <button
-                            type="button"
-                            onClick={cancelSubscriptionEdit}
-                            className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
-                            disabled={isSubmitting}
-                          >
-                            Cancel
-                          </button>
-                        ) : null}
-                      </div>
-
-                      {subscriptionSubmitError ? (
+                      </select>
+                      {errors.frequency ? (
                         <p className="text-sm text-red-600">
-                          {subscriptionSubmitError}
+                          {errors.frequency.message}
                         </p>
                       ) : null}
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-stone-700">
+                        Payment date
+                      </span>
+                      <input
+                        type="date"
+                        autoComplete="off"
+                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                        disabled={isSubmitting}
+                        {...register("paymentDate")}
+                      />
+                      {errors.paymentDate ? (
+                        <p className="text-sm text-red-600">
+                          {errors.paymentDate.message}
+                        </p>
+                      ) : null}
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-stone-700">
+                        Description
+                      </span>
+                      <textarea
+                        rows={4}
+                        className="rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-stone-950"
+                        disabled={isSubmitting}
+                        placeholder="Optional details"
+                        {...register("description")}
+                      />
+                      {errors.description ? (
+                        <p className="text-sm text-red-600">
+                          {errors.description.message}
+                        </p>
+                      ) : null}
+                    </label>
+
+                    <div className="mt-2 flex gap-3">
+                      <button
+                        type="submit"
+                        className="h-11 flex-1 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting
+                          ? "Saving..."
+                          : editingSubscriptionId === null
+                            ? "Add subscription"
+                            : "Save changes"}
+                      </button>
+
+                      {editingSubscriptionId !== null ? (
+                        <button
+                          type="button"
+                          onClick={cancelSubscriptionEdit}
+                          className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
+                          disabled={isSubmitting}
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
                     </div>
-                  </form>
-                </div>
-              </section>
-            )}
+
+                    {subscriptionSubmitError ? (
+                      <p className="text-sm text-red-600">
+                        {subscriptionSubmitError}
+                      </p>
+                    ) : null}
+                  </div>
+                </form>
+              </div>
+            </section>
           </div>
         </section>
       </div>
