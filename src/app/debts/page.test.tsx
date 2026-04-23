@@ -162,8 +162,14 @@ describe("[Component] debts page", () => {
       cache: "no-store",
     });
     expect(screen.getAllByText("£800.00")).toHaveLength(2);
+    expect(screen.getByText("of £1,000.00 original")).toBeInTheDocument();
+    expect(screen.getByText("Overall progress")).toBeInTheDocument();
+    expect(screen.getByText("13%")).toBeInTheDocument();
+    expect(screen.getByText("£280.00 principal repaid")).toBeInTheDocument();
     expect(screen.getByText("£300.00")).toBeInTheDocument();
+    expect(screen.getByText("£280.00 principal · £20.00 interest")).toBeInTheDocument();
     expect(screen.getByText("Active debts")).toBeInTheDocument();
+    expect(screen.getByText("Last payment 11 Mar 2026")).toBeInTheDocument();
     expect(screen.queryByText("Archived Student Loan")).not.toBeInTheDocument();
     expect(screen.getByText("Show payments (6)")).toBeInTheDocument();
     expect(screen.getByText("Payment history hidden.")).toBeInTheDocument();
@@ -240,6 +246,71 @@ describe("[Component] debts page", () => {
     expect(screen.getByText("No payments recorded yet.")).toBeInTheDocument();
   });
 
+  it("should hide the creation form by default and toggle it with the New debt and Cancel buttons", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText("Visa");
+
+    expect(screen.queryByRole("button", { name: "Add debt" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New debt" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
+
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add debt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add debt" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New debt" })).toBeInTheDocument();
+  });
+
+  it("should reset partially filled form fields when the creation form is cancelled", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([buildDebt()]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DebtsPage />);
+
+    await screen.findByText("Visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Barclaycard" },
+    });
+    fireEvent.change(screen.getByLabelText("Original balance"), {
+      target: { value: "5000" },
+    });
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Barclaycard");
+    expect(screen.getByLabelText("Original balance")).toHaveValue(5000);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
+
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Original balance")).toHaveValue(null);
+  });
+
   it("should disable autofill on debt date inputs", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify([buildDebt()]), {
@@ -252,7 +323,11 @@ describe("[Component] debts page", () => {
 
     render(<DebtsPage />);
 
-    expect(await screen.findByLabelText("Name")).toHaveAttribute("autocomplete", "off");
+    await screen.findByText("Visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
+
+    expect(screen.getByLabelText("Name")).toHaveAttribute("autocomplete", "off");
     expect(screen.getByLabelText("Name")).toHaveAttribute("data-1p-ignore", "true");
     expect(screen.getByLabelText("Name")).toHaveAttribute("data-lpignore", "true");
     expect(screen.getByLabelText("Start date")).toHaveAttribute("autocomplete", "off");
@@ -413,6 +488,8 @@ describe("[Component] debts page", () => {
 
     await screen.findByText("Debt accounts");
 
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
+
     fireEvent.click(screen.getByRole("button", { name: "Add debt" }));
 
     expect(await screen.findByText("Enter a debt name")).toBeInTheDocument();
@@ -450,6 +527,8 @@ describe("[Component] debts page", () => {
     render(<DebtsPage />);
 
     await screen.findByText("Visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
 
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: " Barclaycard " },
@@ -498,7 +577,8 @@ describe("[Component] debts page", () => {
     });
 
     expect(await screen.findByText("Barclaycard")).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "New debt" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add debt" })).not.toBeInTheDocument();
   });
 
   it("should update a debt and reload the list when the debt edit form is submitted", async () => {
@@ -695,6 +775,8 @@ describe("[Component] debts page", () => {
     render(<DebtsPage />);
 
     await screen.findByText("Debt accounts");
+
+    fireEvent.click(screen.getByRole("button", { name: "New debt" }));
 
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Visa" },
