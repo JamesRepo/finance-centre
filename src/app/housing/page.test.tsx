@@ -4,21 +4,21 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import HousingPage from "@/app/housing/page";
 
-const { mockFixedCostsView } = vi.hoisted(() => ({
-  mockFixedCostsView: vi.fn(({ section }: { section: string }) => (
-    <div data-testid="fixed-costs-view">{section}</div>
+const { mockHousingView } = vi.hoisted(() => ({
+  mockHousingView: vi.fn(() => (
+    <div data-testid="housing-view">housing</div>
   )),
 }));
 
-vi.mock("@/app/fixed-costs/fixed-costs-view", () => ({
-  FixedCostsView: mockFixedCostsView,
+vi.mock("@/app/housing/housing-view", () => ({
+  HousingView: mockHousingView,
 }));
 
 describe("[Component] housing page", () => {
-  it("should render the fixed costs view with the housing section when the page loads", () => {
+  it("should render the housing view when the page loads", () => {
     render(<HousingPage />);
 
-    expect(mockFixedCostsView).toHaveBeenCalledWith({ section: "housing" }, undefined);
-    expect(screen.getByTestId("fixed-costs-view")).toHaveTextContent("housing");
+    expect(mockHousingView).toHaveBeenCalledWith({}, undefined);
+    expect(screen.getByTestId("housing-view")).toHaveTextContent("housing");
   });
 });

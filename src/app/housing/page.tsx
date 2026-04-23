@@ -1,5 +1,5 @@
-import { FixedCostsView } from "../fixed-costs/fixed-costs-view";
+import { HousingView } from "./housing-view";
 
 export default function HousingPage() {
-  return <FixedCostsView section="housing" />;
+  return <HousingView />;
 }
