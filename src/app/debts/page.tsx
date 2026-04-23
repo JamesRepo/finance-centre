@@ -184,10 +184,12 @@ async function readApiError(response: Response, fallback: string) {
 function SummaryCard({
   label,
   value,
+  subValue,
   tone,
 }: {
   label: string;
   value: string;
+  subValue?: string;
   tone: "dark" | "light";
 }) {
   return (
@@ -208,6 +210,17 @@ function SummaryCard({
         {label}
       </p>
       <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
+      {subValue ? (
+        <p
+          className={
+            tone === "dark"
+              ? "mt-1 text-sm text-stone-400"
+              : "mt-1 text-sm text-stone-500"
+          }
+        >
+          {subValue}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1006,6 +1019,17 @@ function DebtCard({
   );
 }
 
+const debtFormDefaults: DebtFormValues = {
+  name: "",
+  debtType: "CREDIT_CARD",
+  originalBalance: undefined,
+  interestRate: undefined,
+  minimumPayment: undefined,
+  startDate: "",
+  targetPayoffDate: "",
+  notes: "",
+};
+
 export default function DebtsPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1015,6 +1039,7 @@ export default function DebtsPage() {
   const [deletingDebtId, setDeletingDebtId] = useState<number | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
   const [showInactiveDebts, setShowInactiveDebts] = useState(false);
+  const [showDebtForm, setShowDebtForm] = useState(false);
 
   const {
     register,
@@ -1023,16 +1048,7 @@ export default function DebtsPage() {
     formState: { errors, isSubmitting },
   } = useForm<DebtFormValues, undefined, DebtFormSubmitValues>({
     resolver: zodResolver(debtFormSchema),
-    defaultValues: {
-      name: "",
-      debtType: "CREDIT_CARD",
-      originalBalance: undefined,
-      interestRate: undefined,
-      minimumPayment: undefined,
-      startDate: "",
-      targetPayoffDate: "",
-      notes: "",
-    },
+    defaultValues: debtFormDefaults,
   });
 
   async function loadDebts() {
@@ -1063,14 +1079,47 @@ export default function DebtsPage() {
 
   const summary = useMemo(() => {
     const activeDebts = debts.filter((debt) => debt.isActive);
+    const activeOriginal = activeDebts.reduce(
+      (sum, debt) => sum + Number(debt.originalBalance),
+      0,
+    );
+    const totalOriginal = debts.reduce(
+      (sum, debt) => sum + Number(debt.originalBalance),
+      0,
+    );
+    const totalPrincipalPaid = debts.reduce(
+      (sum, debt) => sum + Number(debt.principalPaid),
+      0,
+    );
+    const totalInterestPaid = debts.reduce(
+      (sum, debt) => sum + Number(debt.totalInterestPaid),
+      0,
+    );
+    const overallProgress =
+      totalOriginal > 0 ? Math.min(totalPrincipalPaid / totalOriginal, 1) : 0;
+
+    let lastPaymentDate: string | null = null;
+    for (const debt of debts) {
+      for (const payment of debt.debtPayments) {
+        if (!lastPaymentDate || payment.paymentDate > lastPaymentDate) {
+          lastPaymentDate = payment.paymentDate;
+        }
+      }
+    }
 
     return {
       totalRemaining: activeDebts.reduce(
         (sum, debt) => sum + Number(debt.currentBalance),
         0,
       ),
+      activeOriginal,
+      totalOriginal,
       totalPaid: debts.reduce((sum, debt) => sum + Number(debt.totalPaid), 0),
+      totalInterestPaid,
+      totalPrincipalPaid,
+      overallProgress,
       activeCount: activeDebts.length,
+      lastPaymentDate,
     };
   }, [debts]);
 
@@ -1078,6 +1127,14 @@ export default function DebtsPage() {
     () => debts.filter((debt) => showInactiveDebts || debt.isActive),
     [debts, showInactiveDebts],
   );
+
+  function toggleDebtForm() {
+    if (showDebtForm) {
+      reset(debtFormDefaults);
+      setSubmitError(null);
+    }
+    setShowDebtForm((current) => !current);
+  }
 
   async function onSubmit(values: DebtFormSubmitValues) {
     setSubmitError(null);
@@ -1104,16 +1161,8 @@ export default function DebtsPage() {
         throw new Error(await readApiError(response, "Failed to create debt"));
       }
 
-      reset({
-        name: "",
-        debtType: "CREDIT_CARD",
-        originalBalance: undefined,
-        interestRate: undefined,
-        minimumPayment: undefined,
-        startDate: "",
-        targetPayoffDate: "",
-        notes: "",
-      });
+      reset(debtFormDefaults);
+      setShowDebtForm(false);
       await loadDebts();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Failed to create debt");
@@ -1271,40 +1320,64 @@ export default function DebtsPage() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm">
           <div className="app-hero-surface border-b border-stone-200 px-6 py-6">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-                  Debts
-                </p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">
-                  Debt management
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-                  Track balances, record payments, and keep active obligations in
-                  view.
-                </p>
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                    Debts
+                  </p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">
+                    Debt management
+                  </h1>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+                    Track balances, record payments, and keep active obligations in
+                    view.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleDebtForm}
+                  className={
+                    showDebtForm
+                      ? "h-11 rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400"
+                      : "h-11 rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800"
+                  }
+                >
+                  {showDebtForm ? "Cancel" : "New debt"}
+                </button>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <SummaryCard
                   label="Debt remaining"
                   value={formatCurrency(summary.totalRemaining)}
+                  subValue={`of ${formatCurrency(summary.activeOriginal)} original`}
+                  tone="dark"
+                />
+                <SummaryCard
+                  label="Overall progress"
+                  value={formatPercent(summary.overallProgress * 100)}
+                  subValue={`${formatCurrency(summary.totalPrincipalPaid)} principal repaid`}
                   tone="dark"
                 />
                 <SummaryCard
                   label="Total paid"
                   value={formatCurrency(summary.totalPaid)}
+                  subValue={`${formatCurrency(summary.totalPrincipalPaid)} principal · ${formatCurrency(summary.totalInterestPaid)} interest`}
                   tone="light"
                 />
                 <SummaryCard
                   label="Active debts"
                   value={String(summary.activeCount)}
+                  subValue={summary.lastPaymentDate ? `Last payment ${formatDisplayDate(summary.lastPaymentDate)}` : undefined}
                   tone="light"
                 />
               </div>
             </div>
           </div>
 
+          {showDebtForm ? (
           <form
             className="grid gap-4 px-6 py-6 md:grid-cols-2 xl:grid-cols-4"
             onSubmit={handleSubmit(onSubmit)}
@@ -1465,6 +1538,7 @@ export default function DebtsPage() {
               </p>
             ) : null}
           </form>
+          ) : null}
         </section>
 
         <section className="rounded-[2rem] border border-stone-200 bg-white shadow-sm">
