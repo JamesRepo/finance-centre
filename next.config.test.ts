@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "./next.config";
 
 describe("[Unit] next config security headers", () => {
+  it("should pin the Turbopack root to this app directory", () => {
+    expect(nextConfig.turbopack?.root).toBe(process.cwd());
+  });
+
   it("should define a headers function for route-level response headers", () => {
     expect(nextConfig.headers).toBeTypeOf("function");
   });

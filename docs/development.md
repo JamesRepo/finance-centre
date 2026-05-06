@@ -72,5 +72,6 @@ Update docs in the same change when you alter any of the following:
 ## Common Pitfalls
 
 - If login rate limiting cannot determine an IP address, it logs a skipped-rate-limit warning instead of blocking auth. That is expected on some local setups.
+- If `npm run dev` warns about multiple lockfiles in parent directories, keep the configured Turbopack root pointed at this repository so module resolution stays inside `finance-centre`.
 - If you change Prisma schema or generator settings, run `npx prisma generate`.
 - If the UI looks empty after setup, verify that seeding ran successfully and that you are viewing the current month.
