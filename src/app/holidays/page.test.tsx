@@ -386,7 +386,7 @@ describe("[Component] holidays page", () => {
 
     render(<HolidaysPage />);
 
-    const assignedMonthInput = await screen.findByLabelText("Assigned month");
+    const assignedMonthInput = await screen.findByLabelText("Assigned month") as HTMLInputElement;
     const originalMonth = assignedMonthInput.getAttribute("value") ?? assignedMonthInput.value;
 
     await act(async () => {
