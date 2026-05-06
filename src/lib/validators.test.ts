@@ -21,6 +21,7 @@ import {
   incomeDeductionCreateSchema,
   incomeDeductionUpdateSchema,
   incomeSourceCreateWithDeductionsSchema,
+  incomeSourceCopySchema,
   incomeSourceCreateSchema,
   incomeSourceListQuerySchema,
   incomeSourceUpdateWithDeductionsSchema,
@@ -1398,6 +1399,29 @@ describe("[Unit] incomeSourceListQuerySchema", () => {
     expect(() =>
       incomeSourceListQuerySchema.parse({
         month: "2026-3",
+      }),
+    ).toThrow("Month must be in YYYY-MM format");
+  });
+});
+
+describe("[Unit] incomeSourceCopySchema", () => {
+  it("should accept source and target months in YYYY-MM format", () => {
+    const result = incomeSourceCopySchema.parse({
+      sourceMonth: "2026-03",
+      targetMonth: "2026-04",
+    });
+
+    expect(result).toEqual({
+      sourceMonth: "2026-03",
+      targetMonth: "2026-04",
+    });
+  });
+
+  it("should reject the payload when either month is invalid", () => {
+    expect(() =>
+      incomeSourceCopySchema.parse({
+        sourceMonth: "2026-3",
+        targetMonth: "2026-04",
       }),
     ).toThrow("Month must be in YYYY-MM format");
   });

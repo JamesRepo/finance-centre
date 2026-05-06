@@ -368,6 +368,11 @@ export const incomeSourceListQuerySchema = z.object({
   month: budgetMonthSchema.optional(),
 });
 
+export const incomeSourceCopySchema = z.object({
+  sourceMonth: budgetMonthSchema,
+  targetMonth: budgetMonthSchema,
+});
+
 export const incomeSourceUpdateSchema = z
   .object({
     incomeType: incomeTypeSchema.optional(),
@@ -565,6 +570,7 @@ export type SubscriptionListQuery = z.infer<typeof subscriptionListQuerySchema>;
 export type SubscriptionCopyInput = z.infer<typeof subscriptionCopySchema>;
 export type IncomeSourceCreateInput = z.infer<typeof incomeSourceCreateSchema>;
 export type IncomeSourceListQuery = z.infer<typeof incomeSourceListQuerySchema>;
+export type IncomeSourceCopyInput = z.infer<typeof incomeSourceCopySchema>;
 export type IncomeSourceUpdateInput = z.infer<typeof incomeSourceUpdateSchema>;
 export type IncomeDeductionCreateInput = z.infer<typeof incomeDeductionCreateSchema>;
 export type IncomeDeductionUpdateInput = z.infer<typeof incomeDeductionUpdateSchema>;
