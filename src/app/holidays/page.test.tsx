@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import HolidaysPage from "@/app/holidays/page";
 
@@ -756,7 +757,7 @@ describe("[Component] holidays page", () => {
     fireEvent.change(within(holidayCard).getByLabelText("Notes"), {
       target: { value: " Airport transfer " },
     });
-    fireEvent.change(within(holidayCard).getByLabelText("Type"), {
+    fireEvent.change(within(holidayCard).getByLabelText("Category"), {
       target: { value: "TRANSPORT" },
     });
 
@@ -784,6 +785,239 @@ describe("[Component] holidays page", () => {
       cache: "no-store",
     });
     expect(within(holidayCard).getByText("£1,255.00")).toBeInTheDocument();
+  });
+
+  it("should submit the add expense form on Enter and remember the selected category and date when add succeeds", async () => {
+    const user = userEvent.setup();
+    const initialDetail = buildHolidayDetail();
+    const refreshedDetail = buildHolidayDetail({
+      totalCost: "1275",
+      expenseCount: 3,
+      expenseBreakdown: [
+        { expenseType: "FLIGHT", totalCost: "900" },
+        { expenseType: "FOOD", totalCost: "300" },
+        { expenseType: "ACTIVITY", totalCost: "75" },
+      ],
+      holidayExpenses: [
+        ...buildHolidayDetail().holidayExpenses,
+        {
+          id: 12,
+          holidayId: 1,
+          expenseType: "ACTIVITY",
+          description: "Museum pass",
+          amount: "75",
+          expenseDate: "2099-03-24T00:00:00.000Z",
+          notes: "Timed entry",
+          createdAt: "2099-03-03T00:00:00.000Z",
+        },
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(jsonResponse({}, 201))
+      .mockResolvedValueOnce(jsonResponse(refreshedDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByText(
+      "Log travel costs directly against this holiday.",
+    );
+
+    fireEvent.change(within(holidayCard).getByLabelText("Category"), {
+      target: { value: "ACTIVITY" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Amount"), {
+      target: { value: "75" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Date"), {
+      target: { value: "2099-03-24" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Description"), {
+      target: { value: "Museum pass" },
+    });
+    fireEvent.change(within(holidayCard).getByLabelText("Notes"), {
+      target: { value: "Timed entry" },
+    });
+
+    await user.type(within(holidayCard).getByLabelText("Notes"), "{enter}");
+
+    await screen.findByText("Museum pass");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/holidays/1/expenses", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        expenseType: "ACTIVITY",
+        description: "Museum pass",
+        amount: 75,
+        expenseDate: "2099-03-24",
+        notes: "Timed entry",
+      }),
+    });
+    expect(within(holidayCard).getByLabelText("Category")).toHaveValue("ACTIVITY");
+    expect(within(holidayCard).getByLabelText("Date")).toHaveValue("2099-03-24");
+    expect(within(holidayCard).getByLabelText("Amount")).toHaveValue(null);
+    expect(within(holidayCard).getByLabelText("Description")).toHaveValue("");
+    expect(within(holidayCard).getByLabelText("Notes")).toHaveValue("");
+  });
+
+  it("should update an edited expense and refresh the holiday details when save succeeds", async () => {
+    const initialDetail = buildHolidayDetail();
+    const refreshedDetail = buildHolidayDetail({
+      totalCost: "1000",
+      expenseBreakdown: [
+        { expenseType: "ACCOMMODATION", totalCost: "700" },
+        { expenseType: "FOOD", totalCost: "300" },
+      ],
+      holidayExpenses: [
+        {
+          ...buildHolidayDetail().holidayExpenses[0],
+          expenseType: "ACCOMMODATION",
+          description: "Hotel booking",
+          amount: "700",
+          expenseDate: "2099-03-23T00:00:00.000Z",
+          notes: null,
+        },
+        buildHolidayDetail().holidayExpenses[1],
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail))
+      .mockResolvedValueOnce(jsonResponse({}, 200))
+      .mockResolvedValueOnce(jsonResponse(refreshedDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByText("Outbound flight");
+
+    fireEvent.click(within(holidayCard).getAllByRole("button", { name: "Edit" })[0]);
+    const editForm = within(holidayCard)
+      .getByRole("button", { name: "Save" })
+      .closest("form") as HTMLFormElement;
+
+    expect(within(editForm).getByLabelText("Category")).toHaveValue("FLIGHT");
+    expect(within(editForm).getByLabelText("Amount")).toHaveValue(900);
+    expect(within(editForm).getByLabelText("Date")).toHaveValue("2099-03-20");
+    expect(within(editForm).getByLabelText("Description")).toHaveValue(
+      "Outbound flight",
+    );
+    expect(within(editForm).getByLabelText("Notes")).toHaveValue("Direct flight");
+
+    fireEvent.change(within(editForm).getByLabelText("Category"), {
+      target: { value: "ACCOMMODATION" },
+    });
+    fireEvent.change(within(editForm).getByLabelText("Amount"), {
+      target: { value: "700" },
+    });
+    fireEvent.change(within(editForm).getByLabelText("Date"), {
+      target: { value: "2099-03-23" },
+    });
+    fireEvent.change(within(editForm).getByLabelText("Description"), {
+      target: { value: " Hotel booking " },
+    });
+    fireEvent.change(within(editForm).getByLabelText("Notes"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(within(editForm).getByRole("button", { name: "Save" }));
+
+    await within(holidayCard).findByText("Hotel booking");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/holidays/1/expenses/10", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        expenseType: "ACCOMMODATION",
+        description: "Hotel booking",
+        amount: 700,
+        expenseDate: "2099-03-23",
+        notes: null,
+      }),
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/holidays/1", {
+      cache: "no-store",
+    });
+    expect(within(holidayCard).getAllByText("Accommodation").length).toBeGreaterThan(0);
+    expect(within(holidayCard).getByText("£700.00")).toBeInTheDocument();
+    expect(within(holidayCard).getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  it("should keep the original expense row when editing is cancelled", async () => {
+    const initialDetail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByText("Outbound flight");
+
+    fireEvent.click(within(holidayCard).getAllByRole("button", { name: "Edit" })[0]);
+    const editForm = within(holidayCard)
+      .getByRole("button", { name: "Save" })
+      .closest("form") as HTMLFormElement;
+
+    fireEvent.change(within(editForm).getByLabelText("Description"), {
+      target: { value: "Changed flight" },
+    });
+    fireEvent.click(within(editForm).getByRole("button", { name: "Cancel" }));
+
+    expect(within(holidayCard).getByText("Outbound flight")).toBeInTheDocument();
+    expect(within(holidayCard).queryByText("Changed flight")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("should show a validation error and skip the update request when an edited expense is invalid", async () => {
+    const initialDetail = buildHolidayDetail();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([buildHolidaySummary()]))
+      .mockResolvedValueOnce(jsonResponse(initialDetail));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HolidaysPage />);
+
+    const holidayButton = await screen.findByRole("button", { name: /Japan Spring/i });
+    const holidayCard = holidayButton.closest("article") as HTMLElement;
+    fireEvent.click(holidayButton);
+    await within(holidayCard).findByText("Outbound flight");
+
+    fireEvent.click(within(holidayCard).getAllByRole("button", { name: "Edit" })[0]);
+    const editForm = within(holidayCard)
+      .getByRole("button", { name: "Save" })
+      .closest("form") as HTMLFormElement;
+
+    fireEvent.change(within(editForm).getByLabelText("Description"), {
+      target: { value: "" },
+    });
+    fireEvent.click(within(editForm).getByRole("button", { name: "Save" }));
+
+    expect(await within(holidayCard).findByText("Enter a description")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("should delete an expense and refresh the holiday details when delete is clicked", async () => {

@@ -8,13 +8,13 @@ import { z } from "zod";
 import { formatMonthLabel, shiftMonthValue } from "@/lib/months";
 
 const holidayExpenseTypeOptions = [
-  { value: "FLIGHT", label: "Flight", colorClass: "bg-sky-500" },
-  { value: "ACCOMMODATION", label: "Accommodation", colorClass: "bg-violet-500" },
-  { value: "FOOD", label: "Food", colorClass: "bg-orange-500" },
-  { value: "TRANSPORT", label: "Transport", colorClass: "bg-emerald-500" },
-  { value: "ACTIVITY", label: "Activity", colorClass: "bg-pink-500" },
-  { value: "SHOPPING", label: "Shopping", colorClass: "bg-red-500" },
-  { value: "OTHER", label: "Other", colorClass: "bg-stone-400" },
+  { value: "FLIGHT", label: "Flight", colorCode: "#0ea5e9" },
+  { value: "ACCOMMODATION", label: "Accommodation", colorCode: "#8b5cf6" },
+  { value: "FOOD", label: "Food", colorCode: "#f97316" },
+  { value: "TRANSPORT", label: "Transport", colorCode: "#10b981" },
+  { value: "ACTIVITY", label: "Activity", colorCode: "#ec4899" },
+  { value: "SHOPPING", label: "Shopping", colorCode: "#ef4444" },
+  { value: "OTHER", label: "Other", colorCode: "#a8a29e" },
 ] as const;
 
 type HolidayExpenseType = (typeof holidayExpenseTypeOptions)[number]["value"];
@@ -123,7 +123,7 @@ const expenseFormSchema = z.object({
       ...HolidayExpenseType[],
     ],
     {
-      message: "Select an expense type",
+      message: "Select an expense category",
     },
   ),
   description: z.string().trim().min(1, "Enter a description"),
@@ -160,6 +160,32 @@ function buildDefaultExpenseFormState(holiday?: Pick<HolidaySummary, "startDate"
     expenseDate: holiday ? holiday.startDate.slice(0, 10) : today,
     notes: "",
   };
+}
+
+function buildExpenseEditFormState(expense: HolidayExpense): ExpenseFormState {
+  return {
+    expenseType: expense.expenseType,
+    description: expense.description,
+    amount: String(Number(expense.amount)),
+    expenseDate: expense.expenseDate.slice(0, 10),
+    notes: expense.notes ?? "",
+  };
+}
+
+function getExpenseCategory(expenseType: string) {
+  return (
+    holidayExpenseTypeOptions.find((category) => category.value === expenseType) ?? {
+      value: "OTHER",
+      label:
+        holidayExpenseTypeOptions.find(
+          (category) => category.value === expenseType,
+        )?.label ?? expenseType,
+      colorCode:
+        holidayExpenseTypeOptions.find(
+          (category) => category.value === expenseType,
+        )?.colorCode ?? "#a8a29e",
+    }
+  );
 }
 
 function buildHolidayEditFormState(
@@ -206,6 +232,7 @@ export default function HolidaysPage() {
   const [holidayDetails, setHolidayDetails] = useState<Record<number, HolidayDetail>>({});
   const [expandedHolidayId, setExpandedHolidayId] = useState<number | null>(null);
   const [expenseDrafts, setExpenseDrafts] = useState<Record<number, ExpenseFormState>>({});
+  const [expenseEditDrafts, setExpenseEditDrafts] = useState<Record<number, ExpenseFormState>>({});
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, AssignmentFormState>>({});
   const [holidayDrafts, setHolidayDrafts] = useState<Record<number, HolidayEditFormState>>({});
   const [loading, setLoading] = useState(true);
@@ -216,6 +243,8 @@ export default function HolidaysPage() {
   const [holidayErrors, setHolidayErrors] = useState<Record<number, string>>({});
   const [expandedLoadingId, setExpandedLoadingId] = useState<number | null>(null);
   const [submittingExpenseId, setSubmittingExpenseId] = useState<number | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
+  const [savingExpenseId, setSavingExpenseId] = useState<number | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<number | null>(null);
   const [savingAssignmentId, setSavingAssignmentId] = useState<number | null>(null);
   const [savingHolidayId, setSavingHolidayId] = useState<number | null>(null);
@@ -430,6 +459,20 @@ export default function HolidaysPage() {
       ...currentDrafts,
       [holidayId]: {
         ...(currentDrafts[holidayId] ?? buildDefaultExpenseFormState()),
+        [field]: value,
+      },
+    }));
+  }
+
+  function handleExpenseEditDraftChange(
+    expenseId: number,
+    field: keyof ExpenseFormState,
+    value: string,
+  ) {
+    setExpenseEditDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [expenseId]: {
+        ...(currentDrafts[expenseId] ?? buildDefaultExpenseFormState()),
         [field]: value,
       },
     }));
@@ -653,10 +696,13 @@ export default function HolidaysPage() {
 
       await refreshHolidayDetail(holidayId);
 
-      const holiday = holidays.find((entry) => entry.id === holidayId);
       setExpenseDrafts((currentDrafts) => ({
         ...currentDrafts,
-        [holidayId]: buildDefaultExpenseFormState(holiday),
+        [holidayId]: {
+          ...buildDefaultExpenseFormState(),
+          expenseType: parsedDraft.data.expenseType,
+          expenseDate: parsedDraft.data.expenseDate,
+        },
       }));
     } catch (error) {
       setExpenseErrors((currentErrors) => ({
@@ -665,6 +711,64 @@ export default function HolidaysPage() {
       }));
     } finally {
       setSubmittingExpenseId(null);
+    }
+  }
+
+  function handleStartExpenseEdit(expense: HolidayExpense) {
+    setEditingExpenseId(expense.id);
+    setExpenseEditDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [expense.id]: buildExpenseEditFormState(expense),
+    }));
+  }
+
+  function handleCancelExpenseEdit() {
+    setEditingExpenseId(null);
+  }
+
+  async function handleSaveExpense(holidayId: number, expenseId: number) {
+    const draft = expenseEditDrafts[expenseId] ?? buildDefaultExpenseFormState();
+    const parsedDraft = expenseFormSchema.safeParse(draft);
+
+    if (!parsedDraft.success) {
+      setExpenseErrors((currentErrors) => ({
+        ...currentErrors,
+        [holidayId]: parsedDraft.error.issues[0]?.message ?? "Invalid expense",
+      }));
+      return;
+    }
+
+    setSavingExpenseId(expenseId);
+    setExpenseErrors((currentErrors) => ({
+      ...currentErrors,
+      [holidayId]: "",
+    }));
+
+    try {
+      const response = await fetch(`/api/holidays/${holidayId}/expenses/${expenseId}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          ...parsedDraft.data,
+          notes: parsedDraft.data.notes?.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to update expense"));
+      }
+
+      await refreshHolidayDetail(holidayId);
+      setEditingExpenseId(null);
+    } catch (error) {
+      setExpenseErrors((currentErrors) => ({
+        ...currentErrors,
+        [holidayId]: error instanceof Error ? error.message : "Failed to update expense",
+      }));
+    } finally {
+      setSavingExpenseId(null);
     }
   }
 
@@ -972,39 +1076,42 @@ export default function HolidaysPage() {
 
                         <div className="space-y-3">
                           <div className="flex h-4 overflow-hidden rounded-full bg-stone-200">
-                            {holidayExpenseTypeOptions.map((option) => {
+                            {holidayExpenseTypeOptions.map((category) => {
                               const amount =
                                 Number(
                                   holiday.expenseBreakdown.find(
-                                    (entry) => entry.expenseType === option.value,
+                                    (entry) => entry.expenseType === category.value,
                                   )?.totalCost ?? 0,
                                 ) || 0;
                               const width = totalCost > 0 ? (amount / totalCost) * 100 : 0;
 
                               return width > 0 ? (
                                 <div
-                                  key={option.value}
-                                  className={option.colorClass}
-                                  style={{ width: `${width}%` }}
+                                  key={category.value}
+                                  style={{
+                                    width: `${width}%`,
+                                    backgroundColor: category.colorCode,
+                                  }}
                                 />
                               ) : null;
                             })}
                           </div>
 
                           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
-                            {holidayExpenseTypeOptions.map((option) => {
+                            {holidayExpenseTypeOptions.map((category) => {
                               const amount =
                                 holiday.expenseBreakdown.find(
-                                  (entry) => entry.expenseType === option.value,
+                                  (entry) => entry.expenseType === category.value,
                                 )?.totalCost ?? "0";
 
                               return (
-                                <div key={option.value} className="flex items-center gap-2">
+                                <div key={category.value} className="flex items-center gap-2">
                                   <span
-                                    className={`h-2.5 w-2.5 rounded-full ${option.colorClass}`}
+                                    className="h-2.5 w-2.5 rounded-full"
+                                    style={{ backgroundColor: category.colorCode }}
                                   />
                                   <span>
-                                    {option.label}: {formatCurrency(amount)}
+                                    {category.label}: {formatCurrency(amount)}
                                   </span>
                                 </div>
                               );
@@ -1232,41 +1339,212 @@ export default function HolidaysPage() {
                                         </td>
                                       </tr>
                                     ) : (
-                                      detail.holidayExpenses.map((expense) => (
-                                        <tr key={expense.id} className="text-sm text-stone-700">
-                                          <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
-                                            {formatDisplayDate(expense.expenseDate)}
-                                          </td>
-                                          <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
-                                            {holidayExpenseTypeOptions.find(
-                                              (option) => option.value === expense.expenseType,
-                                            )?.label ?? expense.expenseType}
-                                          </td>
-                                          <td className="border-b border-stone-100 py-4 pr-4">
-                                            {expense.description}
-                                          </td>
-                                          <td className="border-b border-stone-100 py-4 pr-4">
-                                            {expense.notes || "—"}
-                                          </td>
-                                          <td className="border-b border-stone-100 py-4 pr-4 text-right font-medium whitespace-nowrap text-stone-950">
-                                            {formatCurrency(expense.amount)}
-                                          </td>
-                                          <td className="border-b border-stone-100 py-4 text-right">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                void handleDeleteExpense(holiday.id, expense.id)
-                                              }
-                                              disabled={deletingExpenseId === expense.id}
-                                              className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
-                                            >
-                                              {deletingExpenseId === expense.id
-                                                ? "Deleting..."
-                                                : "Delete"}
-                                            </button>
-                                          </td>
-                                        </tr>
-                                      ))
+                                      detail.holidayExpenses.map((expense) => {
+                                        const isEditingExpense = editingExpenseId === expense.id;
+                                        const expenseDraft =
+                                          expenseEditDrafts[expense.id] ??
+                                          buildExpenseEditFormState(expense);
+                                        const category = getExpenseCategory(expense.expenseType);
+
+                                        if (isEditingExpense) {
+                                          return (
+                                            <tr key={expense.id} className="bg-stone-50">
+                                              <td
+                                                colSpan={6}
+                                                className="border-b border-stone-200 px-0 py-4"
+                                              >
+                                                <form
+                                                  className="grid gap-3 px-2 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
+                                                  onSubmit={(event) => {
+                                                    event.preventDefault();
+                                                    void handleSaveExpense(holiday.id, expense.id);
+                                                  }}
+                                                >
+                                                  <label className="flex flex-col gap-1">
+                                                    <span className="text-xs font-medium text-stone-500">
+                                                      Category
+                                                    </span>
+                                                    <select
+                                                      value={expenseDraft.expenseType}
+                                                      onChange={(event) =>
+                                                        handleExpenseEditDraftChange(
+                                                          expense.id,
+                                                          "expenseType",
+                                                          event.target.value,
+                                                        )
+                                                      }
+                                                      className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                                      disabled={savingExpenseId === expense.id}
+                                                    >
+                                                      {holidayExpenseTypeOptions.map((option) => (
+                                                        <option
+                                                          key={option.value}
+                                                          value={option.value}
+                                                        >
+                                                          {option.label}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  </label>
+
+                                                  <label className="flex flex-col gap-1">
+                                                    <span className="text-xs font-medium text-stone-500">
+                                                      Amount
+                                                    </span>
+                                                    <input
+                                                      type="number"
+                                                      min="0.01"
+                                                      step="0.01"
+                                                      inputMode="decimal"
+                                                      value={expenseDraft.amount}
+                                                      onChange={(event) =>
+                                                        handleExpenseEditDraftChange(
+                                                          expense.id,
+                                                          "amount",
+                                                          event.target.value,
+                                                        )
+                                                      }
+                                                      className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                                      disabled={savingExpenseId === expense.id}
+                                                    />
+                                                  </label>
+
+                                                  <label className="flex flex-col gap-1">
+                                                    <span className="text-xs font-medium text-stone-500">
+                                                      Date
+                                                    </span>
+                                                    <input
+                                                      type="date"
+                                                      autoComplete="off"
+                                                      value={expenseDraft.expenseDate}
+                                                      onChange={(event) =>
+                                                        handleExpenseEditDraftChange(
+                                                          expense.id,
+                                                          "expenseDate",
+                                                          event.target.value,
+                                                        )
+                                                      }
+                                                      className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                                      disabled={savingExpenseId === expense.id}
+                                                    />
+                                                  </label>
+
+                                                  <label className="flex flex-col gap-1">
+                                                    <span className="text-xs font-medium text-stone-500">
+                                                      Description
+                                                    </span>
+                                                    <input
+                                                      type="text"
+                                                      value={expenseDraft.description}
+                                                      onChange={(event) =>
+                                                        handleExpenseEditDraftChange(
+                                                          expense.id,
+                                                          "description",
+                                                          event.target.value,
+                                                        )
+                                                      }
+                                                      className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                                      disabled={savingExpenseId === expense.id}
+                                                    />
+                                                  </label>
+
+                                                  <label className="flex flex-col gap-1">
+                                                    <span className="text-xs font-medium text-stone-500">
+                                                      Notes
+                                                    </span>
+                                                    <input
+                                                      type="text"
+                                                      value={expenseDraft.notes}
+                                                      onChange={(event) =>
+                                                        handleExpenseEditDraftChange(
+                                                          expense.id,
+                                                          "notes",
+                                                          event.target.value,
+                                                        )
+                                                      }
+                                                      className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm text-stone-950 outline-none transition focus:border-stone-950"
+                                                      disabled={savingExpenseId === expense.id}
+                                                      placeholder="Optional"
+                                                    />
+                                                  </label>
+
+                                                  <div className="flex items-end gap-2">
+                                                    <button
+                                                      type="submit"
+                                                      disabled={savingExpenseId === expense.id}
+                                                      className="h-9 rounded-lg bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+                                                    >
+                                                      {savingExpenseId === expense.id
+                                                        ? "Saving..."
+                                                        : "Save"}
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={handleCancelExpenseEdit}
+                                                      disabled={savingExpenseId === expense.id}
+                                                      className="h-9 rounded-lg border border-stone-300 bg-white px-4 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400"
+                                                    >
+                                                      Cancel
+                                                    </button>
+                                                  </div>
+                                                </form>
+                                              </td>
+                                            </tr>
+                                          );
+                                        }
+
+                                        return (
+                                          <tr key={expense.id} className="text-sm text-stone-700">
+                                            <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
+                                              {formatDisplayDate(expense.expenseDate)}
+                                            </td>
+                                            <td className="border-b border-stone-100 py-4 pr-4 whitespace-nowrap">
+                                              <span className="inline-flex items-center gap-2">
+                                                <span
+                                                  className="h-2.5 w-2.5 rounded-full"
+                                                  style={{
+                                                    backgroundColor: category.colorCode,
+                                                  }}
+                                                />
+                                                {category.label}
+                                              </span>
+                                            </td>
+                                            <td className="border-b border-stone-100 py-4 pr-4">
+                                              {expense.description}
+                                            </td>
+                                            <td className="border-b border-stone-100 py-4 pr-4">
+                                              {expense.notes || "-"}
+                                            </td>
+                                            <td className="border-b border-stone-100 py-4 pr-4 text-right font-medium whitespace-nowrap text-stone-950">
+                                              {formatCurrency(expense.amount)}
+                                            </td>
+                                            <td className="border-b border-stone-100 py-4 text-right">
+                                              <div className="flex justify-end gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleStartExpenseEdit(expense)}
+                                                  disabled={deletingExpenseId === expense.id}
+                                                  className="rounded-lg px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-300"
+                                                >
+                                                  Edit
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    void handleDeleteExpense(holiday.id, expense.id)
+                                                  }
+                                                  disabled={deletingExpenseId === expense.id}
+                                                  className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                                                >
+                                                  {deletingExpenseId === expense.id
+                                                    ? "Deleting..."
+                                                    : "Delete"}
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })
                                     )}
                                   </tbody>
                                 </table>
@@ -1283,10 +1561,16 @@ export default function HolidaysPage() {
                                     </p>
                                   </div>
 
-                                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                  <form
+                                    className="grid gap-4 md:grid-cols-2 xl:grid-cols-5"
+                                    onSubmit={(event) => {
+                                      event.preventDefault();
+                                      void handleAddExpense(holiday.id);
+                                    }}
+                                  >
                                     <label className="flex flex-col gap-2">
                                       <span className="text-sm font-medium text-stone-700">
-                                        Type
+                                        Category
                                       </span>
                                       <select
                                         value={draft.expenseType}
@@ -1298,6 +1582,7 @@ export default function HolidaysPage() {
                                           )
                                         }
                                         className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={submittingExpenseId === holiday.id}
                                       >
                                         {holidayExpenseTypeOptions.map((option) => (
                                           <option key={option.value} value={option.value}>
@@ -1308,24 +1593,6 @@ export default function HolidaysPage() {
                                     </label>
 
                                     <label className="flex flex-col gap-2 xl:col-span-2">
-                                      <span className="text-sm font-medium text-stone-700">
-                                        Description
-                                      </span>
-                                      <input
-                                        type="text"
-                                        value={draft.description}
-                                        onChange={(event) =>
-                                          handleExpenseDraftChange(
-                                            holiday.id,
-                                            "description",
-                                            event.target.value,
-                                          )
-                                        }
-                                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
-                                      />
-                                    </label>
-
-                                    <label className="flex flex-col gap-2">
                                       <span className="text-sm font-medium text-stone-700">
                                         Amount
                                       </span>
@@ -1343,6 +1610,8 @@ export default function HolidaysPage() {
                                           )
                                         }
                                         className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={submittingExpenseId === holiday.id}
+                                        placeholder="0.00"
                                       />
                                     </label>
 
@@ -1362,10 +1631,30 @@ export default function HolidaysPage() {
                                           )
                                         }
                                         className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={submittingExpenseId === holiday.id}
                                       />
                                     </label>
 
-                                    <label className="flex flex-col gap-2 md:col-span-2 xl:col-span-4">
+                                    <label className="flex flex-col gap-2 md:col-span-2 xl:col-span-3">
+                                      <span className="text-sm font-medium text-stone-700">
+                                        Description
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={draft.description}
+                                        onChange={(event) =>
+                                          handleExpenseDraftChange(
+                                            holiday.id,
+                                            "description",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={submittingExpenseId === holiday.id}
+                                      />
+                                    </label>
+
+                                    <label className="flex flex-col gap-2 md:col-span-2">
                                       <span className="text-sm font-medium text-stone-700">
                                         Notes
                                       </span>
@@ -1380,15 +1669,17 @@ export default function HolidaysPage() {
                                           )
                                         }
                                         className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none transition focus:border-stone-950"
+                                        disabled={submittingExpenseId === holiday.id}
                                         placeholder="Optional"
                                       />
                                     </label>
 
                                     <div className="flex items-end">
                                       <button
-                                        type="button"
-                                        onClick={() => void handleAddExpense(holiday.id)}
-                                        disabled={submittingExpenseId === holiday.id}
+                                        type="submit"
+                                        disabled={
+                                          submittingExpenseId === holiday.id
+                                        }
                                         className="h-11 w-full rounded-xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
                                       >
                                         {submittingExpenseId === holiday.id
@@ -1396,7 +1687,7 @@ export default function HolidaysPage() {
                                           : "Add expense"}
                                       </button>
                                     </div>
-                                  </div>
+                                  </form>
                                 </div>
                               </div>
                             </div>
