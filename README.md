@@ -21,7 +21,7 @@ Self-hosted personal finance tracking for a single household. The app covers day
 - Savings goals with contribution history
 - Housing expense cards with explicit save/reset/clear actions and recurring subscriptions
 - Income sources with deduction breakdowns
-- Holiday planning and holiday-specific expenses
+- Holiday planning with editable holiday-specific expenses
 - Dashboard views for daily spend, fixed costs, debt, savings, and holidays
 - Analysis views for spending trends, budget health, income vs outgoings, and net worth
 - Settings for locale, currency, monthly budget total, and category maintenance
