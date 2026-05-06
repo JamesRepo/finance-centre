@@ -5,9 +5,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
-import { formatMonthLabel } from "@/lib/months";
+import {
+  formatMonthLabel,
+  getCurrentMonthValue,
+  shiftMonthValue,
+} from "@/lib/months";
+import { MonthSelector } from "../month-selector";
 
-const today = format(new Date(), "yyyy-MM-dd");
+function getDefaultIncomeDate(month: string) {
+  return `${month}-01`;
+}
 
 const currencyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -112,12 +119,6 @@ type IncomeEntry = {
   incomeDeductions: IncomeDeduction[];
 };
 
-type IncomeGroup = {
-  month: string;
-  label: string;
-  entries: IncomeEntry[];
-};
-
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
 }
@@ -156,6 +157,7 @@ function createEmptyDeduction() {
 }
 
 export default function IncomePage() {
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [incomeLoading, setIncomeLoading] = useState(true);
   const [incomeError, setIncomeError] = useState<string | null>(null);
@@ -163,6 +165,8 @@ export default function IncomePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
+  const [copyingIncome, setCopyingIncome] = useState(false);
+  const [previousMonthIncomeCount, setPreviousMonthIncomeCount] = useState(0);
 
   const {
     control,
@@ -176,7 +180,7 @@ export default function IncomePage() {
       incomeType: "SALARY",
       grossAmount: undefined,
       netAmount: undefined,
-      incomeDate: today,
+      incomeDate: getDefaultIncomeDate(getCurrentMonthValue()),
       isRecurring: false,
       recurrenceFrequency: undefined,
       deductions: [],
@@ -207,61 +211,97 @@ export default function IncomePage() {
   const hasNetMismatch =
     watchedNetAmount !== undefined && Math.abs(calculatedNet - enteredNet) > 0.009;
 
-  const groupedIncome = useMemo<IncomeGroup[]>(() => {
-    const groups = incomeEntries.reduce<Map<string, IncomeEntry[]>>((map, entry) => {
-      const month = entry.incomeDate.slice(0, 7);
-      const currentEntries = map.get(month) ?? [];
-      currentEntries.push(entry);
-      map.set(month, currentEntries);
-      return map;
-    }, new Map());
+  const monthLabel = useMemo(
+    () => formatMonthLabel(selectedMonth),
+    [selectedMonth],
+  );
+  const previousMonth = useMemo(
+    () => shiftMonthValue(selectedMonth, -1),
+    [selectedMonth],
+  );
+  const previousMonthLabel = useMemo(
+    () => formatMonthLabel(previousMonth),
+    [previousMonth],
+  );
+  const incomeTotal = useMemo(
+    () => incomeEntries.reduce((sum, entry) => sum + parseAmount(entry.netAmount), 0),
+    [incomeEntries],
+  );
+  const grossIncomeTotal = useMemo(
+    () => incomeEntries.reduce((sum, entry) => sum + parseAmount(entry.grossAmount), 0),
+    [incomeEntries],
+  );
+  const deductionsTotal = useMemo(
+    () =>
+      incomeEntries.reduce((sum, entry) => sum + parseAmount(entry.totalDeductions), 0),
+    [incomeEntries],
+  );
 
-    return Array.from(groups.entries())
-      .sort(([left], [right]) => right.localeCompare(left))
-      .map(([month, entries]) => ({
-        month,
-        label: formatMonthLabel(month),
-        entries: entries.sort((left, right) =>
-          right.incomeDate.localeCompare(left.incomeDate),
-        ),
-      }));
-  }, [incomeEntries]);
+  const fetchIncomeEntries = useCallback(async (month: string) => {
+    const response = await fetch(`/api/income?month=${month}`, {
+      cache: "no-store",
+    });
 
-  const loadIncomeEntries = useCallback(async () => {
-    setIncomeLoading(true);
-    setIncomeError(null);
-
-    try {
-      const response = await fetch("/api/income", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(await readApiError(response, "Failed to load income"));
-      }
-
-      const data = (await response.json()) as IncomeEntry[];
-      setIncomeEntries(data);
-      setExpandedIds((currentExpandedIds) =>
-        currentExpandedIds.filter((id) => data.some((entry) => entry.id === id)),
-      );
-    } catch (error) {
-      setIncomeError(error instanceof Error ? error.message : "Failed to load income");
-    } finally {
-      setIncomeLoading(false);
+    if (!response.ok) {
+      throw new Error(await readApiError(response, "Failed to load income"));
     }
+
+    return (await response.json()) as IncomeEntry[];
   }, []);
 
+  const loadIncomeEntries = useCallback(
+    async (month: string) => {
+      setIncomeLoading(true);
+      setIncomeError(null);
+
+      try {
+        const [currentEntries, previousEntries] = await Promise.all([
+          fetchIncomeEntries(month),
+          fetchIncomeEntries(shiftMonthValue(month, -1)),
+        ]);
+
+        setIncomeEntries(currentEntries);
+        setPreviousMonthIncomeCount(previousEntries.length);
+        setExpandedIds((currentExpandedIds) =>
+          currentExpandedIds.filter((id) =>
+            currentEntries.some((entry) => entry.id === id),
+          ),
+        );
+      } catch (error) {
+        setIncomeError(error instanceof Error ? error.message : "Failed to load income");
+      } finally {
+        setIncomeLoading(false);
+      }
+    },
+    [fetchIncomeEntries],
+  );
+
   useEffect(() => {
-    void loadIncomeEntries();
-  }, [loadIncomeEntries]);
+    void loadIncomeEntries(selectedMonth);
+  }, [loadIncomeEntries, selectedMonth]);
+
+  useEffect(() => {
+    if (editingId !== null) {
+      return;
+    }
+
+    reset({
+      incomeType: "SALARY",
+      grossAmount: undefined,
+      netAmount: undefined,
+      incomeDate: getDefaultIncomeDate(selectedMonth),
+      isRecurring: false,
+      recurrenceFrequency: undefined,
+      deductions: [],
+    });
+  }, [editingId, reset, selectedMonth]);
 
   function resetForm() {
     reset({
       incomeType: "SALARY",
       grossAmount: undefined,
       netAmount: undefined,
-      incomeDate: today,
+      incomeDate: getDefaultIncomeDate(selectedMonth),
       isRecurring: false,
       recurrenceFrequency: undefined,
       deductions: [],
@@ -272,6 +312,11 @@ export default function IncomePage() {
 
   async function onSubmit(values: IncomeFormSubmitValues) {
     setSubmitError(null);
+
+    if (!values.incomeDate.startsWith(selectedMonth)) {
+      setSubmitError("Income date must be within the selected month");
+      return;
+    }
 
     const payload = {
       incomeType: values.incomeType,
@@ -313,7 +358,7 @@ export default function IncomePage() {
       }
 
       resetForm();
-      await loadIncomeEntries();
+      await loadIncomeEntries(selectedMonth);
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -364,7 +409,7 @@ export default function IncomePage() {
         resetForm();
       }
 
-      await loadIncomeEntries();
+      await loadIncomeEntries(selectedMonth);
     } catch (error) {
       setIncomeError(
         error instanceof Error ? error.message : "Failed to delete income entry",
@@ -380,6 +425,96 @@ export default function IncomePage() {
         ? currentExpandedIds.filter((id) => id !== entryId)
         : [...currentExpandedIds, entryId],
     );
+  }
+
+  function handleSelectedMonthChange(month: string) {
+    setSelectedMonth(month);
+    setEditingId(null);
+    setSubmitError(null);
+  }
+
+  async function handleCopyIncome(sourceMonth: string, targetMonth: string) {
+    setIncomeError(null);
+    setCopyingIncome(true);
+
+    try {
+      const [sourceEntries, targetEntries] = await Promise.all([
+        sourceMonth === selectedMonth
+          ? Promise.resolve(incomeEntries)
+          : fetchIncomeEntries(sourceMonth),
+        targetMonth === selectedMonth
+          ? Promise.resolve(incomeEntries)
+          : fetchIncomeEntries(targetMonth),
+      ]);
+
+      if (sourceEntries.length === 0) {
+        return;
+      }
+
+      const targetKeys = new Set(
+        targetEntries.map((entry) =>
+          [
+            entry.incomeType,
+            entry.description ?? "",
+            entry.grossAmount,
+            entry.netAmount,
+            Number(entry.incomeDate.slice(8, 10)),
+          ].join("\u001f"),
+        ),
+      );
+      const skippedCount = sourceEntries.filter((entry) => {
+        const [year, monthNumber] = targetMonth.split("-").map(Number);
+        const lastDayOfMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+        const dayOfMonth = Math.min(
+          Number(entry.incomeDate.slice(8, 10)),
+          lastDayOfMonth,
+        );
+
+        return targetKeys.has(
+          [
+            entry.incomeType,
+            entry.description ?? "",
+            entry.grossAmount,
+            entry.netAmount,
+            dayOfMonth,
+          ].join("\u001f"),
+        );
+      }).length;
+      const copiedCount = sourceEntries.length - skippedCount;
+
+      const confirmed = window.confirm(
+        `Copy ${copiedCount} income entr${copiedCount === 1 ? "y" : "ies"} from ${formatMonthLabel(sourceMonth)} to ${formatMonthLabel(targetMonth)}? ${skippedCount} already ${skippedCount === 1 ? "exists" : "exist"} and will be skipped.`,
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const response = await fetch("/api/income/copy", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sourceMonth,
+          targetMonth,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Failed to copy income"));
+      }
+
+      if (targetMonth === shiftMonthValue(selectedMonth, 1)) {
+        handleSelectedMonthChange(targetMonth);
+      } else {
+        await loadIncomeEntries(selectedMonth);
+      }
+    } catch (error) {
+      setIncomeError(error instanceof Error ? error.message : "Failed to copy income");
+    } finally {
+      setCopyingIncome(false);
+    }
   }
 
   return (
@@ -698,15 +833,62 @@ export default function IncomePage() {
 
         <section className="rounded-3xl border border-stone-200 bg-white shadow-sm">
           <div className="border-b border-stone-200 px-6 py-5">
-            <h2 className="text-2xl font-semibold tracking-tight text-stone-950">
-              Income entries
-            </h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Entries are grouped by month with deduction details available inline.
-            </p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight text-stone-950">
+                  {monthLabel}
+                </h2>
+                <p className="mt-1 text-sm text-stone-500">
+                  Manage income month by month and copy entries forward when pay stays
+                  the same.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <MonthSelector
+                  value={selectedMonth}
+                  onChange={handleSelectedMonthChange}
+                  className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleCopyIncome(
+                      selectedMonth,
+                      shiftMonthValue(selectedMonth, 1),
+                    )
+                  }
+                  disabled={copyingIncome || incomeEntries.length === 0}
+                  className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                >
+                  {copyingIncome ? "Copying..." : "Copy to Next Month"}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="px-6 py-6">
+            <div className="mb-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-[1.75rem] bg-stone-950 px-5 py-5 text-white">
+                <p className="text-sm font-medium text-stone-300">Net Income</p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight">
+                  {formatCurrency(incomeTotal)}
+                </p>
+              </div>
+              <div className="rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
+                <p className="text-sm font-medium text-stone-500">Gross Income</p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight">
+                  {formatCurrency(grossIncomeTotal)}
+                </p>
+              </div>
+              <div className="rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
+                <p className="text-sm font-medium text-stone-500">Deductions</p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight">
+                  {formatCurrency(deductionsTotal)}
+                </p>
+              </div>
+            </div>
+
             {incomeError ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {incomeError}
@@ -715,26 +897,33 @@ export default function IncomePage() {
 
             {incomeLoading ? (
               <p className="text-sm text-stone-500">Loading income entries...</p>
-            ) : groupedIncome.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-6 py-10 text-center text-sm text-stone-500">
-                No income entries yet.
+            ) : incomeEntries.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-6 py-10 text-center">
+                <h3 className="text-xl font-semibold tracking-tight text-stone-950">
+                  No income entries in {monthLabel}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-stone-500">
+                  Add an income entry with the form, or copy from {previousMonthLabel}
+                  if you want to reuse last month&apos;s pay.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyIncome(previousMonth, selectedMonth)}
+                    disabled={copyingIncome || previousMonthIncomeCount === 0}
+                    className="h-11 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                  >
+                    {copyingIncome
+                      ? "Copying..."
+                      : previousMonthIncomeCount === 0
+                        ? `Nothing to copy from ${previousMonthLabel}`
+                        : `Copy from ${previousMonthLabel}`}
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-6">
-                {groupedIncome.map((group) => (
-                  <div key={group.month} className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-stone-950">
-                        {group.label}
-                      </h3>
-                      <span className="text-sm text-stone-500">
-                        {group.entries.length}{" "}
-                        {group.entries.length === 1 ? "entry" : "entries"}
-                      </span>
-                    </div>
-
-                    <div className="overflow-hidden rounded-2xl border border-stone-200">
-                      {group.entries.map((entry, index) => {
+              <div className="overflow-hidden rounded-2xl border border-stone-200">
+                {incomeEntries.map((entry, index) => {
                         const isExpanded = expandedIds.includes(entry.id);
 
                         return (
@@ -871,9 +1060,6 @@ export default function IncomePage() {
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
           </div>

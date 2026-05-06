@@ -10,7 +10,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import IncomePage from "@/app/income/page";
 
 vi.mock("@/lib/months", () => ({
+  getCurrentMonthValue: () => "2026-03",
   formatMonthLabel: (month: string) => {
+    if (month === "2026-01") {
+      return "January 2026";
+    }
+
     if (month === "2026-02") {
       return "February 2026";
     }
@@ -19,7 +24,20 @@ vi.mock("@/lib/months", () => ({
       return "March 2026";
     }
 
+    if (month === "2026-04") {
+      return "April 2026";
+    }
+
     return month;
+  },
+  shiftMonthValue: (month: string, delta: number) => {
+    const [year, monthNumber] = month.split("-").map(Number);
+    const date = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
+
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
+      2,
+      "0",
+    )}`;
   },
 }));
 
@@ -54,6 +72,19 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+function isIncomeListRequest(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  month?: string,
+) {
+  const url = String(input);
+
+  return (
+    init?.method === undefined &&
+    (month ? url === `/api/income?month=${month}` : url.startsWith("/api/income?month="))
+  );
 }
 
 function buildDeduction(
@@ -107,39 +138,45 @@ describe("[Component] income page", () => {
   });
 
   it("should render an empty state when no income entries are returned", async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url === "/api/income") {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (isIncomeListRequest(input, init)) {
         return Promise.resolve(jsonResponse([]));
       }
 
-      throw new Error(`Unexpected fetch: ${url}`);
+      throw new Error(`Unexpected fetch: ${String(input)}`);
     });
 
     vi.stubGlobal("fetch", fetchMock);
 
     render(<IncomePage />);
 
-    expect(await screen.findByText("No income entries yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No income entries in March 2026")).toBeInTheDocument();
     expect(
       screen.getByText(
         "No deductions added. Use the button below if you want to record tax, pension, or other deductions.",
       ),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/income", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-03", {
+      cache: "no-store",
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/income?month=2026-02", {
       cache: "no-store",
     });
   });
 
-  it("should group entries by month and show deduction details when an entry is expanded", async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url === "/api/income") {
+  it("should show monthly entries and deduction details when an entry is expanded", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (isIncomeListRequest(input, init, "2026-03")) {
         return Promise.resolve(
           jsonResponse([
             buildIncomeEntry(),
+          ]),
+        );
+      }
+
+      if (isIncomeListRequest(input, init, "2026-02")) {
+        return Promise.resolve(
+          jsonResponse([
             buildIncomeEntry({
               id: 2,
               incomeType: "BONUS",
@@ -155,7 +192,7 @@ describe("[Component] income page", () => {
         );
       }
 
-      throw new Error(`Unexpected fetch: ${url}`);
+      throw new Error(`Unexpected fetch: ${String(input)}`);
     });
 
     vi.stubGlobal("fetch", fetchMock);
@@ -163,7 +200,6 @@ describe("[Component] income page", () => {
     render(<IncomePage />);
 
     expect(await screen.findByText("March 2026")).toBeInTheDocument();
-    expect(screen.getByText("February 2026")).toBeInTheDocument();
     expect(screen.getByText("Gross £3,500.00")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /salary31 mar 2026/i }));
@@ -180,7 +216,7 @@ describe("[Component] income page", () => {
 
     render(<IncomePage />);
 
-    await screen.findByText("No income entries yet.");
+    await screen.findByText("No income entries in March 2026");
 
     fireEvent.change(screen.getByLabelText("Gross amount"), {
       target: { value: "4000" },
@@ -219,7 +255,7 @@ describe("[Component] income page", () => {
 
     render(<IncomePage />);
 
-    await screen.findByText("No income entries yet.");
+    await screen.findByText("No income entries in March 2026");
 
     fireEvent.change(screen.getByLabelText("Gross amount"), {
       target: { value: "500" },
@@ -247,7 +283,7 @@ describe("[Component] income page", () => {
 
     render(<IncomePage />);
 
-    await screen.findByText("No income entries yet.");
+    await screen.findByText("No income entries in March 2026");
 
     fireEvent.change(screen.getByLabelText("Gross amount"), {
       target: { value: "4000" },
@@ -267,14 +303,14 @@ describe("[Component] income page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Log income" }));
 
     expect(await screen.findByText("Select a frequency")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("should submit a new income entry with recurring deductions and reload the list", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === "/api/income" && init?.method === undefined) {
+      if (isIncomeListRequest(input, init)) {
         return Promise.resolve(jsonResponse([]));
       }
 
@@ -305,7 +341,7 @@ describe("[Component] income page", () => {
 
     render(<IncomePage />);
 
-    await screen.findByText("No income entries yet.");
+    await screen.findByText("No income entries in March 2026");
 
     fireEvent.change(screen.getByLabelText("Gross amount"), {
       target: { value: "4000" },
@@ -326,7 +362,7 @@ describe("[Component] income page", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Log income" }));
-    let postCall: [RequestInfo | URL, RequestInit | undefined] | undefined;
+    let postCall: (typeof fetchMock.mock.calls)[number] | undefined;
 
     await waitFor(() => {
       postCall = fetchMock.mock.calls.find(
@@ -360,7 +396,7 @@ describe("[Component] income page", () => {
     expect(postBody.incomeDate).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00.000Z$/);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(5);
     });
 
     expect(screen.getByText("Entered net matches the deduction summary.")).toBeInTheDocument();
@@ -375,7 +411,7 @@ describe("[Component] income page", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === "/api/income" && init?.method === undefined) {
+      if (isIncomeListRequest(input, init)) {
         return Promise.resolve(jsonResponse([]));
       }
 
@@ -402,7 +438,7 @@ describe("[Component] income page", () => {
 
     render(<IncomePage />);
 
-    await screen.findByText("No income entries yet.");
+    await screen.findByText("No income entries in March 2026");
 
     fireEvent.change(screen.getByLabelText("Gross amount"), {
       target: { value: "1800" },
@@ -412,7 +448,7 @@ describe("[Component] income page", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Log income" }));
 
-    let postCall: [RequestInfo | URL, RequestInit | undefined] | undefined;
+    let postCall: (typeof fetchMock.mock.calls)[number] | undefined;
 
     await waitFor(() => {
       postCall = fetchMock.mock.calls.find(
@@ -437,9 +473,11 @@ describe("[Component] income page", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === "/api/income" && init?.method === undefined) {
+      if (isIncomeListRequest(input, init)) {
         getCount += 1;
-        return Promise.resolve(jsonResponse([existingEntry]));
+        return Promise.resolve(
+          jsonResponse(url.endsWith("month=2026-03") ? [existingEntry] : []),
+        );
       }
 
       if (url === "/api/income/1" && init?.method === "PUT") {
@@ -470,7 +508,7 @@ describe("[Component] income page", () => {
 
     fireEvent.click(screen.getByLabelText("Recurring income"));
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    let putCall: [RequestInfo | URL, RequestInit | undefined] | undefined;
+    let putCall: (typeof fetchMock.mock.calls)[number] | undefined;
 
     await waitFor(() => {
       putCall = fetchMock.mock.calls.find(
@@ -501,7 +539,7 @@ describe("[Component] income page", () => {
       ],
     });
 
-    expect(getCount).toBe(2);
+    expect(getCount).toBe(4);
   });
 
   it("should delete an income entry and refresh the grouped list", async () => {
@@ -510,8 +548,10 @@ describe("[Component] income page", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === "/api/income" && init?.method === undefined) {
-        return Promise.resolve(jsonResponse(entries));
+      if (isIncomeListRequest(input, init)) {
+        return Promise.resolve(
+          jsonResponse(url.endsWith("month=2026-03") ? entries : []),
+        );
       }
 
       if (url === "/api/income/1" && init?.method === "DELETE") {
@@ -536,18 +576,16 @@ describe("[Component] income page", () => {
       });
     });
 
-    expect(await screen.findByText("No income entries yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No income entries in March 2026")).toBeInTheDocument();
   });
 
   it("should disable autofill on the income date input", async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url === "/api/income") {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (isIncomeListRequest(input, init)) {
         return Promise.resolve(jsonResponse([]));
       }
 
-      throw new Error(`Unexpected fetch: ${url}`);
+      throw new Error(`Unexpected fetch: ${String(input)}`);
     });
 
     vi.stubGlobal("fetch", fetchMock);
@@ -558,6 +596,143 @@ describe("[Component] income page", () => {
       "autocomplete",
       "off",
     );
+  });
+
+  it("should copy previous month income into an empty selected month when confirmed", async () => {
+    const previousEntry = buildIncomeEntry({
+      id: 2,
+      incomeDate: "2026-02-28T00:00:00.000Z",
+    });
+    const confirmMock = vi.fn(() => true);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (isIncomeListRequest(input, init, "2026-02")) {
+        return Promise.resolve(jsonResponse([previousEntry]));
+      }
+
+      if (isIncomeListRequest(input, init, "2026-03")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/income/copy" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ copiedCount: 1, skippedCount: 0 }));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("confirm", confirmMock);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IncomePage />);
+
+    expect(
+      await screen.findByRole("button", { name: "Copy from February 2026" }),
+    ).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy from February 2026" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/income/copy",
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
+    });
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      "Copy 1 income entry from February 2026 to March 2026? 0 already exist and will be skipped.",
+    );
+
+    const postCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url) === "/api/income/copy" && init?.method === "POST",
+    );
+    expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
+      sourceMonth: "2026-02",
+      targetMonth: "2026-03",
+    });
+  });
+
+  it("should preview skipped entries and avoid posting when copy confirmation is cancelled", async () => {
+    const currentEntry = buildIncomeEntry({
+      incomeDate: "2026-03-31T00:00:00.000Z",
+    });
+    const matchingNextMonthEntry = buildIncomeEntry({
+      id: 2,
+      incomeDate: "2026-04-30T00:00:00.000Z",
+    });
+    const confirmMock = vi.fn(() => false);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (isIncomeListRequest(input, init, "2026-03")) {
+        return Promise.resolve(jsonResponse([currentEntry]));
+      }
+
+      if (isIncomeListRequest(input, init, "2026-04")) {
+        return Promise.resolve(jsonResponse([matchingNextMonthEntry]));
+      }
+
+      if (isIncomeListRequest(input, init, "2026-02")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("confirm", confirmMock);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IncomePage />);
+
+    expect(await screen.findByText("Gross £3,500.00")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy to Next Month" }));
+
+    await waitFor(() => {
+      expect(confirmMock).toHaveBeenCalledWith(
+        "Copy 0 income entries from March 2026 to April 2026? 1 already exists and will be skipped.",
+      );
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) => String(url) === "/api/income/copy" && init?.method === "POST",
+      ),
+    ).toBe(false);
+  });
+
+  it("should show an error when copying income fails", async () => {
+    const confirmMock = vi.fn(() => true);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (isIncomeListRequest(input, init, "2026-03")) {
+        return Promise.resolve(jsonResponse([buildIncomeEntry()]));
+      }
+
+      if (isIncomeListRequest(input, init)) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/income/copy" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ error: "Copy failed" }, 500));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    vi.stubGlobal("confirm", confirmMock);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IncomePage />);
+
+    expect(await screen.findByText("Gross £3,500.00")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy to Next Month" }));
+
+    expect(await screen.findByText("Copy failed")).toBeInTheDocument();
   });
 
   it("should show a load error when the income request fails", async () => {
@@ -578,7 +753,7 @@ describe("[Component] income page", () => {
 
     render(<IncomePage />);
 
-    await screen.findByText("No income entries yet.");
+    await screen.findByText("No income entries in March 2026");
     expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Add deduction" }));

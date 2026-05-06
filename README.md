@@ -20,7 +20,7 @@ Self-hosted personal finance tracking for a single household. The app covers day
 - Debt tracking with payment and interest history
 - Savings goals with contribution history
 - Housing expense cards with explicit save/reset/clear actions and recurring subscriptions
-- Income sources with deduction breakdowns
+- Income sources with deduction breakdowns and monthly copy-forward
 - Holiday planning with editable holiday-specific expenses
 - Dashboard views for daily spend, fixed costs, debt, savings, and holidays
 - Analysis views for spending trends, budget health, income vs outgoings, and net worth
@@ -96,7 +96,7 @@ Open `http://localhost:3000/login` and sign in with the email and password you s
 - `/savings` savings goals
 - `/housing` housing expense cards with monthly summaries and explicit save/reset/clear actions
 - `/subscriptions` recurring subscriptions
-- `/income` income and deductions
+- `/income` income and deductions with monthly copy-forward
 - `/holidays` holiday planning and expenses
 - `/analysis` trend and net worth analysis
 - `/settings` app settings and category management
