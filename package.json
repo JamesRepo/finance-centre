@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "generate-icons": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -40,9 +41,11 @@
     "@types/pg": "^8.18.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sharp": "^0.31.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "jsdom": "^28.1.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
