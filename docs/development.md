@@ -69,6 +69,16 @@ Update docs in the same change when you alter any of the following:
 - analysis calculations or API contracts
 - agent workflow expectations in `agents/`, `AGENTS.md`, or `CLAUDE.md`
 
+## PWA and Service Worker
+
+The app ships with a minimal hand-written service worker at `public/sw.js`.
+
+- **Cache strategy**: Static assets (JS, CSS, fonts, images) use cache-first. API routes, HTML navigation, and auth endpoints are never intercepted.
+- **Cache versioning**: The cache name includes a version number (`fc-static-v1`). Bump `CACHE_VERSION` at the top of `public/sw.js` to invalidate the cache for all clients.
+- **Registration**: The `PwaProvider` client component in `src/app/pwa-provider.tsx` registers the service worker on mount and shows an offline indicator banner.
+- **Manifest**: `src/app/manifest.ts` exports the web app manifest using the Next.js App Router convention. Next.js auto-serves it at `/manifest.webmanifest`.
+- **Icons**: Source icon is `public/icon.svg`. Run `npm run generate-icons` to regenerate the PNG variants (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `favicon.ico`).
+
 ## Common Pitfalls
 
 - If login rate limiting cannot determine an IP address, it logs a skipped-rate-limit warning instead of blocking auth. That is expected on some local setups.

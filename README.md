@@ -164,6 +164,16 @@ docs/
 
 The repository is built for self-hosting and works well on small home-server hardware, including a Raspberry Pi. Deployment infrastructure is intentionally not hard-coded in the app, so you need to choose your own process manager, TLS/ingress setup, backups, and secret management.
 
+## PWA Support
+
+The app can be installed as a Progressive Web App on mobile and desktop. When installed it runs in a standalone window without browser chrome.
+
+- **Cached**: Static assets (JS, CSS, fonts, images) are cached by the service worker for faster repeat loads.
+- **Not cached**: API responses and HTML pages are never cached. Financial data is always fetched fresh from the server.
+- **Install**: Visit the app in a supported browser and use the "Install" or "Add to Home Screen" option.
+- **Icon regeneration**: Run `npm run generate-icons` after modifying `public/icon.svg` to regenerate the PNG icons.
+- **HTTPS required**: Service workers require HTTPS in production. `localhost` is exempt during development.
+
 ## More Docs
 
 - [Development guide](docs/development.md)
