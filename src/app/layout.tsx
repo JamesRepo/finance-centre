@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "./nav-bar";
+import { PwaProvider } from "./pwa-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,10 +18,26 @@ export const metadata: Metadata = {
   title: "Finance Centre",
   description: "Personal finance tracking dashboard",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon-192.png",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Finance Centre",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#061427",
 };
 
 export default async function RootLayout({
@@ -35,6 +52,7 @@ export default async function RootLayout({
       >
         <NavBar />
         {children}
+        <PwaProvider />
       </body>
     </html>
   );

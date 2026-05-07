@@ -102,4 +102,17 @@ describe("[Unit] middleware matcher config", () => {
   it("should exclude favicon.ico from matching", () => {
     expect(pattern).toContain("favicon");
   });
+
+  it("should exclude sw.js from matching", () => {
+    expect(pattern).toContain("sw\\.js");
+    expect(pattern).toMatch(/\(\?!.*sw\\/);
+  });
+
+  it("should exclude manifest.webmanifest from matching", () => {
+    expect(pattern).toContain("manifest\\.webmanifest");
+  });
+
+  it("should exclude icon PNGs from matching", () => {
+    expect(pattern).toContain("icon-.*\\.png");
+  });
 });
