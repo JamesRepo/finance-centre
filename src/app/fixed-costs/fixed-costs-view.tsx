@@ -28,7 +28,11 @@ const subscriptionFormSchema = z.object({
   name: z.string().trim().min(1, "Enter a subscription name"),
   amount: z.preprocess(
     (value) => (value === "" ? undefined : value),
-    z.coerce.number().positive("Amount must be greater than 0"),
+    z.coerce
+      .number({
+        error: "Enter an amount greater than 0",
+      })
+      .positive("Amount must be greater than 0"),
   ),
   frequency: z.enum(["MONTHLY", "YEARLY"], {
     message: "Select a frequency",
@@ -162,7 +166,7 @@ export function FixedCostsView() {
     resolver: zodResolver(subscriptionFormSchema),
     defaultValues: {
       name: "",
-      amount: undefined,
+      amount: "",
       frequency: "MONTHLY",
       paymentDate: getDefaultPaymentDate(selectedMonth),
       description: "",
@@ -239,7 +243,7 @@ export function FixedCostsView() {
 
     reset({
       name: "",
-      amount: undefined,
+      amount: "",
       frequency: "MONTHLY",
       paymentDate: getDefaultPaymentDate(selectedMonth),
       description: "",
@@ -341,7 +345,7 @@ export function FixedCostsView() {
       setEditingSubscriptionId(null);
       reset({
         name: "",
-        amount: undefined,
+        amount: "",
         frequency: "MONTHLY",
         paymentDate: getDefaultPaymentDate(selectedMonth),
         description: "",
@@ -374,7 +378,7 @@ export function FixedCostsView() {
     setSubscriptionSubmitError(null);
     reset({
       name: "",
-      amount: undefined,
+      amount: "",
       frequency: "MONTHLY",
       paymentDate: getDefaultPaymentDate(selectedMonth),
       description: "",

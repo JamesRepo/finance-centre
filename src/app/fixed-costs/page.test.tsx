@@ -315,6 +315,7 @@ describe("[Component] fixed costs view", () => {
 
     expect(await screen.findByText("Gym")).toBeInTheDocument();
     expect(screen.getByText("Weights")).toBeInTheDocument();
+    expect(screen.getByLabelText("Amount")).toHaveValue(null);
   });
 
   it("should update a subscription when the edit form is submitted", async () => {
@@ -581,9 +582,7 @@ describe("[Component] fixed costs view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add subscription" }));
 
     expect(await screen.findByText("Enter a subscription name")).toBeInTheDocument();
-    expect(
-      screen.getByText("Invalid input: expected number, received NaN"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Enter an amount greater than 0")).toBeInTheDocument();
     expect(screen.getByText("Enter a payment date")).toBeInTheDocument();
   });
 });
