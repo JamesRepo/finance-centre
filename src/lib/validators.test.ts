@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   analysisQuerySchema,
   budgetListQuerySchema,
+  budgetPlanCreateSchema,
+  budgetPlanItemCreateSchema,
+  budgetPlanItemUpdateSchema,
+  budgetPlanUpdateSchema,
   budgetUpsertSchema,
   categoryCreateSchema,
   categoryUpdateSchema,
@@ -2126,5 +2130,103 @@ describe("[Unit] analysisQuerySchema", () => {
     expect(() =>
       analysisQuerySchema.parse({ section: "spending", months: 3.5 }),
     ).toThrow();
+  });
+});
+
+describe("[Unit] budget plan validators", () => {
+  it("should accept a valid budget plan create payload", () => {
+    const result = budgetPlanCreateSchema.parse({
+      name: "Annual plan",
+      startMonth: "2026-06",
+      endMonth: "2027-05",
+    });
+
+    expect(result).toEqual({
+      name: "Annual plan",
+      startMonth: "2026-06",
+      endMonth: "2027-05",
+    });
+  });
+
+  it("should reject a plan where the end month is before the start month", () => {
+    expect(() =>
+      budgetPlanCreateSchema.parse({
+        name: "Invalid plan",
+        startMonth: "2026-06",
+        endMonth: "2026-05",
+      }),
+    ).toThrow("End month must be on or after start month");
+  });
+
+  it("should accept a partial plan update when at least one field is present", () => {
+    const result = budgetPlanUpdateSchema.parse({
+      name: "Updated plan",
+    });
+
+    expect(result.name).toBe("Updated plan");
+  });
+
+  it("should reject an empty plan update", () => {
+    expect(() => budgetPlanUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
+  });
+
+  it("should accept a custom planner item", () => {
+    const result = budgetPlanItemCreateSchema.parse({
+      stream: "HOLIDAY",
+      label: "Summer trip",
+      amount: "1200",
+      cadence: "YEARLY",
+      colorCode: "#22c55e",
+    });
+
+    expect(result).toEqual({
+      stream: "HOLIDAY",
+      label: "Summer trip",
+      amount: 1200,
+      cadence: "YEARLY",
+      colorCode: "#22c55e",
+    });
+  });
+
+  it("should accept the aggregate spending planner stream", () => {
+    const result = budgetPlanItemCreateSchema.parse({
+      stream: "SPENDING",
+      label: "Spending",
+      amount: "500",
+      cadence: "MONTHLY",
+    });
+
+    expect(result.stream).toBe("SPENDING");
+  });
+
+  it("should reject invalid custom item streams and cadence values", () => {
+    expect(() =>
+      budgetPlanItemCreateSchema.parse({
+        stream: "OTHER",
+        label: "Something",
+        amount: 10,
+        cadence: "WEEKLY",
+      }),
+    ).toThrow();
+  });
+
+  it("should accept a planner item amount and enabled update", () => {
+    const result = budgetPlanItemUpdateSchema.parse({
+      amount: "300.50",
+      enabled: false,
+    });
+
+    expect(result).toEqual({
+      amount: 300.5,
+      enabled: false,
+    });
+  });
+
+  it("should reject an empty planner item update", () => {
+    expect(() => budgetPlanItemUpdateSchema.parse({})).toThrow(
+      "At least one field is required",
+    );
   });
 });

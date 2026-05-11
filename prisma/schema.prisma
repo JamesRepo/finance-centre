@@ -74,6 +74,40 @@ model Budget {
   @@map("budgets")
 }
 
+model BudgetPlan {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(200)
+  startMonth DateTime @map("start_month")
+  endMonth   DateTime @map("end_month")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  items BudgetPlanItem[]
+
+  @@map("budget_plans")
+}
+
+model BudgetPlanItem {
+  id        Int      @id @default(autoincrement())
+  planId    Int      @map("plan_id")
+  stream    String
+  sourceId  String?  @map("source_id")
+  label     String   @db.VarChar(255)
+  amount    Decimal
+  cadence   String
+  colorCode String?  @map("color_code")
+  sortOrder Int      @map("sort_order")
+  isCustom  Boolean  @default(false) @map("is_custom")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  plan BudgetPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, stream])
+  @@map("budget_plan_items")
+}
+
 model Debt {
   id               Int       @id @default(autoincrement())
   name             String    @db.VarChar(100)

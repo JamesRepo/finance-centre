@@ -101,6 +101,89 @@ const hexColorSchema = z
   .trim()
   .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a valid 6-digit hex code");
 
+export const budgetPlanStreamSchema = z.enum([
+  "SPENDING",
+  "CATEGORY",
+  "HOUSING",
+  "SUBSCRIPTION",
+  "HOLIDAY",
+  "DEBT",
+  "SAVINGS",
+  "INCOME",
+]);
+
+export const budgetPlanCadenceSchema = z.enum(["MONTHLY", "YEARLY"]);
+
+export const budgetPlanIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+export const budgetPlanItemIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  itemId: z.coerce.number().int().positive(),
+});
+
+export const budgetPlanCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    startMonth: budgetMonthSchema,
+    endMonth: budgetMonthSchema,
+  })
+  .refine((value) => value.endMonth >= value.startMonth, {
+    message: "End month must be on or after start month",
+    path: ["endMonth"],
+  });
+
+export const budgetPlanUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    startMonth: budgetMonthSchema.optional(),
+    endMonth: budgetMonthSchema.optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  })
+  .refine(
+    (value) =>
+      value.startMonth === undefined ||
+      value.endMonth === undefined ||
+      value.endMonth >= value.startMonth,
+    {
+      message: "End month must be on or after start month",
+      path: ["endMonth"],
+    },
+  );
+
+export const budgetPlanItemCreateSchema = z.object({
+  stream: budgetPlanStreamSchema,
+  label: z.string().trim().min(1).max(255),
+  amount: z.coerce.number().nonnegative(),
+  cadence: budgetPlanCadenceSchema,
+  colorCode: z.preprocess(
+    emptyStringToUndefined,
+    hexColorSchema.optional(),
+  ),
+});
+
+export const budgetPlanItemUpdateSchema = z
+  .object({
+    label: z.string().trim().min(1).max(255).optional(),
+    amount: z.coerce.number().nonnegative().optional(),
+    cadence: budgetPlanCadenceSchema.optional(),
+    colorCode: z.preprocess((value) => {
+      if (value === null) {
+        return null;
+      }
+
+      return emptyStringToUndefined(value);
+    }, hexColorSchema.nullable().optional()),
+    enabled: z.boolean().optional(),
+    sortOrder: z.coerce.number().int().nonnegative().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one field is required",
+  });
+
 export const categoryCreateSchema = z.object({
   name: z.string().trim().min(1, "Category name is required"),
   colorCode: z.preprocess(
@@ -552,6 +635,12 @@ export type TransactionVendorLookupQuery = z.infer<
 >;
 export type BudgetListQuery = z.infer<typeof budgetListQuerySchema>;
 export type BudgetUpsertInput = z.infer<typeof budgetUpsertSchema>;
+export type BudgetPlanStream = z.infer<typeof budgetPlanStreamSchema>;
+export type BudgetPlanCadence = z.infer<typeof budgetPlanCadenceSchema>;
+export type BudgetPlanCreateInput = z.infer<typeof budgetPlanCreateSchema>;
+export type BudgetPlanUpdateInput = z.infer<typeof budgetPlanUpdateSchema>;
+export type BudgetPlanItemCreateInput = z.infer<typeof budgetPlanItemCreateSchema>;
+export type BudgetPlanItemUpdateInput = z.infer<typeof budgetPlanItemUpdateSchema>;
 export type DebtCreateInput = z.infer<typeof debtCreateSchema>;
 export type DebtUpdateInput = z.infer<typeof debtUpdateSchema>;
 export type DebtPaymentCreateInput = z.infer<typeof debtPaymentCreateSchema>;
