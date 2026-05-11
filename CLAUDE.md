@@ -8,6 +8,7 @@ Finance Centre is a single-user personal finance application built with Next.js,
 
 - transactions and categories
 - monthly budgets
+- long-term budget planning scenarios
 - debts and payments
 - savings goals and contributions
 - housing costs and subscriptions
@@ -39,6 +40,7 @@ src/
     api/                Route handlers for all app domains
     analysis/           Multi-month analytics UI
     budgets/
+      planner/
     debts/
     fixed-costs/
     holidays/
@@ -109,6 +111,7 @@ Primary routes:
 - `/transactions`
 - `/transactions/summary`
 - `/budgets`
+- `/budgets/planner`
 - `/debts`
 - `/savings`
 - `/housing`
@@ -129,6 +132,8 @@ Core models:
 - `Transaction`
 - `TransactionLineItem`
 - `Budget`
+- `BudgetPlan`
+- `BudgetPlanItem`
 - `Debt`
 - `DebtPayment`
 - `SavingsGoal`

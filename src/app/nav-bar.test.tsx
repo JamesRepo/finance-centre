@@ -37,13 +37,14 @@ describe("[Component] NavBar", () => {
     vi.clearAllMocks();
   });
 
-  it("should render all twelve navigation links", () => {
+  it("should render all thirteen navigation links", () => {
     render(<NavBar />);
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/transactions");
     expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/transactions/summary");
     expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
+    expect(screen.getByRole("link", { name: "Planner" })).toHaveAttribute("href", "/budgets/planner");
     expect(screen.getByRole("link", { name: "Debts" })).toHaveAttribute("href", "/debts");
     expect(screen.getByRole("link", { name: "Savings" })).toHaveAttribute("href", "/savings");
     expect(screen.getByRole("link", { name: "Housing" })).toHaveAttribute("href", "/housing");
@@ -130,6 +131,17 @@ describe("[Component] NavBar", () => {
     expect(incomeLink.className).toContain("border-sky-400");
   });
 
+  it("should highlight both Budgets and Planner when on /budgets/planner", () => {
+    mockPathname = "/budgets/planner";
+    render(<NavBar />);
+
+    const budgetsLink = screen.getByRole("link", { name: "Budgets" });
+    const plannerLink = screen.getByRole("link", { name: "Planner" });
+
+    expect(budgetsLink.className).toContain("border-sky-400");
+    expect(plannerLink.className).toContain("border-sky-400");
+  });
+
   it("should highlight the Debts link when on a sub-path like /debts/123", () => {
     mockPathname = "/debts/123";
     render(<NavBar />);
@@ -199,21 +211,28 @@ describe("[Component] NavBar", () => {
     const transactionsIdx = labels.indexOf("Transactions");
     const summaryIdx = labels.indexOf("Summary");
     const budgetsIdx = labels.indexOf("Budgets");
+    const plannerIdx = labels.indexOf("Planner");
 
     expect(transactionsIdx).toBeLessThan(summaryIdx);
     expect(summaryIdx).toBeLessThan(budgetsIdx);
     expect(transactionsIdx).toBeLessThan(budgetsIdx);
+    expect(budgetsIdx).toBeLessThan(plannerIdx);
   });
 
-  it("should render Summary as an indented secondary navigation item", () => {
+  it("should render secondary navigation items as indented links", () => {
     render(<NavBar />);
 
     const summaryLink = screen.getByRole("link", { name: "Summary" });
+    const plannerLink = screen.getByRole("link", { name: "Planner" });
 
     expect(summaryLink.className).toContain("ml-4");
     expect(summaryLink.className).toContain("self-start");
     expect(summaryLink.className).toContain("text-xs");
     expect(summaryLink.className).toContain("py-2");
+    expect(plannerLink.className).toContain("ml-4");
+    expect(plannerLink.className).toContain("self-start");
+    expect(plannerLink.className).toContain("text-xs");
+    expect(plannerLink.className).toContain("py-2");
   });
 
   it("should render Tracking group links in correct order", () => {

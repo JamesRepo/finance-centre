@@ -15,7 +15,13 @@ const navGroups = [
           { href: "/transactions/summary", label: "Summary" },
         ],
       },
-      { href: "/budgets", label: "Budgets" },
+      {
+        href: "/budgets",
+        label: "Budgets",
+        children: [
+          { href: "/budgets/planner", label: "Planner" },
+        ],
+      },
     ],
   },
   {

@@ -16,6 +16,7 @@ Self-hosted personal finance tracking for a single household. The app covers day
 
 - Spending transactions with optional line-item breakdowns
 - Monthly budgets by category
+- Saved long-term budget planning scenarios across income, spending, debt, and savings
 - Transaction summaries by month, year, and week
 - Debt tracking with payment and interest history
 - Savings goals with contribution history
@@ -92,6 +93,7 @@ Open `http://localhost:3000/login` and sign in with the email and password you s
 - `/transactions` transaction entry and list
 - `/transactions/summary` spending summaries
 - `/budgets` monthly budgets
+- `/budgets/planner` saved long-term budget scenarios
 - `/debts` debt tracking
 - `/savings` savings goals
 - `/housing` housing expense cards with monthly summaries and explicit save/reset/clear actions
@@ -116,6 +118,7 @@ Open `http://localhost:3000/login` and sign in with the email and password you s
 The schema currently covers these core models:
 
 - Spending: `Category`, `Transaction`, `TransactionLineItem`, `Budget`
+- Planning: `BudgetPlan`, `BudgetPlanItem`
 - Debt: `Debt`, `DebtPayment`
 - Savings: `SavingsGoal`, `SavingsContribution`
 - Fixed costs: `HousingExpense`, `Subscription`
